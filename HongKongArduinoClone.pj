@@ -1,0 +1,24 @@
+' ActiveBasic Project file.
+
+#VERSION=9
+
+#MODULETYPE=0
+
+#NAME=HongKongArduinoClone
+
+#PLATFORM=32
+
+#USEWINDOW=1
+
+#OPTION=&H00010000
+
+#OUTPUT_RELEASE=.\HongKongArduinoClone.exe
+
+#OUTPUT_DEBUG=.\HongKongArduinoClone_debug.exe
+
+#RESOURCE=HongKongArduinoClone.rc
+
+#SOURCE
+HongKongArduinoClone.abp
+MainWnd.sbp
+Functions.abp

@@ -1,0 +1,651 @@
+'-----------------------------------------------------------------------------
+'  イベント プロシージャ
+'-----------------------------------------------------------------------------
+' このファイルには、ウィンドウ [MainWnd] に関するイベントをコーディングします。
+' ウィンドウ ハンドル: hMainWnd
+
+' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
+
+Dim hCOM AS HANDLE
+Dim pDBM As DWord	'デバッグログの終端位置
+
+'ダイアログの状態
+Enum DLG_STATUS
+	STATUS_CONNECTED
+	STATUS_DUMPING
+	STATUS_CLOSED
+End Enum
+
+'-----------------------------------------------------------------------------
+' ウィンドウメッセージを処理するためのコールバック関数
+
+Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
+
+	' イベントプロシージャの呼び出しを行います。
+	MainWndProc=EventCall_MainWnd(hWnd,dwMsg,wParam,lParam)
+End Function
+
+'-----------------------------------------------------------------------------
+' ここから下は、イベントプロシージャを記述するための領域になります。
+Function MWnd(DlgItem AS Long) AS HWND
+	MWnd=GetDlgItem(hMainWnd,DlgItem)
+EndFunction
+
+Sub MainWnd_Destroy()
+	if hCOM<>0 Then CloseHandle(hCOM)
+
+	HongKongArduinoClone_DestroyObjects()
+	PostQuitMessage(0)
+End Sub
+
+Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
+	DBM(""+ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016\r\nThis program was cloned \r\n     from WinHongKongArduino\r\nCopyright (c) 2014 たにやま\r\n")
+
+	SetIniPath()
+	ListUpComPort(GetDlgItem(hMainWnd,ComList))
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"LoROM" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"HiROM" AS Long)
+	
+    SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
+	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 AS BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
+
+	SetDlgEnable(STATUS_CLOSED)
+
+	Dim baudrate As DWord
+	baudrate=GetPrivateProfileInt(ProgramName,"BaudRate",DEFAULT_BAUDRATE,INIFILE_PATH)
+	if baudrate=0 Then baudrate=DEFAULT_BAUDRATE
+	SetWindowText(MWnd(EditBox6),Str$(baudrate))
+End Sub
+
+Sub SetIniPath()
+	'INIファイルへのパスを記録
+	Dim Path[MAX_PATH+20] As Byte,i AS Long
+
+	'自己のファイルパスを取得
+		GetModuleFileName(NULL,Path,MAX_PATH)
+		For i = lstrlen(Path) To 0 Step -1
+			If Path[i]=&H5C then ExitFor' \ だったら
+		Next i
+		Path[i+1]=0'￥以下を潰す
+
+	INIFILE_PATH=calloc(lstrlen(Path)+Len(INIFILE_NAME)+10)
+	lstrcpy(INIFILE_PATH,Path)
+	lstrcat(INIFILE_PATH,INIFILE_NAME)
+EndSub
+
+Sub ListUpComPort(Wnd AS HWND)
+	Dim buf AS BytePtr,p AS DWord,C AS Long
+	dim QDD_BUFSIZE AS DWord
+
+	QDD_BUFSIZE=GetPrivateProfileInt(ProgramName,"QDDSize",DEFAULT_QDD_BUFSIZE,INIFILE_PATH)
+	if QDD_BUFSIZE<1024 Then 
+		QDD_BUFSIZE=DEFAULT_QDD_BUFSIZE
+		DBM("QDD size fixed.")
+		WritePrivateProfileString(ProgramName,"QDDSize",Str$(QDD_BUFSIZE),INIFILE_PATH)
+	endif
+
+	SendMessage(Wnd,CB_RESETCONTENT,0,0)
+
+	buf=calloc(QDD_BUFSIZE)
+	if QueryDosDevice(NULL,buf,QDD_BUFSIZE) = 0 Then 
+		SendMessage(Wnd,CB_ADDSTRING,0,"Error!" AS Long)
+		p=GetLastError()
+		DBM(ex"COM Port Listup Error!\r\nCode."+Str$(p))
+		if p=122 Then
+			ErrMes(hMainWnd,ex"デバイスリストバッファのサイズが小さすぎます\n"+INIFILE_NAME+"を開き、QDDSizeの右辺の値を増やしてください。","QueryDosDevice Error",0)
+		Endif
+		Goto *LUCP_EXIT
+	endif	
+	Do
+		if win_strcmp(buf+p,"COM",3)=TRUE Then	
+			SendMessage(Wnd,CB_ADDSTRING,0,(buf+p) AS Long)
+			C++
+		Endif
+		While buf[p]<>0
+			p++
+		Wend
+		p++
+		if buf[p+1]=0 Then Exitdo	'ダブルNULLで終了
+	Loop
+
+*LUCP_EXIT
+	free(buf)
+
+	if C=0 then SendMessage(Wnd,CB_ADDSTRING,0,"None" AS Long)
+	SendMessage(Wnd,CB_SETCURSEL,0,0)
+EndSub
+
+Sub DBM(Text AS BytePtr)
+	'改行つきデバッグログ出力
+	Dim NowText AS BytePtr,texLen AS DWord
+
+	texLen=lstrlen(Text)
+	NowText=calloc(pDBM+texLen+5)
+
+	GetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText,pDBM+1)
+	memcpy(NowText+pDBM,Text,texLen)
+	memcpy(NowText+pDBM+texLen,ex"\r\n\0",3)
+
+	SetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText)
+
+	free(NowText)
+	pDBM+=texLen+2
+
+	SendMessage(MWnd(EditBox1),EM_SETSEL,pDBM-1,pDBM)
+	SendMessage(MWnd(EditBox1),EM_SCROLLCARET,0,0)
+	
+EndSub
+
+Sub DBMN(Text AS BytePtr)
+	'改行なしデバッグログ出力
+	Dim NowText AS BytePtr,texLen AS DWord
+
+	texLen=lstrlen(Text)
+	NowText=calloc(pDBM+texLen+5)
+
+	GetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText,pDBM+1)
+	memcpy(NowText+pDBM,Text,texLen)
+
+	SetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText)
+	pDBM+=texLen
+
+	PostMessage(MWnd(EditBox1),EM_SETSEL,pDBM-1,pDBM)
+	PostMessage(MWnd(EditBox1),EM_SCROLLCARET,0,0)
+
+	free(NowText)
+
+EndSub
+
+Sub MainWnd_CommandButton5_Click()
+	if hCOM=0 then
+		'接続
+		Dim txCom AS BytePtr,rate AS DWord
+
+		rate=GetDlgItemInt(hMainWnd,EditBox6,NULL,FALSE)
+		if rate=0 Then ErrMes(hMainWnd,"ボーレートが不正です。","接続失敗",0):ExitSub
+
+		txCom=GetWndTextMalloc(GetDlgItem(hMainWnd,ComList))
+		DBM("Connect to "+MakeStr(txCom))
+
+		hCOM=ConnectToCOM(txCom,rate)
+
+		if hCOM =< 0 Then 
+			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。\nErr."+Str$(GetLastError()),"接続失敗",0)
+			DBM("Failed.")
+			hCOM=0
+			free(txCom)	
+			ExitSub
+		Else
+			DBM(ex"Connection successful!\r\n")
+		endif
+
+		free(txCom)	
+
+		SetWindowText(MWnd(CommandButton5),"Close")
+		SetDlgEnable(STATUS_CONNECTED)
+		
+		MainWnd_CommandButton1_Click()
+
+	Else
+		'切断
+		CloseHandle(hCOM)
+		hCOM=0
+		SetWindowText(MWnd(CommandButton5),"Connect")
+		SetDlgEnable(STATUS_CLOSED)
+
+
+		DBM(ex"Connection is closed.\r\n")
+	endif
+
+End Sub
+
+Sub SetDlgEnable(Mode AS DLG_STATUS)
+	'ボタンの有効/無効セット
+
+	Dim isEnable As Long
+	if Mode=STATUS_CONNECTED Or Mode=STATUS_DUMPING then
+		isEnable=FALSE
+	Else Mode=STATUS_CLOSED Then
+		isEnable=TRUE
+	endif
+	EnableWindow(MWnd(ComList),isEnable)
+	EnableWindow(MWnd(EditBox6),isEnable)
+	EnableWindow(MWnd(Static9),isEnable)
+	EnableWindow(MWnd(Static10),isEnable)
+
+	if Mode=STATUS_DUMPING Then isEnable=NOT(isEnable) And &H01
+
+	EnableWindow(MWnd(CommandButton1),NOT(isEnable) And &H01)
+	EnableWindow(MWnd(CommandButton2),NOT(isEnable) And &H01)
+	EnableWindow(MWnd(CommandButton3),NOT(isEnable) And &H01)
+	EnableWindow(MWnd(CommandButton4),NOT(isEnable) And &H01)	
+
+	EnableWindow(MWnd(MAPPING),NOT(isEnable) And &H01)	
+	if Mode=STATUS_DUMPING Then 
+		EnableWindow(MWnd(CommandButton5),FALSE)
+	Else
+		EnableWindow(MWnd(CommandButton5),TRUE)		
+	endif
+
+EndSub
+
+Function GetWndTextMalloc(hWnd AS HWND) As BytePtr
+	'コントロールのテキスト取得
+	Dim buf AS BytePtr
+	buf=calloc(GetWindowTextLength(hWnd)+20)
+	GetWindowText(hWnd,buf,GetWindowTextLength(hWnd)+1)
+
+	GetWndTextMalloc=buf
+EndFunction
+
+Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
+'	DBM("PressKey:"+Hex$(KeyCode))
+	Select Case KeyCode
+		Case &H70 : SpeedTest()
+		Case &H74 : ListUpComPort(GetDlgItem(hMainWnd,ComList))
+	EndSelect
+End Sub
+
+Sub SpeedTest()
+	'Arduinoとの接続速度テスト
+	Dim rd AS BytePtr,mes[256] AS Byte,total As DWord,lt AS DWord,i AS Long
+	DBM("Speedtest : Read 1KB*10")
+	Const TEST_READ_SIZE=1024
+	rd=calloc(TEST_READ_SIZE)
+	total=0:lt=0
+	For i = 0 To 9
+		lt=GetTickCount()
+		ReadROM(hCOM,rd, 0, i*TEST_READ_SIZE, TEST_READ_SIZE,FALSE)
+		total+=GetTickCount()-lt
+		wsprintf(mes,ex"\t[%d]Time : %dms",i,GetTickCount()-lt)
+		DBM(mes)
+	Next i
+	wsprintf(mes,ex"Total:%dms\r\nAverage:%dms\r\nSpeed : %dbyte/sec\r\n",total,total/9,(TEST_READ_SIZE*10)/(total/1000))
+	DBM(mes)
+	free(rd)
+End Sub
+
+Sub SetCartInfo(info AS *SFC_ROM_HEADER)
+	'SFC_ROM_HEADERの内容をGUIに表示
+
+	Dim CartChip[512] AS Byte
+	Const UNK_CART_TYPE_TEXT = "UNKNOWN CART TYPE"
+
+	SetWindowText(MWnd(ROMTITLE),info->Title)
+	if info->ROMType=SFC_ROM_HiROM Then
+		SendMessage(MWnd(MAPPING),CB_SETCURSEL,0,0)
+	Else
+		SendMessage(MWnd(MAPPING),CB_SETCURSEL,1,1)
+	endif
+	DBMN("Chips : ")
+	wsprintf(CartChip,"[%02X]",info->CartType)
+	DBMN(CartChip)
+	lstrcpy(CartChip,"ROM")
+
+	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
+	Select Case info->CartType>>4
+		Case &H00
+			Select Case info->CartType And &H0F
+				Case &H00 : lstrcat(CartChip,"")
+				Case &H01 : lstrcat(CartChip,"+RAM")
+				Case &H02 : lstrcat(CartChip,"+RAM+SRAM")
+				Case &H03 : lstrcat(CartChip,"+DSP")
+				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
+				Case &H05 : lstrcat(CartChip,"+DSP+RAM+SRAM")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case &H01 'SuperFX
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
+				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
+				Case &H05 : lstrcat(CartChip,"+GSU+RAM+SRAM")
+				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+SRAM")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+			lstrcat(CartChip," [SuperFX]")
+		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+SRAM")
+		Case &H03 
+			if info->CartType And &H0F = 4 Then
+				 lstrcat(CartChip,"+SA-1+RAM")
+			Elseif info->CartType And &H0F = 5 then
+				 lstrcat(CartChip,"+SA-1+RAM+SRAM")
+			Else
+				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			endif
+		Case &H04
+			lstrcat(CartChip,"+SDD1+")
+			if info->CartType And &H0F = 3 Then
+			Elseif info->CartType And &H0F = 5 then
+				 lstrcat(CartChip,"RAM+SRAM")
+			Else
+				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			endif
+		Case &H05 : lstrcat(CartChip,"+S-RTC+RAM+SRAM")
+		Case &H0E 
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
+				Case &H05 : lstrcat(CartChip,"+BS-X")
+				Case &H0A : lstrcat(CartChip,"+CX4")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case &H0F
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+CX4")
+				Case &H05
+					if info->ROMType=SFC_ROM_LoROM Then
+						lstrcat(CartChip,"+ST018+RAM+SRAM")
+					Else
+						lstrcat(CartChip,"+SPC7110+RAM+SRAM")
+					endif
+				Case &H0A6
+					if info->ROMSize=&H100000 Then
+						lstrcat(CartChip,"+ST010")
+					Else
+						lstrcat(CartChip,"+ST011")
+					endif
+				Case &H03 : lstrcat(CartChip,"+SPC7110+RAM+SRAM+RTC")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case Else
+			lstrcat(CartChip,"UNKNOWN CART TYPE")
+	EndSelect
+	DBM(CartChip)
+
+	SetWindowText(MWnd(CART_CIPS),CartChip)
+	SetWindowText(MWnd(ROM_SIZE),Str$(info->ROMSize/1024)+"KB ["+Str$((info->ROMSize*8)/(1024^2))+"MBit]")
+	if info->SRAMSize =0 Then
+		SetWindowText(MWnd(SRAM_SIZE),"None")		
+	Else
+		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
+	endif
+
+	DBMN("Country : ")
+	Select Case info->Country
+		Case 00 : DBM("Japan")
+		Case 01 : DBM("USA")
+		Case 02 : DBM("Europe")
+		Case 03 : DBM("UnDefined")
+	EndSelect
+
+	DBM("Version : "+Str$(info->Version/10+1.0))
+	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
+	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
+	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
+	DBM("")
+
+EndSub	
+
+
+
+Sub MainWnd_CommandButton2_Click()
+	'ROM吸出しボタン
+
+	Dim info AS SFC_ROM_HEADER
+	Dim path As BytePtr
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.smc)\0*.smc\0すべてのファイル(*.*)\0*.*\0\0","smc")
+	if path=0 Then ExitSub
+#else
+	path="dump.smc"
+#endif
+
+	GetSFCinfo(info)
+
+	DumpFullROM(VarPtr(info),path)
+
+#ifndef _DEBUG
+	free(path)
+#endif
+
+	MessageBeep(MB_ICONASTERISK)
+End Sub
+
+Sub GetDlgOption(ByRef info as SFC_ROM_HEADER) 
+	'LoROM/HiROMの選択とMAD1のチェック取得
+
+	Dim Tmp[2] AS Byte
+
+	GetWindowText(MWnd(MAPPING),Tmp,3)
+	if Tmp[0]=Asc("H") Then 
+		info.ROMType=SFC_ROM_HiROM
+	Else
+		info.ROMType=SFC_ROM_LoROM
+	Endif
+
+	info.Mad=GetCheckBox(MWnd(CheckBox1))
+	if info.Mad=TRUE Then
+		if info.ROMType=SFC_ROM_HiROM Then
+			info.SRAMAddress=SRAM_ADDRESS_HiROM_MAD
+		Else
+			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
+		endif
+	endif
+EndSub
+
+Function GetCheckBox(Ctrl As HWND) As Byte
+	if SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
+		GetCheckBox=TRUE
+	Else
+		GetCheckBox=FALSE
+	endif
+endfunction
+
+Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
+	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
+	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
+
+	Dim buf AS BytePtr,nowSize As DWord,lt AS DWord,Size AS DWord,bRomType AS Byte
+	Dim i AS Long,hout AS HANDLE,C AS Long'コンテニューカウンタ
+	Dim ret AS DWord,time AS DWord
+
+	if info->ROMType=SFC_ROM_HiROM Then
+		bRomType=FALSE
+	Else
+		bRomType=TRUE
+	Endif
+
+	buf=calloc(DUMP_BUFFER_SIZE+12)
+	SendControl(hCOM,12)
+
+	DBMN("Dumping")
+	hout=OpenFile(Path,GENERIC_WRITE)
+
+	lt=GetTickCount()
+	Size=info->ROMSize
+
+	'設定ファイル読み込み
+	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
+	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
+	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
+
+	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
+	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(Size/DUMP_BUFFER_SIZE) As Word))
+	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
+	SetDlgEnable(STATUS_DUMPING)
+
+	Do
+		ret=ReadROM(hCOM,buf, 0, DUMP_BUFFER_SIZE*i, DUMP_BUFFER_SIZE,bRomType)
+		if ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
+		if ret<>DUMP_BUFFER_SIZE Then 
+			DBM(ex"\r\n["+Str$(C)+ex"]Warning!")
+			C++
+			if C>MAX_CONTINUE Then DBM("Over retry count.")
+			Continue
+		endif
+		OutFile(hout,buf,DUMP_BUFFER_SIZE)
+	
+		i++
+		if DUMP_BUFFER_SIZE*i>=Size Then ExitDo
+
+		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
+		SetWindowText(MWnd(Static7),Str$(Int((DUMP_BUFFER_SIZE*i)/Size*100))+"%")
+		DBMN(".")
+		PumpMessage()
+	Loop	
+	time=GetTickCount()-lt
+
+	DBM(ex"\r\nSuccessful!")
+	
+	DBM("Time  : "+Str$(time)+ex"ms")
+	DBM("Speed : "+Str$(Int(Size/(time/1000)) AS Long)+ex"byte/sec\r\n")
+
+*EXIT_DUMP
+	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
+	SetWindowText(MWnd(Static7),"100%")
+	SetDlgEnable(STATUS_CONNECTED)
+
+	CloseHandle(hout)
+	free(buf)
+
+	SetAddress(hCOM,0,FALSE)
+EndSub
+
+
+Sub MainWnd_CommandButton1_Click()
+	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_ROM_HEADER
+	DBM( "Get Cartridge Infomation")
+	
+	'ヘッダを読み出し＆ダイアログに情報を表示
+	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
+	SloveCartInfo(buf,VarPtr(cartInfo))
+	SetCartInfo(VarPtr(cartInfo))
+
+	'アクセスランプをLow
+	SetAddress(hCOM,&H000000,FALSE)
+
+End Sub
+
+Sub MainWnd_EditBox6_Change()
+
+End Sub
+
+/*
+	Todo:ダブルクリックでテキストボックスを有効にして手動ROM・RAMサイズ入力
+*/	
+
+Sub MainWnd_QueryClose(ByRef cancel As Integer)
+	SaveIniFile()
+End Sub
+
+Sub SaveIniFile()
+	Dim ratestr As BytePtr,Tmp AS DWord
+
+	ratestr=GetWndTextMalloc(MWnd(EditBox6))
+	WritePrivateProfileString(ProgramName,"BaudRate",ratestr,INIFILE_PATH)
+	free(ratestr)
+
+	Tmp=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
+	WritePrivateProfileString(ProgramName,"MaxContinue",Str$(Tmp),INIFILE_PATH)
+
+	Tmp=GetPrivateProfileInt(ProgramName,"QDDSize",DEFAULT_QDD_BUFSIZE,INIFILE_PATH)
+	if Tmp=0 Then Tmp=DEFAULT_QDD_BUFSIZE
+	WritePrivateProfileString(ProgramName,"QDDSize",Str$(Tmp),INIFILE_PATH)
+	
+	Tmp=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
+	if Tmp <= 0 Then Tmp=DEFAULT_DUMP_SIZE
+	WritePrivateProfileString(ProgramName,"DumpBufferSize",Str$(Tmp),INIFILE_PATH)
+EndSub
+
+Sub MainWnd_CommandButton3_Click()
+	Dim info AS SFC_ROM_HEADER
+	Dim path As BytePtr
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
+	if path=0 Then ExitSub
+#else
+	path="dump.srm"
+#endif
+	GetSFCinfo(info)
+
+	DumpSRAM(hCOM,VarPtr(info),path)
+#ifndef _DEBUG
+	free(path)
+#endif
+	MessageBeep(MB_ICONASTERISK)
+
+End Sub
+
+Sub GetSFCinfo(ByRef info as SFC_ROM_HEADER)
+	'カートリッジからヘッダを読み込んでSFC_ROM_HEADER構造体に格納
+
+	Dim buf[SFC_SPEC_HEADER_SIZE+5] AS Byte
+	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
+	SloveCartInfo(buf,VarPtr(info))
+
+	GetDlgOption(info)
+
+	SetCartInfo(VarPtr(info))
+EndSub
+
+Sub MainWnd_CommandButton4_Click()
+	Dim path AS BytePtr
+
+#ifndef _DEBUG
+	path=LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
+	if path=0 Then ExitSub
+#else
+	path="dump.srm"
+#endif
+	if MessageBox(hMainWnd,ex"この操作を行うとカセット内のセーブデータの内容が消えて上書きされます。\nまた、この機能は未完成のため正常にデータが書き込めない可能性があります。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
+	Dim info AS SFC_ROM_HEADER
+	GetSFCinfo(info)
+	WriteSRAM(hCOM,VarPtr(info),path)
+#ifndef _DEBUG
+	free(path)
+#endif
+	MessageBeep(MB_ICONASTERISK)
+End Sub
+
+Function SaveDialogCalloc(filter AS BytePtr,ext AS String)	As BytePtr
+	Dim tOfn As OPENFILENAME,i As DWord
+
+	'ファイルオープン構造体の初期化
+	tOfn.lStructSize = SizeOf(OPENFILENAME)-SizeOf(DWord)*2-SizeOf(VoidPtr)
+	tOfn.hwndOwner = hMainWnd
+	tOfn.lpstrFilter = filter'ex"wavファイル(*.wav)\0*.wav\0すべてのファイル(*.*)\0*.*\0\0"'StrPtr(sFilter)
+	tOfn.nFilterIndex = 1
+	tOfn.nMaxFile = MAX_PATH
+	tOfn.Flags=OFN_OVERWRITEPROMPT
+	tOfn.lpstrDefExt=StrPtr(ext)'"wav"
+	tOfn.lpstrFile = calloc(MAX_PATH+10)
+
+	'ファイルオープンダイアログを表示する
+	If GetSaveFileName(tOfn) = 0 Then
+		ExitFunction
+	End If
+	
+	SaveDialogCalloc=calloc(lstrlen(tOfn.lpstrFile)+1)
+	lstrcpy(SaveDialogCalloc,tOfn.lpstrFile)
+	free(tOfn.lpstrFile)
+EndFunction
+
+Function LoadDialogCalloc(filter AS BytePtr,ext AS String)	As BytePtr
+	Dim tOfn As OPENFILENAME,i As DWord
+
+	'ファイルオープン構造体の初期化
+	tOfn.lStructSize = SizeOf(OPENFILENAME)-SizeOf(DWord)*2-SizeOf(VoidPtr)
+	tOfn.hwndOwner = hMainWnd
+	tOfn.lpstrFilter = filter'ex"wavファイル(*.wav)\0*.wav\0すべてのファイル(*.*)\0*.*\0\0"'StrPtr(sFilter)
+	tOfn.nFilterIndex = 1
+	tOfn.nMaxFile = MAX_PATH
+	tOfn.Flags=OFN_OVERWRITEPROMPT
+	tOfn.lpstrDefExt=StrPtr(ext)'"wav"
+	tOfn.lpstrFile = calloc(MAX_PATH+10)
+
+	'ファイルオープンダイアログを表示する
+	If GetOpenFileName(tOfn) = 0 Then
+		ExitFunction
+	End If
+	
+	LoadDialogCalloc=calloc(lstrlen(tOfn.lpstrFile)+1)
+	lstrcpy(LoadDialogCalloc,tOfn.lpstrFile)
+	free(tOfn.lpstrFile)
+EndFunction
+
+Sub MainWnd_Static1_Click()
+	exec("http://hongkongarduino.web.fc2.com/")
+End Sub
+

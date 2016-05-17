@@ -1,0 +1,179 @@
+'このファイルはウィンドウ定義ファイル（*.wnd）をもとに生成されています
+
+Const Static1=1000
+Const Static2=1001
+Const ComList=1002
+Const Static3=1003
+Const Static4=1004
+Const Static5=1005
+Const CART_CIPS=1006
+Const Static6=1007
+Const ROM_SIZE=1008
+Const Static8=1009
+Const SRAM_SIZE=1010
+Const CommandButton1=1011
+Const CommandButton2=1012
+Const CommandButton3=1013
+Const CommandButton4=1014
+Const GroupBox1=1015
+Const hProg=1016
+Const EditBox1=1017
+Const EditBox6=1018
+Const Static9=1019
+Const Static10=1020
+Const CommandButton5=1021
+Const MAPPING=1022
+Const Static7=1023
+Const CheckBox1=1024
+Const ROMTITLE=1025
+
+Dim hMainWnd As HWND
+Dim hFont_MainWnd As HFONT
+hFont_MainWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"ＭＳ Ｐゴシック")
+Dim h3DFaceBrush As HBRUSH
+h3DFaceBrush=CreateSolidBrush(GetSysColor(COLOR_3DFACE))
+
+
+Sub HongKongArduinoClone_DestroyObjects()
+	DeleteObject(hFont_MainWnd)
+	DeleteObject(h3DFaceBrush)
+End Sub
+
+Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
+	Select Case message
+		Case WM_DESTROY
+			MainWnd_Destroy()
+		Case WM_CREATE
+			hMainWnd=hWnd
+			CreateWindowEx(&H00020000,"STATIC","This program is designed for http://hongkongarduino.web.fc2.com/",&H50000101,9,8,230,27,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","Serial Prot : ",&H50000000,13,50,60,12,hWnd,Static2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,79,45,99,215,hWnd,ComList As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,ComList),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","ROM Title : ",&H50000000,13,80,60,13,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static3),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","Mapping : ",&H50000000,13,103,60,13,hWnd,Static4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static4),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","Cart Cips : ",&H50000000,13,128,60,13,hWnd,Static5 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static5),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","",&H50000880,79,125,157,21,hWnd,CART_CIPS As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CART_CIPS),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","ROM Size : ",&H50000000,13,155,60,13,hWnd,Static6 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","",&H50000800,79,151,157,21,hWnd,ROM_SIZE As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,ROM_SIZE),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","RAM Size : ",&H50000000,13,182,58,13,hWnd,Static8 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static8),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","",&H50000800,79,179,157,21,hWnd,SRAM_SIZE As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,SRAM_SIZE),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","GetCartInfo",&H50000000,14,206,88,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","DumpROM",&H50000000,108,206,88,21,hWnd,CommandButton2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","DumpSRAM",&H50000000,51,233,88,21,hWnd,CommandButton3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton3),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","WriteSRAM",&H50000000,146,233,88,21,hWnd,CommandButton4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton4),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Infomation",&H50000007,254,7,209,213,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,GroupBox1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00020000,"msctls_progress32","",&H50000000,256,244,182,9,hWnd,hProg As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,hProg),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","",&H50203844,263,23,191,189,hWnd,EditBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","410000",&H50000002,382,223,56,17,hWnd,EditBox6 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","baudrate : ",&H50000000,326,226,50,12,hWnd,Static9 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static9),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","bps",&H50000000,442,226,23,11,hWnd,Static10 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Connect",&H50000000,186,44,51,21,hWnd,CommandButton5 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton5),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200102,79,100,157,84,hWnd,MAPPING As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,MAPPING),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","---",&H50000000,442,242,31,12,hWnd,Static7 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static7),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","MAD-1",&H50000003,256,226,59,13,hWnd,CheckBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","",&H50000800,79,74,157,21,hWnd,ROMTITLE As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,ROMTITLE),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			MainWnd_Create(ByVal (lParam As VoidPtr))
+		Case WM_KEYUP
+			MainWnd_KeyUp(wParam As Long,lParam As Long)
+		Case WM_CLOSE
+			Dim cancel=0 As Integer
+			MainWnd_QueryClose(cancel)
+			If cancel=0 Then DestroyWindow(hWnd)
+		Case WM_COMMAND
+			Select Case LOWORD(wParam)
+				Case CommandButton5
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton5_Click()
+					End Select
+				Case CommandButton2
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton2_Click()
+					End Select
+				Case CommandButton1
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton1_Click()
+					End Select
+				Case EditBox6
+					Select Case HIWORD(wParam)
+						Case EN_CHANGE
+							MainWnd_EditBox6_Change()
+					End Select
+				Case CommandButton3
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton3_Click()
+					End Select
+				Case CommandButton4
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton4_Click()
+					End Select
+				Case Static1
+					Select Case HIWORD(wParam)
+						Case STN_CLICKED
+							MainWnd_Static1_Click()
+					End Select
+			End Select
+		Case Else
+			EventCall_MainWnd=DefWindowProc(hWnd,message,wParam,lParam)
+			Exit Function
+	End Select
+	EventCall_MainWnd=0
+End Function
+
+Function DefaultCallProc(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
+	DefaultCallProc=DefWindowProc(hWnd,message,wParam,lParam)
+End Function
+
+Dim _RadSys_dlgwcl As WNDCLASSEX
+FillMemory(VarPtr(_RadSys_dlgwcl),Len(_RadSys_dlgwcl),0)
+_RadSys_dlgwcl.cbSize=Len(_RadSys_dlgwcl)
+_RadSys_dlgwcl.hInstance=GetModuleHandle(0)
+_RadSys_dlgwcl.style=CS_HREDRAW or CS_VREDRAW or CS_DBLCLKS
+_RadSys_dlgwcl.hIcon=LoadIcon(NULL,MAKEINTRESOURCE(IDI_APPLICATION))
+_RadSys_dlgwcl.hIconSm=LoadIcon(NULL,MAKEINTRESOURCE(IDI_WINLOGO))
+_RadSys_dlgwcl.hCursor=LoadCursor(NULL,MAKEINTRESOURCE(IDC_ARROW))
+_RadSys_dlgwcl.lpszClassName="NORMALDLG"
+_RadSys_dlgwcl.hbrBackground=h3DFaceBrush
+_RadSys_dlgwcl.lpfnWndProc=AddressOf(DefaultCallProc)
+RegisterClassEx(_RadSys_dlgwcl)
+
+Function DialogBox(hOwnerWnd As HWND, TemplateName As LPSTR) As LONG_PTR
+	Dim hDlg As HWND
+End Function
+Sub EndDialog(hWnd As HWND, lResult As Long)
+	EnableWindow(GetWindow(hWnd,GW_OWNER),1)
+	DestroyWindow(hWnd)
+	PostMessage(0,WM_QUIT,lResult,0)
+End Sub
+
+Function CreateDialog(hOwnerWnd As HWND, TemplateName As LPSTR) As HWND
+End Function

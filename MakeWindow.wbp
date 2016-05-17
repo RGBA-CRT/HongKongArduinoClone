@@ -1,0 +1,16 @@
+'このファイルはウィンドウ定義ファイル（*.wnd）をもとに生成されています
+
+Dim _RadSys_wcl As WNDCLASSEX
+FillMemory(VarPtr(_RadSys_wcl),Len(_RadSys_wcl),0)
+_RadSys_wcl.cbSize=Len(_RadSys_wcl)
+_RadSys_wcl.hInstance=GetModuleHandle(0)
+_RadSys_wcl.style=CS_HREDRAW or CS_VREDRAW or CS_DBLCLKS
+_RadSys_wcl.hCursor=LoadCursor(NULL,MAKEINTRESOURCE(IDC_ARROW))
+
+_RadSys_wcl.hIcon=LoadIcon(_RadSys_wcl.hInstance,MAKEINTRESOURCE(IDI_ICON1))
+_RadSys_wcl.hIconSm=LoadIcon(_RadSys_wcl.hInstance,MAKEINTRESOURCE(IDI_ICON1))
+_RadSys_wcl.lpszClassName="NORMAL0"
+_RadSys_wcl.lpfnWndProc=AddressOf(MainWndProc)
+_RadSys_wcl.hbrBackground=h3DFaceBrush
+RegisterClassEx(_RadSys_wcl)
+CreateWindowEx(&H00000000,"NORMAL0","HongKongArduinoClone v0.0",&H10ca0000,-2147483648,-2147483648,478,286,0,0,GetModuleHandle(0),0)

@@ -1,0 +1,39 @@
+'http://ttssh2.osdn.jp/manual/ja/reference/sourcecode.html#serial
+
+#console
+#include<RGBALib.sbp>
+'Declare Function QueryDosDevice Lib "kernel32" Alias "QueryDosDeviceA" ( lpDeviceName As BytePtr,  lpTargetPath As BytePtr,  ucchMax As DWord) As DWord
+
+Dim buf AS BytePtr,ret AS DWord
+Const QDD_BUFSIZE=1024*106
+
+buf=calloc(QDD_BUFSIZE)
+ret= QueryDosDevice(NULL,buf,QDD_BUFSIZE)
+Print "lasterror :";GetLastError()
+
+Dim p AS Long
+Do
+	if win_strcmp(buf+p,"COM",3)=TRUE Then	Print MakeStr(buf+p)
+	While buf[p]<>0
+		p++
+	Wend
+	p++
+	if buf[p+1]=0 Then Exitdo	'É_ÉuÉãNULLÇ≈èIóπ
+Loop
+Sleep(-1)
+/*
+Function win_strcmpi(str1 AS BytePtr,str2 AS BytePtr,Length AS DWord) AS BOOL
+	if CompareString(LOCALE_SYSTEM_DEFAULT,NORM_IGNORECASE,str1,Length,str2,Length) = CSTR_EQUAL Then
+		win_strcmpi=TRUE
+	Else
+		win_strcmpi=FALSE
+	endif
+EndFunction
+
+Function win_strcmp(str1 AS BytePtr,str2 AS BytePtr,Length AS DWord) AS BOOL
+	if CompareString(LOCALE_SYSTEM_DEFAULT,0,str1,Length,str2,Length) = CSTR_EQUAL Then
+		win_strcmp=TRUE
+	Else
+		win_strcmp=FALSE
+	endif
+EndFunction*/
