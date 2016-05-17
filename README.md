@@ -13,6 +13,9 @@
 	ArduinoIDE : ver1.6.6
 	HongKongArduinoとの通信速度：54179byte/sec
 	開発言語：ActiveBasic ver4 + 自分用ライブラリ
+	
+	コンパイルにはこちらのライブラが必要です。
+	https://github.com/RGBA-CRT/RGBALib
 
 
 その他詳細はReadme.txtを参照
