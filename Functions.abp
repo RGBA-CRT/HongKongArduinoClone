@@ -1,4 +1,4 @@
-#include "RGBALib.sbp"
+#include <RGBALib.sbp>
 
 Const SFC_SPEC_HEADER_SIZE=32
 Const SFC_SPEC_HEADER_ADDR=&HFFC0

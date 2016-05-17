@@ -2,9 +2,9 @@ case4
 
 rad,MainWnd
 icon,icon.ico
-text,"HongKongArduinoClone.abp",0,0,289,289
+text,"HongKongArduinoClone.abp",0,0,0,35
 text,"MainWnd.sbp",0,605,17544,17544
-text,"Functions.abp",0,250,7194,7194
+text,"Functions.abp",0,0,10,10
 
 0
 1
