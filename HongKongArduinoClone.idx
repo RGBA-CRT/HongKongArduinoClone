@@ -3,7 +3,6 @@
 #strict
 
 'Win32APIの定義ファイル
-#include <api_commctrl.sbp>
 
 'RADツールが生成するウィンドウ制御プログラム
 #include "Callback.wbp"

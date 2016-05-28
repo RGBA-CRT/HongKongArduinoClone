@@ -1,10 +1,5 @@
 'このファイルはウィンドウ定義ファイル（*.wnd）をもとに生成されています
 
-Dim _RadSys_InitCtrls As INITCOMMONCONTROLSEX
-_RadSys_InitCtrls.dwSize=Len(_RadSys_InitCtrls)
-_RadSys_InitCtrls.dwICC=ICC_WIN95_CLASSES
-InitCommonControlsEx(_RadSys_InitCtrls)
-
 Const Static1=1000
 Const Static2=1001
 Const ComList=1002

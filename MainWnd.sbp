@@ -98,7 +98,7 @@ Sub ListUpComPort(Wnd AS HWND)
 		Goto *LUCP_EXIT
 	endif	
 	Do
-		if win_strcmp(buf+p,"COM",3)=TRUE Then	
+		if win_strncmp(buf+p,"COM",3)=TRUE Then	
 			SendMessage(Wnd,CB_ADDSTRING,0,(buf+p) AS Long)
 			C++
 		Endif
