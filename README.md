@@ -22,9 +22,11 @@
 こーどねーむ「ホンコン」 with Arduino  
 <http://hongkongarduino.web.fc2.com>
 
-たにやま氏のリポジトリ
+たにやま氏のリポジトリ  
 <https://github.com/SusumuTaniyama/HongKongArduino>
 
-このプログラムについてのページ
+このプログラムについてのページ  
 <http://rgbacrt.seesaa.net/article/437742154.html>
+
+
 その他詳細はReadme.txtを参照
