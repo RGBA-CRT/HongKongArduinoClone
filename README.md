@@ -26,7 +26,7 @@
 <https://github.com/SusumuTaniyama/HongKongArduino>
 
 このプログラムについてのページ  
-<http://rgbacrt.seesaa.net/article/437742154.html>
+<http://rgbacrt.seesaa.net/article/435543541.html>
 
 
 その他詳細はReadme.txtを参照
