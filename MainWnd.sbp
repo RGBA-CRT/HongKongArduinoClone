@@ -435,6 +435,7 @@ endfunction
 Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
+	Dim CheckSum=0 AS DWord
 
 	Dim buf AS BytePtr,nowSize As DWord,lt AS DWord,Size AS DWord,bRomType AS Byte
 	Dim i AS Long,hout AS HANDLE,C AS Long'コンテニューカウンタ
@@ -475,6 +476,7 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 			Continue
 		endif
 		OutFile(hout,buf,DUMP_BUFFER_SIZE)
+		CheckSum+=CalcChkSum(buf,DUMP_BUFFER_SIZE)
 	
 		i++
 		if DUMP_BUFFER_SIZE*i>=Size Then ExitDo
@@ -486,10 +488,17 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	Loop	
 	time=GetTickCount()-lt
 
-	DBM(ex"\r\nSuccessful!")
-	
-	DBM("Time  : "+Str$(time)+ex"ms")
+	DBM(ex"\r\nTime  : "+Str$(time)+ex"ms")
 	DBM("Speed : "+Str$(Int(Size/(time/1000)) AS Long)+ex"byte/sec\r\n")
+
+	if info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
+		DBM(ex"Successful!!!")
+	Else
+		DBM(ex"Checksum Error!!!")
+		MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
+			ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
+	Endif
+	
 
 *EXIT_DUMP
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
@@ -501,6 +510,17 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 
 	SetAddress(hCOM,0,FALSE)
 EndSub
+
+Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
+	Dim i AS DWord
+	CalcChkSum=0
+	Do
+		CalcChkSum += data[i]
+		if i => length-1 Then ExitDo
+		i++
+	Loop
+End Function
+
 
 
 Sub MainWnd_CommandButton1_Click()

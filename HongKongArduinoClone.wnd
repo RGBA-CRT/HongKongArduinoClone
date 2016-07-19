@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 478,286
-    CAPTION   = "HongKongArduinoClone v0.0"
+    CAPTION   = "HongKongArduinoClone v0.1"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000000
     ID        = 0
