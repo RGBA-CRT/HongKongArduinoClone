@@ -29,4 +29,8 @@
 <http://rgbacrt.seesaa.net/article/435543541.html>
 
 
+## ダウンロード
+<https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
+
+
 その他詳細はReadme.txtを参照

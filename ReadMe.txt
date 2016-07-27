@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------------------
-					HongKongArduino 高速版 [2016/7/20]
+					HongKongArduino 高速版 [2016/7/20] 
 	
 	オリジナルの作者 : (c) 2014 たにやま  [http://hongkongarduino.web.fc2.com/]
 	　高速版作者者　 : RGBA_CRT 2016/7/20 [rgba3crt1p@gmail.com]
@@ -9,16 +9,19 @@
 	このプログラムはたにやま氏が開発・公開された、"こーどねーむ「ホンコン」 with Arduino"に手を加えて
 	高速化・SRAMの吸出しなどの機能を加えたものです。
 
-	こーどねーむ「ホンコン」 with Arduino
+	[本家]こーどねーむ「ホンコン」 with Arduino
 	http://hongkongarduino.web.fc2.com/
+	
+	高速版のページ
+	http://rgbacrt.seesaa.net/article/435543541.html
 
 
 ◇注意
-	本プログラムを使用していかなる破損・災害が発生したとしてもRGBA_CRTは一切責任を取りません。
+	本プログラムを使用していかなる破損・災害が発生したとしても作者は一切責任を取りません。
 	特にカートリッジ内部のセーブデータ領域のデータは消えやすいので、そのことを踏まえた上でご使用ください。
 	すべてのカートリッジにおいて正確なROM・SRAMの吸出しを保証はしません。
-	特にSRAMの書き込み機能は不安定なので消えてほしくないデータがカートリッジにある場合には使用しないでください。
-	また、吸い出したROMイメージをインターネット上に公開すると著作権法違反になるのでアップロードはしないでください。
+	特にSRAMの書き込み機能は不安定なので、消えてほしくないデータがカートリッジにある場合には使用しないでください。
+	また、吸い出したROMイメージをインターネット上に公開することは犯罪です。
 
 
 ◇セット内容
@@ -27,8 +30,8 @@
 	
 	HongKongArduinoFast\ArduinoHexWriter.exe	->	Arduinoへファームウェアを書き込むためのバッチファイル作成プログラムです。
 	HongKongArduinoFast\ArduinoHexWriterSrc.zip	->	上記ファイルのソースコードです。
-	HongKongArduinoFast\HongKongArduinoFast.hex	->	コンパイル済みArduino用ファームウェアです。これをArduinoへ書き込んでください。
-	HongKongArduinoFast\HongKongArduinoFast.ino	->	上記ファイルのソースコードです。
+	HongKongArduinoFast\HongKongArduinoFast.ino	->	Arduinoのスケッチです。
+	HongKongArduinoFast\HongKongArduinoFast.ino.standard.hex	->	コンパイル済みArduino用バイナリです。これをArduinoへ書き込んでください。
 
 
 ◇動作確認済みカートリッジ
@@ -76,7 +79,7 @@
 	動作可能環境の目安にしてください。
 	OS 	: Win7 SP1　32bit
 	CPU 	: Core i3 330M
-	Arduino : Aitendo製のArduino UNO互換機（ATMega328P 16MHz）
+	Arduino : Aitendo製のArduino UNO互換機（ATMega328P 16MHz 5.0v）
 	ArduinoIDE : ver1.6.6
 	HongKongArduinoとの通信速度：54179byte/sec
 	開発言語：ActiveBasic ver4 + 自分用ライブラリ
