@@ -28,10 +28,10 @@
 	HongKongArduinoClone.exe		->	Windows用吸出しプログラムです。
 	HongKongArduinoCloneSrc.zip	->	上記ファイルのソースコードです。
 	
-	HongKongArduinoFast\ArduinoHexWriter.exe	->	Arduinoへファームウェアを書き込むためのバッチファイル作成プログラムです。
-	HongKongArduinoFast\ArduinoHexWriterSrc.zip	->	上記ファイルのソースコードです。
-	HongKongArduinoFast\HongKongArduinoFast.ino	->	Arduinoのスケッチです。
-	HongKongArduinoFast\HongKongArduinoFast.ino.standard.hex	->	コンパイル済みArduino用バイナリです。これをArduinoへ書き込んでください。
+	firmware\ArduinoHexWriter.exe	->	Arduinoへファームウェアを書き込むためのバッチファイル作成プログラムです。
+	firmware\ArduinoHexWriterSrc.zip	->	上記ファイルのソースコードです。
+	firmware\HongKongArduinoFast.ino	->	Arduinoのスケッチです。
+	firmware\HongKongArduinoFast.ino.standard.hex	->	コンパイル済みArduino用バイナリです。これをArduinoへ書き込んでください。
 
 
 ◇動作確認済みカートリッジ

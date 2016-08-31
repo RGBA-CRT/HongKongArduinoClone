@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 478,286
-    CAPTION   = "HongKongArduinoClone v0.1"
+    CAPTION   = "HongKongArduinoClone v0.2"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000000
     ID        = 0
@@ -39,4 +39,6 @@ WINDOW:MainWnd
     ITEM      = Static7,442,242,31,12,"---",&H50000000,&H00000000,11
     ITEM      = CheckBox1,256,226,59,13,"MAD-1",&H50000003,&H00000000,2
     ITEM      = ROMTITLE,79,74,157,21,"",&H50000800,&H00000200,4
+    ITEM      = CommandButton6,322,270,46,21,"read",&H40000000,&H00000000,1
+    ITEM      = EditBox2,249,269,58,21,"0xC00000",&H40000000,&H00000200,4
 END

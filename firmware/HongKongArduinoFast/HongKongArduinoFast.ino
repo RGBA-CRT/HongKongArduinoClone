@@ -1,7 +1,8 @@
 //こーどねーむ「ホンコン」 with Arduino 高速版ファームウェア
 //Original : たにやま 2016/2/14 [http://hongkongarduino.web.fc2.com/]
 //Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
-//2016/7/2 update
+//2016/7/2  Add LastAdr
+//2016/8/29 SnesCIC対応
 
 //[HongKongArduinoFast.hex]は-O3でコンパイルされたバイナリです。
 //通常は↑を書き込んで使ってください
@@ -19,6 +20,28 @@
 		'c'　の引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作します。
 
 */
+/* ENABLLE_CICモードの場合
+  　・Si5351なし起動 ：
+ 		何かつながっていると(LEDとか)、ACK待ちでフリーズ
+ 		開放状態だとOK
+  　・Si5351あり、SuperCICなし -> SuperFXの場合不安定？
+  　・Si5351あり、SuperCICあり -> OK
+  　・カートリッジをつないだまま初期化すると、ACK待ちでフリーズ
+*/
+#define SERIAL_BAUDRATE 500000
+#define _ENABLE_CIC
+#ifdef _ENABLE_CIC
+
+#include "si5351.h"
+#include "Wire.h"
+#include <avr/io.h>
+
+//I2C通信状態を解除してA4,A5ピンを使用可能に
+#define DISABLE_I2C() (TWCR = 0)
+
+//クロックジェネレータ
+Si5351 clockgen;
+#endif
 
 //データバス[PORTD]
 const int DATA0 = 2;
@@ -45,6 +68,12 @@ const int OE = 16;
 const int CS = 17;
 const int WE = 18;
 const int RST = 19;
+
+//現在のアドレスの状態
+byte lastadr[3];
+
+#define Disable74HC245() PORTB |= 0b00000100
+#define Enable74HC245() digitalWrite(GD, LOW)
 
 //データピンの方向設定
 inline void setDataDir(int DATADIR)
@@ -115,7 +144,6 @@ inline void outCh(int ch, byte b)
   PORTB |= 0b00001000 << ch;
 }
 
-byte lastadr[3];
 //アドレスバスを設定
 inline void setAddress(unsigned long address, int isLoROM)
 {
@@ -141,6 +169,7 @@ inline void setAddress(unsigned long address, int isLoROM)
     outCh(1, address >> (8 * 1));
     outCh(2, address >> (8 * 2));
   */
+  //変更のないFlipFlopはいじらない
   byte spritAdr = address;
   if (lastadr[0] != spritAdr) {
     outCh(0, spritAdr);
@@ -158,11 +187,8 @@ inline void setAddress(unsigned long address, int isLoROM)
     outCh(2, spritAdr);
     lastadr[2] = spritAdr;
   }
-
-
 }
-#define Disable74HC245() PORTB |= 0b00000100
-#define Enable74HC245() digitalWrite(GD, LOW)
+
 void readData()
 {
   setDataDir(INPUT);
@@ -234,11 +260,74 @@ void writeSRAM(int isLoROM = false) {
 
 }
 
+#ifdef _ENABLE_CIC
+//[Nintendo Cart Reader]より
+void setupCloclGen() {
+  // Adafruit Clock Generator
+  //clockgen.set_correction(-29000);
+  clockgen.set_correction(0);
+  clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0);
+  clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
+  clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
+  clockgen.set_freq(2147727200ULL, SI5351_PLL_FIXED, SI5351_CLK0);
+  clockgen.set_freq(307200000ULL, SI5351_PLL_FIXED, SI5351_CLK2);
+  clockgen.output_enable(SI5351_CLK0, 1);
+  clockgen.output_enable(SI5351_CLK1, 0);
+  clockgen.output_enable(SI5351_CLK2, 1);
+}
+#endif
+
+#define CLK 2
+#define PS 3
+#define DAT 4
+
+void readController() {
+  word ctrl = 0;
+  digitalWrite(PS, HIGH);
+
+  for (int i = 15; i >= 0; i--) {
+    digitalWrite(CLK, HIGH);
+    digitalWrite(PS, LOW);
+    digitalWrite(CLK, LOW);
+    ctrl |= digitalRead(DAT) << i;
+  }
+  Serial.write(ctrl >> 8);
+  Serial.write(ctrl);
+
+}
+void PadConnectorMode() {
+#ifdef _ENABLE_CIC
+  DISABLE_I2C();
+#endif
+  //コントローラを読む
+  pinMode(CLK, OUTPUT);
+  pinMode(PS, OUTPUT);
+  pinMode(DAT, INPUT);
+
+  digitalWrite(PS, LOW);
+  digitalWrite(CLK, LOW);
+  while (1) {
+    Serial.print("D");
+    readController();
+    delay(5);
+  }
+}
 
 void setup()
 {
+  // Serial.begin(115200);
+  Serial.begin( SERIAL_BAUDRATE);
+
   setDataDir(OUTPUT);
 
+#ifdef _ENABLE_CIC
+  //クロックジェネレータの動作を開始
+  setupCloclGen();
+  delay(100);
+  DISABLE_I2C();
+#endif
+
+  //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++) {
     pinMode(i, OUTPUT);
   }
@@ -259,9 +348,6 @@ void setup()
 
   //アクセスランプを消灯
   setAddress(0x000000, 0);
-
-  // Serial.begin(115200);
-  Serial.begin( 500000);
 }
 
 void loop()
@@ -306,17 +392,14 @@ void loop()
         address++;
       }
 
-      /*   } else if (cmd == 'd') {
-           // databus
-           byte b = Serial.read();
-           setDataBusDir(OUTPUT);
-           setData(b);*/
-
     } else if (cmd == 'e') {
       while (1) {
         while (Serial.available() >= 1)
           Serial.write(Serial.read());
       }
+
+    } else if (cmd == 'p') {
+      PadConnectorMode();
 
     } else if (cmd == 'c') {
       // control

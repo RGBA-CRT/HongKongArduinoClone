@@ -1,7 +1,7 @@
 #include "HongKongArduinoClone.idx"
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "0.1"
+Const VerStr = "0.2"
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 
 Const DEFAULT_BAUDRATE = 500000

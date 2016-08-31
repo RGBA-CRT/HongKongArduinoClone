@@ -26,6 +26,8 @@ Const MAPPING=1022
 Const Static7=1023
 Const CheckBox1=1024
 Const ROMTITLE=1025
+Const CommandButton6=1026
+Const EditBox2=1027
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -97,6 +99,10 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CheckBox1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000200,"EDIT","",&H50000800,79,74,157,21,hWnd,ROMTITLE As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,ROMTITLE),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","read",&H40000000,322,270,46,21,hWnd,CommandButton6 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","0xC00000",&H40000000,249,269,58,21,hWnd,EditBox2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -104,6 +110,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			Dim cancel=0 As Integer
 			MainWnd_QueryClose(cancel)
 			If cancel=0 Then DestroyWindow(hWnd)
+		Case WM_RBUTTONDBLCLK
+			MainWnd_RButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
 		Case WM_COMMAND
 			Select Case LOWORD(wParam)
 				Case CommandButton5
@@ -138,8 +146,13 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					End Select
 				Case Static1
 					Select Case HIWORD(wParam)
-						Case STN_CLICKED
-							MainWnd_Static1_Click()
+						Case STN_DBLCLK
+							MainWnd_Static1_DblClick()
+					End Select
+				Case CommandButton6
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton6_Click()
 					End Select
 			End Select
 		Case Else

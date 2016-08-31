@@ -3,6 +3,8 @@
 Const SFC_SPEC_HEADER_SIZE=32
 Const SFC_SPEC_HEADER_ADDR=&HFFC0
 
+Const HiROM_START_ADR=&HC00000
+
 Const SRAM_ADDRESS_LoROM_NORMAL = &H700000'&H380000
 Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
 
@@ -17,10 +19,11 @@ Const SRAM_READ_NOMAL = RST or WE
 Const SRAM_READ_MAD   = RST or WE or CE
 Const SRAM_WRITE_NORMAL=RST or OE
 Const SRAM_WRITE_MAD  = RST or OE or CE
-
+Const DEFAULT_CTRLBUS = 12
 Enum SFC_ROM_TYPE
 	SFC_ROM_HiROM
 	SFC_ROM_LoROM 
+	SFC_ROM_ExHiROM
 End Enum
 	
 Type SFC_ROM_HEADER
@@ -51,7 +54,9 @@ Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
 	Next i
 	info->Title[21]=0
 
-	if (data[21] And &H01) = 0 Then 
+	if data[21]=&H35 Then
+		info->ROMType=SFC_ROM_ExHiROM
+	Elseif (data[21] And &H01) = 0 Then 
 		info->ROMType=SFC_ROM_LoROM
 		info->SRAMAddress=SRAM_ADDRESS_LoROM_NORMAL
 	Else
@@ -59,6 +64,7 @@ Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
 		info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
 	Endif
 	info->CartType = data[22]
+	'	DBM("[SCI]"+Hex$(data[21]))
 	
 	Select Case (data[23])
 		Case &H0D :	info->ROMSize = &H800000	'8MB  = 64MBit
@@ -123,7 +129,7 @@ Function ConnectToCOM(PortName AS BytePtr,rate AS DWord) AS HANDLE
 EndFunction
 
 Sub SendControl(hComPort AS HANDLE,b AS Byte)
-	'SetControl pin [CS WE OE RST] 
+	'SetControl pin 0b[RST][WE][CS][OE]
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
@@ -209,7 +215,7 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 	free(buf)
 	
 	SetAddress(hFile,0,FALSE)
-	SendControl(hFile,12)	'default
+	SendControl(hFile,DEFAULT_CTRLBUS)	'default
 EndSub
 
 /*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
@@ -254,7 +260,7 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 	DBM(ex"Done\r\n")
 	free(buf)
 	
-	SendControl(hFile,12)	'default
+	SendControl(hFile,DEFAULT_CTRLBUS)	'default
 	SetAddress(hFile,0,FALSE)
 EndSub
 
