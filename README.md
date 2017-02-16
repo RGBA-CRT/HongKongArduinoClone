@@ -36,9 +36,9 @@
 ##SA-1対応
 実験段階ですが、SA-1カートリッジの吸出ができるようになりました。
 ピンが足りなくて無理のある接続をしているため不安定です。
-詳しくはソースコードを参照。
-![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")  
-![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  
+詳しくはソースコードを参照。  
+![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
+![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
 
-
+##
 その他詳細はReadme.txtを参照
