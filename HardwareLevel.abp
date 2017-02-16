@@ -156,6 +156,7 @@ Sub SetAddress(hFile AS HANDLE,address AS DWord, isLoROM AS Byte)
 EndSub
 
 Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
+
 	Dim cmd[7] AS Byte
 	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
@@ -301,3 +302,43 @@ Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWo
 	WriteROM=WriteCount
 	
 EndFunction
+
+
+Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
+	Dim cmd[1] AS Byte,rsv[6] As byte,FwVer AS Byte,retry AS Long
+	Dim dwWD As DWord
+	
+	cmd[0] = Asc("v")
+*SEND_VER_CHECK
+	if WriteFile(hFile,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
+	if ReadFile(hFile,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
+	if msg=TRUE Then DBMN("Firmware ID : ") : DBM(rsv)
+
+	FwVer=rsv[4]
+	rsv[4]=0
+
+	if lstrcmp(rsv,FIRMWARE_ID)=0 Then 
+		if FwVer=FIRMWARE_VERSION Then
+			CheckFirmware=TRUE
+		Else
+			if msg=FALSE Then CheckFirmware=FALSE:ExitFunction
+			if MessageBox(hMainWnd,ex"ファームウェアバージョンが不一致です。\nFirmware : ver"+Chr$(FwVer)+ex"\nRequest : ver"+Chr$(FIRMWARE_VERSION)+ex"\n\n続行しますか？","FirmwareVersion mismatch",MB_YESNO or MB_ICONWARNING) = IDYES Then
+				CheckFirmware=TRUE
+			Else
+				CheckFirmware=FALSE
+			End If
+		End If
+	Else
+		if retry>GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH) Then
+			if msg=TRUE Then MessageBox(hMainWnd,ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。","Firmware mismatch",MB_ICONERROR)
+			CheckFirmware=FALSE
+		Else
+			retry++
+			DBM("VerCheck retry...")
+			DBM("")
+			Goto *SEND_VER_CHECK
+		End If
+
+	End If
+
+End Function

@@ -3,32 +3,44 @@
 //Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
 //2016/7/2  Add LastAdr
 //2016/8/29 SnesCIC対応
+//2017/2/15 マジックナンバー追加
 
-//[HongKongArduinoFast.hex]は-O3でコンパイルされたバイナリです。
+//[HongKongArduinoFast.hex]は-O2でコンパイルされたバイナリです。
 //通常は↑を書き込んで使ってください
+//ボーレートはお使いのArduinoのデータシートを参考に設定してください↓
+#define SERIAL_BAUDRATE 500000*2 //62.5KB/s * 2
+#define FIRMWARE_ID "HKAF"
+#define FIRMWARE_VERSION '0'
 
 /*
-	Reference :
-		'r' or 'R' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
-							 指定したアドレスからデーターサイズ分を送信します。
+  Reference :
+    'r' or 'R' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
+               指定したアドレスからデーターサイズ分を送信します。
 
-		'w' or 'W' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
-							 アドレスをインクリメントしながら書き込んでいきます。
+    'w' or 'W' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
+               アドレスをインクリメントしながら書き込んでいきます。
 
-		'a' or 'A' の引数はアドレス(３バイト)で、アドレスバスを操作できます。
+    'a' or 'A' の引数はアドレス(３バイト)で、アドレスバスを操作できます。
 
-		'c'　の引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作します。
+    'c'　の引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作します。
+    'v'  引数なし。バージョンを返します。FIRMWARE_ID+FIRMWARE_VERSIONの形式です。
 
+  コードは以下の方針でいきます
+  ・ループを展開
+  ・見易さよりも速度優先
+  ・レガシーなCの文法にこだわらない
+  ・コンパイルオプションO1 O2 O3で一番早かったものを使用
 */
 /* ENABLLE_CICモードの場合
   　・Si5351なし起動 ：
- 		何かつながっていると(LEDとか)、ACK待ちでフリーズ
- 		開放状態だとOK
+    何かつながっていると(LEDとか)、ACK待ちでフリーズ
+    開放状態だとOK
   　・Si5351あり、SuperCICなし -> SuperFXの場合不安定？
   　・Si5351あり、SuperCICあり -> OK
   　・カートリッジをつないだまま初期化すると、ACK待ちでフリーズ
 */
-#define SERIAL_BAUDRATE 500000
+
+//----------------- 実験コード ------------------
 #define _ENABLE_CIC
 #ifdef _ENABLE_CIC
 
@@ -42,46 +54,46 @@
 //クロックジェネレータ
 Si5351 clockgen;
 #endif
+//--------------------------------------------
+
+//#include<wiring.c>
 
 //データバス[PORTD]
-const int DATA0 = 2;
-const int DATA1 = 3;
-const int DATA2 = 4;
-const int DATA3 = 5;
-const int DATA4 = 6;
-const int DATA5 = 7;
+#define DATA0  2
+#define DATA1  3
+#define DATA2  4
+#define DATA3  5
+#define DATA4  6
+#define DATA5  7
 
 //[PORTB]
-const int DATA6 = 8;
-const int DATA7 = 9;
+#define DATA6  8
+#define DATA7  9
 
 //74HCシリーズの制御
-const int GD = 10;
-const int G0 = 11;
-const int G1 = 12;
-const int G2 = 13;
+#define GD  10
+#define G0  11
+#define G1  12
+#define G2  13
 
 //コントロールピン
-const int DIR = 14;
-const int CK = 15;
-const int OE = 16;
-const int CS = 17;
-const int WE = 18;
-const int RST = 19;
+#define DIR  14
+#define CK  15
+#define OE  16
+#define CS  17
+#define WE  18
+#define RST  19
+
+#define Disable74HC245() PORTB |= 0b00000100
+#define Enable74HC245()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
+//#define Enable74HC245()  digitalWrite(GD, LOW)
 
 //現在のアドレスの状態
 byte lastadr[3];
 
-#define Disable74HC245() PORTB |= 0b00000100
-#define Enable74HC245() digitalWrite(GD, LOW)
-
 //データピンの方向設定
 inline void setDataDir(int DATADIR)
 {
-  /*for (int i = 0; i < 8; i++) {
-  		pinMode(DATA0 + i, DATADIR);
-  	}
-  */
   if (DATADIR == INPUT) {
     DDRD &= 0b00000011;
     DDRB &= 0b11111100;
@@ -89,35 +101,13 @@ inline void setDataDir(int DATADIR)
     DDRD |= 0b11111100;
     DDRB |= 0b00000011;
   }
-}/*
-
-  //データバスの方向設定
-  inline void setDataBusDir(int DATADIR)
-  {
-	if (DATADIR == INPUT) {
-		DDRD &= 0b00000011;
-		DDRB &= 0b11111100;
-		digitalWrite(DIR, LOW); //	Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
-		digitalWrite(GD, LOW); // 74HC245 Enable
-
-	} else {
-		DDRD |= 0b11111100;
-		DDRB |= 0b00000011;
-		digitalWrite(DIR, HIGH); // Arduino => [A_Bus_IN]-[B_Bus_OUT] => SFC
-		digitalWrite(GD, LOW); // 74HC245 Enable
-	}
-
-  }*/
+}
 
 //データーバスへ値をセット
 inline void setData(byte b)
 {
-  /* for (int i = 0; i < 8; i++) {
-  		 digitalWrite(DATA0 + i, (b & (1 << i)) ? HIGH : LOW);
-  	}
-  */
-  PORTD &= 0b00000011;
-  PORTD |= b << 2;
+  PORTD &= 0b00000011;  //CLEAR
+  PORTD |= b << 2;      //ORでセット
   PORTB &= 0b11111100;
   PORTB |= b >> 6;
 }
@@ -125,14 +115,9 @@ inline void setData(byte b)
 //アドレスバスを構成する74HC377へ値をセット
 inline void outCh(int ch, byte b)
 {
-  //digitalWrite(G0 + ch, LOW); // Ch Enable
-  PORTB &= ~0b00001000 << ch; //0b11110111
-
-  //setData(b);
-  PORTD &= 0b00000011;
-  PORTD |= b << 2;
-  PORTB &= 0b11111100;
-  PORTB |= b >> 6;
+  //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
+  PORTB &= ~0b00001000 << ch;
+  setData(b);
 
   // digitalWrite(CK, HIGH);
   PORTC |= 0b00000010;
@@ -140,35 +125,16 @@ inline void outCh(int ch, byte b)
   //digitalWrite(CK, LOW);
   PORTC &= 0b11111101;
 
-  //digitalWrite(G0 + ch, HIGH); // Ch Disable
+  //digitalWrite(G0 + ch, HIGH); // WriteDisable
   PORTB |= 0b00001000 << ch;
 }
 
 //アドレスバスを設定
 inline void setAddress(unsigned long address, int isLoROM)
 {
-  if (isLoROM) {
-    //unsigned long upper = address / 0x8000;
-    //unsigned long lower = address % 0x8000;
+  if (isLoROM)
     address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
-  }
 
-  /*
-  	byte a[3];
-
-  	a[0] = (byte)(address >> (8 * 0));
-  	a[1] = (byte)(address >> (8 * 1));
-  	a[2] = (byte)(address >> (8 * 2));
-
-  	outCh(0, a[0]);
-  	outCh(1, a[1]);
-  	outCh(2, a[2]);
-  */
-
-  /* outCh(0, address >> (8 * 0));
-    outCh(1, address >> (8 * 1));
-    outCh(2, address >> (8 * 2));
-  */
   //変更のないFlipFlopはいじらない
   byte spritAdr = address;
   if (lastadr[0] != spritAdr) {
@@ -176,20 +142,20 @@ inline void setAddress(unsigned long address, int isLoROM)
     lastadr[0] = spritAdr;
   }
 
-  spritAdr = address >> (8);
+  spritAdr = address >> 8;
   if (lastadr[1] != spritAdr) {
     outCh(1, spritAdr);
     lastadr[1] = spritAdr;
   }
 
-  spritAdr = address >> (16);
+  spritAdr = address >> 16;
   if (lastadr[2] != spritAdr) {
     outCh(2, spritAdr);
     lastadr[2] = spritAdr;
   }
 }
 
-void readData()
+inline unsigned char readData()
 {
   setDataDir(INPUT);
 
@@ -200,21 +166,21 @@ void readData()
   //PORTB &= 0b11111011;
 
   byte b = (PIND >> 2) | ((PINB << 6));
-  /*if (PIND & 0b00000100)			 b |= (1 << 0);	//if (digitalRead(DATA0 + 0) == HIGH)			 b |= (1 << 0);
-  	if (PIND & 0b00001000)			 b |= (1 << 1);
-  	if (PIND & 0b00010000)			 b |= (1 << 2);
-  	if (PIND & 0b00100000)			 b |= (1 << 3);
-  	if (PIND & 0b01000000)			 b |= (1 << 4);
-  	if (PIND & 0b10000000)			 b |= (1 << 5);
-  	if (PINB & 0b00000001)			 b |= (1 << 6);	// if (digitalRead(DATA0 + 6) == HIGH)			 b |= (1 << 6);
-  	if (PINB & 0b00000010)			 b |= (1 << 7);	// if (digitalRead(DATA0 + 7) == HIGH)			 b |= (1 << 7);
+  /*if (PIND & 0b00000100)       b |= (1 << 0); //if (digitalRead(DATA0 + 0) == HIGH)      b |= (1 << 0);
+    if (PIND & 0b00001000)       b |= (1 << 1);
+    if (PIND & 0b00010000)       b |= (1 << 2);
+    if (PIND & 0b00100000)       b |= (1 << 3);
+    if (PIND & 0b01000000)       b |= (1 << 4);
+    if (PIND & 0b10000000)       b |= (1 << 5);
+    if (PINB & 0b00000001)       b |= (1 << 6); // if (digitalRead(DATA0 + 6) == HIGH)       b |= (1 << 6);
+    if (PINB & 0b00000010)       b |= (1 << 7); // if (digitalRead(DATA0 + 7) == HIGH)       b |= (1 << 7);
   */
 
-  //PORTB |= 0b00000100; // digitalWrite(GD, HIGH); // Ch Disable
+  // digitalWrite(GD, HIGH);
   Disable74HC245();
   setDataDir(OUTPUT);
 
-  Serial.write(b);
+  return b;
 }
 
 void writeSRAM(int isLoROM = false) {
@@ -230,11 +196,11 @@ void writeSRAM(int isLoROM = false) {
   datasize += ((unsigned long)Serial.read() << 8 * 2);
 
   /*
-  	1.74HC245を無効にしてアドレスバスをセットする(OUTPUT)
-  	2.それぞれのチャンネルの有効/無効はoutChがやってくれる->74HC377無効
-  	3.74HC245を有効にしてデータ方向をSFC側へ書き込むようにする
-  	4.書き込む値を受信してデータバスにセット
-  	5.goto 1
+    1.74HC245を無効にしてアドレスバスをセットする(OUTPUT)
+    2.それぞれのチャンネルの有効/無効はoutChがやってくれる->74HC377無効
+    3.74HC245を有効にしてデータ方向をSFC側へ書き込むようにする
+    4.書き込む値を受信してデータバスにセット
+    5.goto 1
   */
 
   setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
@@ -260,6 +226,13 @@ void writeSRAM(int isLoROM = false) {
 
 }
 
+inline void setCtrlBus(char b) {
+  digitalWrite(OE , (b & B0001) ? HIGH : LOW);
+  digitalWrite(CS , (b & B0010) ? HIGH : LOW);
+  digitalWrite(WE , (b & B0100) ? HIGH : LOW);
+  digitalWrite(RST, (b & B1000) ? HIGH : LOW);
+}
+
 #ifdef _ENABLE_CIC
 //[Nintendo Cart Reader]より
 void setupCloclGen() {
@@ -281,44 +254,15 @@ void setupCloclGen() {
 #define PS 3
 #define DAT 4
 
-void readController() {
-  word ctrl = 0;
-  digitalWrite(PS, HIGH);
-
-  for (int i = 15; i >= 0; i--) {
-    digitalWrite(CLK, HIGH);
-    digitalWrite(PS, LOW);
-    digitalWrite(CLK, LOW);
-    ctrl |= digitalRead(DAT) << i;
-  }
-  Serial.write(ctrl >> 8);
-  Serial.write(ctrl);
-
-}
-void PadConnectorMode() {
-#ifdef _ENABLE_CIC
-  DISABLE_I2C();
-#endif
-  //コントローラを読む
-  pinMode(CLK, OUTPUT);
-  pinMode(PS, OUTPUT);
-  pinMode(DAT, INPUT);
-
-  digitalWrite(PS, LOW);
-  digitalWrite(CLK, LOW);
-  while (1) {
-    Serial.print("D");
-    readController();
-    delay(5);
-  }
-}
-
 void setup()
 {
   // Serial.begin(115200);
-  Serial.begin( SERIAL_BAUDRATE);
-
-  setDataDir(OUTPUT);
+#ifdef __DEBUG_LCD
+  lcd.begin(8, 2);
+  lcd.setContrast(8);
+  print("HKAF0 bps=", 0, 1);
+  print(SERIAL_BAUDRATE, 0, 0);
+#endif
 
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
@@ -332,6 +276,7 @@ void setup()
     pinMode(i, OUTPUT);
   }
 
+  digitalWrite(GD, LOW);  //GD(PORTB 02) PWM DISABLE
   digitalWrite(GD, HIGH); // Disable
   digitalWrite(G0, HIGH); // Disable
   digitalWrite(G1, HIGH); // Disable
@@ -346,97 +291,85 @@ void setup()
   digitalWrite(WE, HIGH);
   digitalWrite(RST, HIGH);
 
-  //アクセスランプを消灯
-  setAddress(0x000000, 0);
+  //アクセスランプを消灯＆アドレスバス初期化
+  //setAddressは差分しかセットしないので、手動でFFを初期化
+  setDataDir(OUTPUT);
+  outCh(0, 0x00); lastadr[0]=0;
+  outCh(1, 0x00); lastadr[1]=0;
+  outCh(2, 0x00); lastadr[2]=0;
+
+  Serial.begin(SERIAL_BAUDRATE);
 }
 
-void loop()
-{
-  if (Serial.available() >= 2) {
-    byte cmd = Serial.read();
+void loop() {
+  while (Serial.available() == 0) {
 
-    if (cmd == 'R' || cmd == 'r') {
-      while (Serial.available() < 6) {
-        delay(1);
-      }
-
-      int isLoROM = false;
-      if (cmd == 'r') {
-        isLoROM = true;
-      }
-      unsigned long address = Serial.read();;
-      address += ((unsigned long)Serial.read() << 8);
-      address += ((unsigned long)Serial.read() << 8 * 2);
-
-      unsigned long datasize = Serial.read();
-      datasize += ((unsigned long)Serial.read() << 8);
-      datasize += ((unsigned long)Serial.read() << 8 * 2);
-      /*     unsigned long a = Serial.read();
-           unsigned long address = a;
-           a = Serial.read();
-           address += (a << 8);
-           a = Serial.read();
-           address += (a << 8 * 2);
-
-           a = Serial.read();
-           unsigned long datasize = a;
-           a = Serial.read();
-           datasize += (a << 8);
-           a = Serial.read();
-           datasize += (a << 8 * 2);*/
-
-      unsigned long goalAdr = address + datasize;
-      while (address < goalAdr) {
-        setAddress(address, isLoROM);
-        readData();
-        address++;
-      }
-
-    } else if (cmd == 'e') {
-      while (1) {
-        while (Serial.available() >= 1)
-          Serial.write(Serial.read());
-      }
-
-    } else if (cmd == 'p') {
-      PadConnectorMode();
-
-    } else if (cmd == 'c') {
-      // control
-      byte b = Serial.read();
-
-      digitalWrite(OE , (b & B0001) ? HIGH : LOW);
-      digitalWrite(CS , (b & B0010) ? HIGH : LOW);
-      digitalWrite(WE , (b & B0100) ? HIGH : LOW);
-      digitalWrite(RST, (b & B1000) ? HIGH : LOW);
-
-    } else if (cmd == 'a' || cmd == 'A') {
-      while (Serial.available() < 3)	delay(1);
-
-      int isLoROM = false;
-      if (cmd == 'a') isLoROM = true;
-      unsigned long address = Serial.read();;
-      address += ((unsigned long)Serial.read() << 8);
-      address += ((unsigned long)Serial.read() << 8 * 2);
-
-      /*
-            unsigned long a = Serial.read();
-            unsigned long address = a;
-            a = Serial.read();
-            address += (a << 8);
-            a = Serial.read();
-            address += (a << 8 * 2);*/
-
-      setAddress(address, isLoROM);
-
-    } else if (cmd == 'W' || cmd == 'w') {
-      int isLoROM = false;
-      if (cmd == 'w') {
-        isLoROM = true;
-      }
-      writeSRAM(isLoROM);
-
-    }
   }
+  byte cmd = Serial.read();
+
+
+  switch (cmd) {
+    case 'R':
+    case 'r': {
+        while (Serial.available() < 6);
+
+        byte isLoROM = (cmd == 'r');
+        unsigned long address = Serial.read();
+        address |= ((unsigned long)Serial.read() << 8);
+        address |= ((unsigned long)Serial.read() << 16);
+
+        unsigned long datasize = Serial.read();
+        datasize |= ((unsigned long)Serial.read() << 8);
+        datasize |= ((unsigned long)Serial.read() << 16);
+
+        unsigned long int goalAdr = address + datasize;
+        while (address < goalAdr) {
+          setAddress(address, isLoROM);
+          Serial.write(readData());
+          address++;
+        }
+        break;
+      }
+
+    case 'c':
+      {
+        while (Serial.available() < 1) ;
+        byte b = Serial.read();
+        setCtrlBus(b);
+        break;
+      }
+
+    case 'a':
+    case 'A': {
+        while (Serial.available() < 3)  ;
+        byte isLoROM = false;
+        if (cmd == 'a') isLoROM = true;
+        unsigned long address = Serial.read();
+        address += ((unsigned long)Serial.read() << 8);
+        address += ((unsigned long)Serial.read() << 8 * 2);
+        setAddress(address, isLoROM);
+        break;
+      }
+
+    case 'W':
+    case 'w': {
+        byte isLoROM = false;
+        if (cmd == 'w') {
+          isLoROM = true;
+        }
+        writeSRAM(isLoROM);
+        break;
+      }
+
+    case 'v': {
+        Serial.write(FIRMWARE_ID);
+        Serial.write((char)FIRMWARE_VERSION);
+        break;
+      }
+  }
+
+  // while (Serial.available() != 0) { Serial.read(); print("dust",0,0);}
+
 }
+
 

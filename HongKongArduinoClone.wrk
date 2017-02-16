@@ -1,12 +1,13 @@
 case4
 
 icon,icon.ico
-text,"HongKongArduinoClone.abp",0,0,633,633
-text,"Functions.abp",0,0,124,124
 rad,MainWnd
-text,"MainWnd.sbp",0,591,17553,17553
+text,"HongKongArduinoClone.abp",0,0,737,737
+text,"HardwareLevel.abp",0,197,8137,8137
+text,"SNES.sbp",0,0,668,668
+text,"MainWnd.sbp",0,280,8632,8632
 
-2
+0
 1
 1
 0,0,1,0,1

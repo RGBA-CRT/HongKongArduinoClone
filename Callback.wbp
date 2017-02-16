@@ -154,6 +154,11 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case BN_CLICKED
 							MainWnd_CommandButton6_Click()
 					End Select
+				Case CART_CIPS
+					Select Case HIWORD(wParam)
+						Case EN_CHANGE
+							MainWnd_CART_CIPS_Change()
+					End Select
 			End Select
 		Case Else
 			EventCall_MainWnd=DefWindowProc(hWnd,message,wParam,lParam)

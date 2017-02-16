@@ -9,7 +9,8 @@
 
 'プロジェクト内のプログラム ファイル
 #include "MainWnd.sbp"
-#include "Functions.abp"
+#include "HardwareLevel.abp"
+#include "SNES.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

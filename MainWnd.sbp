@@ -7,6 +7,7 @@
 ' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
 
 Dim hCOM AS HANDLE
+Dim DlgStatus AS DLG_STATUS
 
 'ダイアログの状態
 Enum DLG_STATUS
@@ -21,6 +22,21 @@ End Enum
 Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
 	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
 
+	'デバイス切断接続メッセージ
+	if dwMsg=WM_DEVICECHANGE Then
+		if DlgStatus=STATUS_CLOSED Then
+			'接続されていなかったら
+			ListUpComPort(GetDlgItem(hMainWnd,ComList))
+
+		Else if DlgStatus=STATUS_CONNECTED Then
+			'Arduinoが抜けてないかチェック
+			if CheckFirmware(hCOM,FALSE)=FALSE Then
+				DisconnectDevice()
+				DBM("Device disconnected.")
+			Endif
+		
+		End If
+	End If
 	' イベントプロシージャの呼び出しを行います。
 	MainWndProc=EventCall_MainWnd(hWnd,dwMsg,wParam,lParam)
 End Function
@@ -122,24 +138,6 @@ Sub ListUpComPort(Wnd AS HWND)
 EndSub
 
 Sub DBM(Text AS BytePtr)
-/*	'改行つきデバッグログ出力
-	Dim NowText AS BytePtr,texLen AS DWord
-
-	texLen=lstrlen(Text)
-	NowText=calloc(pDBM+texLen+5)
-
-	GetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText,pDBM+1)
-	memcpy(NowText+pDBM,Text,texLen)
-	memcpy(NowText+pDBM+texLen,ex"\r\n\0",3)
-
-	SetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText)
-
-	free(NowText)
-	pDBM+=texLen+2
-
-	SendMessage(MWnd(EditBox1),EM_SETSEL,pDBM-1,pDBM)
-	SendMessage(MWnd(EditBox1),EM_SCROLLCARET,0,0)
-	*/
 	Dim LastPos As DWord,hEB AS  HANDLE
 	hEB=MWnd(EditBox1)
 	LastPos=GetWindowTextLength(hEB)
@@ -150,22 +148,6 @@ Sub DBM(Text AS BytePtr)
 EndSub
 
 Sub DBMN(Text AS BytePtr)
-/*	'改行なしデバッグログ出力
-	Dim NowText AS BytePtr,texLen AS DWord
-
-	texLen=lstrlen(Text)
-	NowText=calloc(pDBM+texLen+5)
-
-	GetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText,pDBM+1)
-	memcpy(NowText+pDBM,Text,texLen)
-
-	SetWindowText(GetDlgItem(hMainWnd,EditBox1),NowText)
-	pDBM+=texLen
-
-	PostMessage(MWnd(EditBox1),EM_SETSEL,pDBM-1,pDBM)
-	PostMessage(MWnd(EditBox1),EM_SCROLLCARET,0,0)
-
-	free(NowText)*/
 	Dim LastPos As DWord,hEB AS  HANDLE
 	hEB=MWnd(EditBox1)
 	LastPos=GetWindowTextLength(hEB)
@@ -201,20 +183,38 @@ Sub MainWnd_CommandButton5_Click()
 
 		SetWindowText(MWnd(CommandButton5),"Close")
 		SetDlgEnable(STATUS_CONNECTED)
-		
+
+		Sleep(500)
+		if CheckFirmware(hCOM,TRUE)=FALSE Then 
+			'エラーメッセージ関数内で出す。
+			DisconnectDevice()
+			SetWindowText(MWnd(SRAM_SIZE),"")
+			SetWindowText(MWnd(ROM_SIZE),"")
+			SetWindowText(MWnd(ROMTITLE),"")
+			SetWindowText(MWnd(CART_CIPS),"")
+			SetWindowText(MWnd(MAPPING),"")
+			ExitSub	
+		Endif
+
+		'GetCartInfo
 		MainWnd_CommandButton1_Click()
 
 	Else
 		'切断
-		CloseHandle(hCOM)
-		hCOM=0
-		SetWindowText(MWnd(CommandButton5),"Connect")
-		SetDlgEnable(STATUS_CLOSED)
-
-
-		DBM(ex"Connection is closed.\r\n")
+		DisconnectDevice()
+		
 	endif
 
+End Sub
+
+Sub DisconnectDevice()
+	if hCOM=0 Then ExitSub
+	CloseHandle(hCOM)
+	hCOM=0
+	SetWindowText(MWnd(CommandButton5),"Connect")
+	SetDlgEnable(STATUS_CLOSED)
+
+	DBM(ex"Connection is closed.\r\n")
 End Sub
 
 Sub SetDlgEnable(Mode AS DLG_STATUS)
@@ -245,6 +245,7 @@ Sub SetDlgEnable(Mode AS DLG_STATUS)
 		EnableWindow(MWnd(CommandButton5),TRUE)		
 	endif
 
+	DlgStatus=Mode
 EndSub
 
 Function GetWndTextMalloc(hWnd AS HWND) As BytePtr
@@ -259,7 +260,8 @@ EndFunction
 Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 '	DBM("PressKey:"+Hex$(KeyCode))
 	Select Case KeyCode
-		Case &H70 : SpeedTest()
+		Case &H70 : SpeedTest()	'F1
+		Case &H71 : CheckFirmware(hCOM,FALSE)	'F2
 		Case &H74 : ListUpComPort(GetDlgItem(hMainWnd,ComList))
 	EndSelect
 End Sub
@@ -268,7 +270,7 @@ Sub SpeedTest()
 	'Arduinoとの接続速度テスト
 	Dim rd AS BytePtr,mes[256] AS Byte,total As DWord,lt AS DWord,i AS Long
 	DBM("Speedtest : Read 1KB*10")
-	Const TEST_READ_SIZE=1024
+	Const TEST_READ_SIZE=1024*10
 	rd=calloc(TEST_READ_SIZE)
 	total=0:lt=0
 	For i = 0 To 9
@@ -278,130 +280,10 @@ Sub SpeedTest()
 		wsprintf(mes,ex"\t[%d]Time : %dms",i,GetTickCount()-lt)
 		DBM(mes)
 	Next i
-	wsprintf(mes,ex"Total:%dms\r\nAverage:%dms\r\nSpeed : %dbyte/sec\r\n",total,total/9,(TEST_READ_SIZE*10)/(total/1000))
+	wsprintf(mes,ex"Total:%dms\r\nAverage:%dms\r\nSpeed : %dbyte/sec (%dKB/s)\r\n",total,total/9,(TEST_READ_SIZE*10)/(total/1000),(TEST_READ_SIZE*10)/(total/1000)/1000)
 	DBM(mes)
 	free(rd)
 End Sub
-
-Sub SetCartInfo(info AS *SFC_ROM_HEADER)
-	'SFC_ROM_HEADERの内容をGUIに表示
-
-	Dim CartChip[512] AS Byte
-	Const UNK_CART_TYPE_TEXT = " UNKNOWN CART TYPE"
-
-	SetWindowText(MWnd(ROMTITLE),info->Title)
-	if info->ROMType=SFC_ROM_HiROM Then
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,1,0)
-	Elseif info->ROMType=SFC_ROM_LoROM Then
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,2,0)
-	Else
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,0,1)
-	endif
-	DBMN("Chips : ")
-	lstrcpy(CartChip,"ROM")
-
-	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
-	Select Case info->CartType>>4
-		Case &H00
-			Select Case info->CartType And &H0F
-				Case &H00 : lstrcat(CartChip,"")
-				Case &H01 : lstrcat(CartChip,"+RAM")
-				Case &H02 : lstrcat(CartChip,"+RAM+SRAM")
-				Case &H03 : lstrcat(CartChip,"+DSP")
-				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
-				Case &H05 : lstrcat(CartChip,"+DSP+RAM+SRAM")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case &H01 'SuperFX
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
-				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
-				Case &H05 : lstrcat(CartChip,"+GSU+RAM+SRAM")
-				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+SRAM")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-			lstrcat(CartChip," [SuperFX]")
-		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+SRAM")
-		Case &H03 
-			lstrcat(CartChip,"+SA-1+RAM")
-			if info->CartType = &H34 Then
-			Elseif info->CartType = &H35 then
-				 lstrcat(CartChip,"+SRAM")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			endif
-		Case &H04
-			lstrcat(CartChip,"+SDD1+")
-			if info->CartType And &H0F = 3 Then
-			Elseif info->CartType And &H0F = 5 then
-				 lstrcat(CartChip,"RAM+SRAM")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			endif
-		Case &H05 : lstrcat(CartChip,"+S-RTC+RAM+SRAM")
-		Case &H0E 
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
-				Case &H05 : lstrcat(CartChip,"+BS-X")
-				Case &H0A : lstrcat(CartChip,"+CX4")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case &H0F
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+CX4")
-				Case &H05
-					if info->ROMType=SFC_ROM_LoROM Then
-						lstrcat(CartChip,"+ST018+RAM+SRAM")
-					Else
-						lstrcat(CartChip,"+SPC7110+RAM+SRAM")
-					endif
-				Case &H0A6
-					if info->ROMSize=&H100000 Then
-						lstrcat(CartChip,"+ST010")
-					Else
-						lstrcat(CartChip,"+ST011")
-					endif
-				Case &H03 : lstrcat(CartChip,"+SPC7110+RAM+SRAM+RTC")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case Else
-			lstrcat(CartChip," UNKNOWN CART TYPE")
-	EndSelect
-
-	SetWindowText(MWnd(CART_CIPS),CartChip)
-	wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
-	DBM(CartChip)
-
-	SetWindowText(MWnd(ROM_SIZE),Str$(info->ROMSize/1024)+"KB ["+Str$((info->ROMSize*8)/(1024^2))+"MBit]")
-	if info->SRAMSize =0 Then
-		SetWindowText(MWnd(SRAM_SIZE),"None")		
-	Else
-		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
-	endif
-
-	DBMN("Country : ")
-	Select Case info->Country
-		Case 00 : DBM("Japan")
-		Case 01 : DBM("USA")
-		Case 02 : DBM("Europe")
-		Case 03 : DBM("UnDefined")
-	EndSelect
-
-	DBM("Version : "+Str$(info->Version/10+1.0))
-	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
-	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
-	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
-/*
-Dim nBank AS Long,rt[2]=[0,1,4] AS Byte
-if info->ROMType=SFC_ROM_ExHiROM Then
-	nBank=info->ROMSize*2
-Else
-	nBank=((info->ROMSize) * 1024 * 1024 / 8) / (32768 + ((rt[info->ROMType]) * 32768))
-End If
-	DBM("nBank=0x"+Hex$(nBank))*/
-	DBM("")
-
-EndSub	
 
 
 
@@ -414,7 +296,7 @@ Sub MainWnd_CommandButton2_Click()
 	GetSFCinfo(info)
 
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.smc)\0*.smc\0すべてのファイル(*.*)\0*.*\0\0","smc",info.Title)
+	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0","sfc",info.Title)
 	if path=0 Then ExitSub
 #else
 	path="dump.smc"
@@ -458,127 +340,6 @@ Function GetCheckBox(Ctrl As HWND) As Byte
 		GetCheckBox=FALSE
 	endif
 endfunction
-
-Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
-	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
-	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
-	Dim DumpAddress As DWord, offset AS DWord, ret AS DWord, CheckSum=0 AS DWord,
-
-	Dim buf AS BytePtr,nowSize As DWord,Size AS DWord,bRomType AS Byte
-	Dim hout AS HANDLE,C AS Long	'コンテニューカウンタ
-	Dim lt AS DWord,time AS DWord
-
-	if info->ROMType=SFC_ROM_HiROM Then
-		bRomType=FALSE
-		DumpAddress=HiROM_START_ADR
-		offset=HiROM_START_ADR
-	Else
-		bRomType=TRUE
-		DumpAddress=0
-		offset=0
-	Endif
-
-	buf=calloc(DUMP_BUFFER_SIZE+12)
-	SendControl(hCOM,DEFAULT_CTRLBUS)
-
-	DBMN("Dumping")
-	hout=OpenFile(Path,GENERIC_WRITE)
-
-	lt=GetTickCount()
-	Size=info->ROMSize
-
-	'設定ファイル読み込み
-	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
-	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
-	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
-
-	'UI系
-	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
-	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(Size/DUMP_BUFFER_SIZE) As Word))
-	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
-	SetDlgEnable(STATUS_DUMPING)
-
-	Do
-		'ESCキーでキャンセル
-		PumpMessage()
-		if GetKeyState(VK_ESCAPE) And &H80 Then DBM(ex"\r\nCancelled by user."):Goto *EXIT_DUMP
-
-		'吸出し＆データチェック
-		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,bRomType)
-		if ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
-		if ret<>DUMP_BUFFER_SIZE Then 
-			DBM(ex"\r\n["+Str$(C)+ex"]Warning!")
-			C++
-			if C>MAX_CONTINUE Then DBM("Over retry count.")
-			Continue
-		endif
-
-		'出力＆チェックサム計算
-		OutFile(hout,buf,DUMP_BUFFER_SIZE)
-		CheckSum+=CalcChkSum(buf,DUMP_BUFFER_SIZE)
-	
-		'次のアドレスを計算
-		DumpAddress+=DUMP_BUFFER_SIZE
-		if DumpAddress-offset>=Size Then ExitDo
-
-		'進捗表示
-		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
-		SetWindowText(MWnd(Static7),Str$(Int((DumpAddress-offset)/Size*100))+"%"+Hex$((DumpAddress)>>16))
-		DBMN(".")
-	Loop
-	time=GetTickCount()-lt
-
-	DBM(ex"\r\nTime  : "+Str$(time)+ex"ms")
-	DBM("Speed : "+Str$(Int(Size/(time/1000)) AS Long)+ex"byte/sec\r\n")
-
-	if info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
-		DBM(ex"Successful!!!")
-	Else
-		DBM(ex"Checksum Error!!!")
-		MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
-			ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
-	Endif
-	
-
-*EXIT_DUMP
-	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
-	SetWindowText(MWnd(Static7),"100%")
-	SetDlgEnable(STATUS_CONNECTED)
-
-	CloseHandle(hout)
-	free(buf)
-
-	SetAddress(hCOM,0,FALSE)
-EndSub
-
-Function checkContiguous(adr AS BytePtr,size AS DWord) AS Long
-	Dim i AS Long,someCount AS DWord,last AS Byte
-	For i=0 To size
-		if last=adr[i] Then
-			/*if last<>0 Then*/ someCount++	'0連続はよくあるので除外
-			
-			if someCount=>&H1000 Then DBM(Hex$(last)+"fill"):ExitFunction
-		Else
-			someCount=0
-		End If
-		last=adr[i]
-	Next i
-	checkContiguous=TRUE
-End Function
-		
-
-
-Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
-	Dim i AS DWord
-	CalcChkSum=0
-	Do
-		CalcChkSum += data[i]
-		if i => length-1 Then ExitDo
-		i++
-	Loop
-End Function
-
-
 
 Sub MainWnd_CommandButton1_Click()
 	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_ROM_HEADER
@@ -649,18 +410,6 @@ Sub MainWnd_CommandButton3_Click()
 	MessageBeep(MB_ICONASTERISK)
 
 End Sub
-
-Sub GetSFCinfo(ByRef info as SFC_ROM_HEADER)
-	'カートリッジからヘッダを読み込んでSFC_ROM_HEADER構造体に格納
-
-	Dim buf[SFC_SPEC_HEADER_SIZE+5] AS Byte
-	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
-	SloveCartInfo(buf,VarPtr(info))
-
-	GetDlgOption(info)
-
-	SetCartInfo(VarPtr(info))
-EndSub
 
 Sub MainWnd_CommandButton4_Click()
 	Dim path AS BytePtr
@@ -749,4 +498,8 @@ Sub MainWnd_CommandButton6_Click()
 	f.write(data,&h10000)
 	f.close()
 	DBM("OK")
+End Sub
+
+Sub MainWnd_CART_CIPS_Change()
+
 End Sub
