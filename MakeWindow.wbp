@@ -13,4 +13,4 @@ _RadSys_wcl.lpszClassName="NORMAL0"
 _RadSys_wcl.lpfnWndProc=AddressOf(MainWndProc)
 _RadSys_wcl.hbrBackground=h3DFaceBrush
 RegisterClassEx(_RadSys_wcl)
-CreateWindowEx(&H00000000,"NORMAL0","HongKongArduinoClone v0.2",&H10ca0000,-2147483648,-2147483648,478,286,0,0,GetModuleHandle(0),0)
+CreateWindowEx(&H00000000,"NORMAL0","HongKongArduinoClone v0.3",&H10ca0000,-2147483648,-2147483648,478,286,0,0,GetModuleHandle(0),0)

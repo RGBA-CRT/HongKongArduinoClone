@@ -56,8 +56,6 @@ Si5351 clockgen;
 #endif
 //--------------------------------------------
 
-//#include<wiring.c>
-
 //データバス[PORTD]
 #define DATA0  2
 #define DATA1  3
@@ -161,20 +159,8 @@ inline unsigned char readData()
 
   //PWM対応ポートの場合ただPORTBをいじってもダメらしい
   Enable74HC245();
-  //digitalWrite(GD, LOW); // Ch Enable
-  //turnOffPWM2(digitalPinToTimer(GD));
-  //PORTB &= 0b11111011;
 
   byte b = (PIND >> 2) | ((PINB << 6));
-  /*if (PIND & 0b00000100)       b |= (1 << 0); //if (digitalRead(DATA0 + 0) == HIGH)      b |= (1 << 0);
-    if (PIND & 0b00001000)       b |= (1 << 1);
-    if (PIND & 0b00010000)       b |= (1 << 2);
-    if (PIND & 0b00100000)       b |= (1 << 3);
-    if (PIND & 0b01000000)       b |= (1 << 4);
-    if (PIND & 0b10000000)       b |= (1 << 5);
-    if (PINB & 0b00000001)       b |= (1 << 6); // if (digitalRead(DATA0 + 6) == HIGH)       b |= (1 << 6);
-    if (PINB & 0b00000010)       b |= (1 << 7); // if (digitalRead(DATA0 + 7) == HIGH)       b |= (1 << 7);
-  */
 
   // digitalWrite(GD, HIGH);
   Disable74HC245();
@@ -237,7 +223,6 @@ inline void setCtrlBus(char b) {
 //[Nintendo Cart Reader]より
 void setupCloclGen() {
   // Adafruit Clock Generator
-  //clockgen.set_correction(-29000);
   clockgen.set_correction(0);
   clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0);
   clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
@@ -250,20 +235,8 @@ void setupCloclGen() {
 }
 #endif
 
-#define CLK 2
-#define PS 3
-#define DAT 4
-
 void setup()
 {
-  // Serial.begin(115200);
-#ifdef __DEBUG_LCD
-  lcd.begin(8, 2);
-  lcd.setContrast(8);
-  print("HKAF0 bps=", 0, 1);
-  print(SERIAL_BAUDRATE, 0, 0);
-#endif
-
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
   setupCloclGen();
@@ -294,23 +267,21 @@ void setup()
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFFを初期化
   setDataDir(OUTPUT);
-  outCh(0, 0x00); lastadr[0]=0;
-  outCh(1, 0x00); lastadr[1]=0;
-  outCh(2, 0x00); lastadr[2]=0;
+  outCh(0, 0x00); lastadr[0] = 0;
+  outCh(1, 0x00); lastadr[1] = 0;
+  outCh(2, 0x00); lastadr[2] = 0;
 
   Serial.begin(SERIAL_BAUDRATE);
 }
 
 void loop() {
-  while (Serial.available() == 0) {
-
-  }
+  while (Serial.available() == 0);  //wait command
   byte cmd = Serial.read();
-
 
   switch (cmd) {
     case 'R':
-    case 'r': {
+    case 'r':
+      { //Read cart
         while (Serial.available() < 6);
 
         byte isLoROM = (cmd == 'r');
@@ -328,48 +299,39 @@ void loop() {
           Serial.write(readData());
           address++;
         }
-        break;
-      }
+      } break;
 
     case 'c':
-      {
+      { //set control bus(OE WD RST CS)
         while (Serial.available() < 1) ;
         byte b = Serial.read();
         setCtrlBus(b);
-        break;
-      }
+      } break;
 
     case 'a':
-    case 'A': {
+    case 'A':
+      { //Set address
         while (Serial.available() < 3)  ;
-        byte isLoROM = false;
-        if (cmd == 'a') isLoROM = true;
+        byte isLoROM = (cmd == 'a');
         unsigned long address = Serial.read();
         address += ((unsigned long)Serial.read() << 8);
         address += ((unsigned long)Serial.read() << 8 * 2);
         setAddress(address, isLoROM);
-        break;
-      }
+      } break;
 
     case 'W':
-    case 'w': {
-        byte isLoROM = false;
-        if (cmd == 'w') {
-          isLoROM = true;
-        }
+    case 'w':
+      { //Write cart
+        byte isLoROM = (cmd == 'w');
         writeSRAM(isLoROM);
-        break;
-      }
+      } break;
 
-    case 'v': {
+    case 'v':
+      { //Return fimware version
         Serial.write(FIRMWARE_ID);
         Serial.write((char)FIRMWARE_VERSION);
-        break;
-      }
+      } break;
   }
-
-  // while (Serial.available() != 0) { Serial.read(); print("dust",0,0);}
-
 }
 
 
