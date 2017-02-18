@@ -67,6 +67,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"LoROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"HiROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"ExHiROM" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SA-1" AS Long)
 	
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 AS BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
@@ -144,7 +145,8 @@ Sub DBM(Text AS BytePtr)
 	SendMessage(hEB,EM_SETSEL,LastPos,LastPos)
 	SendMessage(hEB,EM_REPLACESEL,0,Text As Long)
 	SendMessage(hEB,EM_REPLACESEL,0,ex"\r\n" As Long)
-	
+	OutputDebugString(Text)
+	OutputDebugString(ex"\r\n")
 EndSub
 
 Sub DBMN(Text AS BytePtr)
@@ -319,6 +321,8 @@ Sub GetDlgOption(ByRef info as SFC_ROM_HEADER)
 	GetWindowText(MWnd(MAPPING),Tmp,3)
 	if Tmp[0]=Asc("H") Then 
 		info.ROMType=SFC_ROM_HiROM
+	Elseif Tmp[0]=Asc("S") Then
+		info.ROMType=SFC_ROM_SA1
 	Else
 		info.ROMType=SFC_ROM_LoROM
 	Endif
@@ -418,7 +422,7 @@ Sub MainWnd_CommandButton4_Click()
 	path=LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
 	if path=0 Then ExitSub
 #else
-	path="dump.srm"
+	path="write.srm"
 #endif
 	if MessageBox(hMainWnd,ex"この操作を行うとカセット内のセーブデータの内容が消えて上書きされます。\nまた、この機能は未完成のため正常にデータが書き込めない可能性があります。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
 	Dim info AS SFC_ROM_HEADER
@@ -487,19 +491,58 @@ Sub MainWnd_Static1_DblClick()
 End Sub
 
 Sub MainWnd_CommandButton6_Click()
+	if hCOM=0 Then ExitSub
 	Dim data As BytePtr,adr AS DWord
 	data=calloc(&H10000)
 	adr=GetDlgItemHex(MWnd(EditBox2))
-	DBM("Dump "+Hex$(adr))
-	SendControl(hCOM,12)
-	ReadROM(hCOM,data,0,adr,&h10000,0)
+	DBM("Dump 0x"+Hex$(adr))
+'	SendControl(hCOM,12)
+	ReadROM(hCOM,data,0,adr,&h5000,GetCheckBox(MWnd(CheckBox5)))
 	Dim f AS File
 	f.openFile("test.bin",GENERIC_WRITE)
-	f.write(data,&h10000)
+	f.write(data,&h5000)
 	f.close()
 	DBM("OK")
+	Dim p aS DWord,i AS Long
+	p=data+&H5000
+	For i=0 To 7
+		p+=wsprintf(p,"%02X ",data[i])
+	Next i
+	p+=wsprintf(p,ex"\r\n",data[i])
+	For i=0 To 7
+		p+=wsprintf(p,"[%c]",data[i])
+	Next i
+	DBM(data+&H5000)
 End Sub
 
 Sub MainWnd_CART_CIPS_Change()
+
+End Sub
+
+Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
+	if GetKeyState(VK_ESCAPE) And &H80 Then MoveWindow(hMainWnd,0,0,475,330,TRUE)
+End Sub
+
+Sub MainWnd_CommandButton7_Click()
+	Dim data As Byte,adr AS DWord
+	data=GetDlgItemHex(MWnd(EditBox3))
+	adr=GetDlgItemHex(MWnd(EditBox4))
+	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
+	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox5)))
+End Sub
+
+'RST WE CS OE
+Sub MainWnd_CommandButton8_Click()
+	if hCOM=0 Then ExitSub
+	Dim ctrl AS Byte
+	ctrl=GetCheckBox(MWnd(CheckBox2))<<3 or GetCheckBox(MWnd(CheckBox3))<<2 or _
+		GetCheckBox(MWnd(CheckBox4))<<1 or GetCheckBox(MWnd(CheckBox5))
+	DBM("SetCtrlBus : 0"+Hex$(ctrl))
+
+	SendControl(hCOM,ctrl)
+End Sub
+
+
+Sub MainWnd_CheckBox6_Click()
 
 End Sub

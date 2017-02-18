@@ -28,6 +28,15 @@ Const CheckBox1=1024
 Const ROMTITLE=1025
 Const CommandButton6=1026
 Const EditBox2=1027
+Const CommandButton7=1028
+Const CheckBox2=1029
+Const CheckBox3=1030
+Const CheckBox4=1031
+Const CheckBox5=1032
+Const CommandButton8=1033
+Const EditBox3=1034
+Const EditBox4=1035
+Const CheckBox6=1036
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -99,10 +108,28 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CheckBox1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000200,"EDIT","",&H50000800,79,74,157,21,hWnd,ROMTITLE As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,ROMTITLE),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","read",&H40000000,322,270,46,21,hWnd,CommandButton6 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","read",&H50000000,357,271,48,15,hWnd,CommandButton6 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000200,"EDIT","0xC00000",&H40000000,249,269,58,21,hWnd,EditBox2 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000200,"EDIT","0x006000",&H50000000,248,269,58,17,hWnd,EditBox2 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,EditBox2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Write",&H50000000,357,286,48,16,hWnd,CommandButton7 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton7),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","RST",&H50000003,10,276,41,15,hWnd,CheckBox2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","WE",&H50000003,55,276,37,15,hWnd,CheckBox3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox3),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","CE",&H50000003,98,276,37,15,hWnd,CheckBox4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox4),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","OE",&H50000003,140,276,37,15,hWnd,CheckBox5 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox5),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Å©ìKóp",&H50000000,186,273,46,21,hWnd,CommandButton8 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton8),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","0x00",&H50000000,306,286,31,17,hWnd,EditBox3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox3),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","0x002225",&H50000000,248,286,58,17,hWnd,EditBox4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox4),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","L/H",&H50000003,417,277,44,15,hWnd,CheckBox6 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CheckBox6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -112,6 +139,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			If cancel=0 Then DestroyWindow(hWnd)
 		Case WM_RBUTTONDBLCLK
 			MainWnd_RButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
+		Case WM_MBUTTONDBLCLK
+			MainWnd_MButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
 		Case WM_COMMAND
 			Select Case LOWORD(wParam)
 				Case CommandButton5
@@ -158,6 +187,21 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					Select Case HIWORD(wParam)
 						Case EN_CHANGE
 							MainWnd_CART_CIPS_Change()
+					End Select
+				Case CommandButton7
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton7_Click()
+					End Select
+				Case CommandButton8
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton8_Click()
+					End Select
+				Case CheckBox6
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CheckBox6_Click()
 					End Select
 			End Select
 		Case Else

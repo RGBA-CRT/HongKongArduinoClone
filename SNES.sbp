@@ -132,6 +132,7 @@ Sub GetSFCinfo(ByRef info as SFC_ROM_HEADER)
 
 	SetCartInfo(VarPtr(info))
 EndSub
+
 Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 	'SFC_ROM_HEADERの内容をGUIに表示
 
@@ -139,13 +140,14 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 	Const UNK_CART_TYPE_TEXT = " UNKNOWN CART TYPE"
 
 	SetWindowText(MWnd(ROMTITLE),info->Title)
-	if info->ROMType=SFC_ROM_HiROM Then
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,1,0)
-	Elseif info->ROMType=SFC_ROM_LoROM Then
+	SendMessage(MWnd(MAPPING),CB_SETCURSEL,info->ROMType,0)
+/*	if info->ROMType=SFC_ROM_HiROM Then
 		SendMessage(MWnd(MAPPING),CB_SETCURSEL,2,0)
-	Else
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,0,1)
-	endif
+	Elseif info->ROMType=SFC_ROM_LoROM Then
+		SendMessage(MWnd(MAPPING),CB_SETCURSEL,3,0)
+	Else if info->
+		SendMessage(MWnd(MAPPING),CB_SETCURSEL,1,1)
+	endif*/
 	DBMN("Chips : ")
 	lstrcpy(CartChip,"ROM")
 
@@ -251,4 +253,139 @@ End If
 	DBM("")
 
 EndSub	
+
+
+/*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
+    Ch4に3を設定。SRAMのOEとディスエーブル、CEをイネーブルにする。= CE:0 RST:1 OE:1
+    MADチップの場合は7を出力する。								  = CE:1 RST:1 OE:1
+    アドレスを設定する。
+    74138のCBAを100にし、データ出力モードにする。
+    このとき、STROBEはL(反転出力に注意)にしておく。
+    STROBEをHにし、WEをイネーブルにする。
+    BUSY線から74645が有効になっているか確認してからデータを出力する。
+    STROBEをLにし、WEをディスエーブルにする。
+    Ch4を1に設定する。MADチップの場合は5。 
+*/
+Sub SetCPU_Clock(hFile AS HANDLE,isStart AS BOOL)
+	Dim dwWB AS DWord
+	if isStart=TRUE Then
+		WriteFile(hFile,"g1", 2,VarPtr(dwWB) , ByVal NULL)
+	Else
+		WriteFile(hFile,"g0", 2,VarPtr(dwWB) , ByVal NULL)
+	End If
+End Sub
+
+
+Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
+	Dim hIn AS HANDLE,buf AS BytePtr
+	Dim CtrMask as Byte
+
+	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
+	DBM("SRAM Writeing...")
+	DBM("Address:0x"+Hex$(info->SRAMAddress))
+	PumpMessage()
+
+	hIn=OpenFile(FileName,GENERIC_READ)	
+	if info->SRAMSize <> GetFileSize(hIn,NULL) Then
+		if MessageBox(hMainWnd,"ファイルサイズが不正です。続行しますか？",ProgramName+" - Write SRAM",MB_YESNO) = IDNO Then ExitSub
+	Endif
+
+	buf=calloc(info->SRAMSize)
+	LoadFile(hIn,buf,info->SRAMSize)
+	CloseHandle(hIn)
+
+debug
+	if info->ROMType <> SFC_ROM_SA1 Then
+		'ノーマルカートリッジ
+		if info->Mad=TRUE Then
+			CtrMask=SRAM_WRITE_MAD
+		Else
+			CtrMask=SRAM_WRITE_NORMAL
+		Endif	
+
+		SendControl(hFile,CtrMask)	' SRAM CE
+		WriteROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
+	
+	Else
+		'SA-1 (sanni氏のcartreaderを参考)
+		DBM("SA-1 Write BW-RAM (can't work)")
+		Dim cmd[512] AS Byte
+		Dim block AS Long,lastBlock AS Long,curByte AS DWord,i AS Long
+
+		lastBlock=info->SRAMSize/&H2000
+		DBM("blocks = "+Hex$(lastBlock))
+
+		SetCPU_Clock(hFile,TRUE)
+	
+		SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
+
+		for block=0 To lastBlock-1
+			cmd[0]=block
+			cmd[1]=block
+			WriteROM(hFile,cmd,0,&H2224,2,FALSE)	'MAP SRAM to 0x6000~0x7FFF
+			cmd[0]=&H80
+			cmd[1]=&H80
+			WriteROM(hFile,cmd,0,&H2226,2,FALSE)	'SRAM WRITE ENABLE
+			DBM("Writeing block"+Str$(block))
+			FillMemory(cmd,512,block+lastBlock)
+
+			for curByte=0 To &H7FFF Step 512
+				if curByte < &H6000 Then
+				'	WriteROM(hFile,cmd,0,curByte,512,FALSE)
+				Else
+					WriteROM(hFile,buf+curByte-&H6000+block*&H2000,0,curByte,512,FALSE)
+					DBM(Hex$(curByte-&H6000+block*&H2000)+" / "+Hex$(curByte))
+				End If
+				Sleep(10)
+
+			Next curByte
+
+			Sleep(1000)
+Exitfor
+		Next block
+		cmd[0]=0
+		WriteROM(hFile,cmd,0,&H2227,1,FALSE)	'SRAM DISABLE
+
+		SetCPU_Clock(hFile,FALSE)
+
+		SendControl(hFile,12)	'RST LOW
+	Endif
+
+	DBM(ex"Done\r\n")
+	free(buf)
+	
+	SendControl(hFile,DEFAULT_CTRLBUS)	'default
+	SetAddress(hFile,0,FALSE)
+EndSub
+
+Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
+	Dim hout AS HANDLE,buf AS BytePtr
+	Dim CtrMask as Byte
+
+	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
+	DBM("SRAM Dumping...")
+	DBM("Address:0x"+Hex$(info->SRAMAddress))
+	PumpMessage()
+	
+	buf=calloc(info->SRAMSize)
+
+	if info->Mad=TRUE Then
+		CtrMask=SRAM_READ_MAD
+	Else
+		CtrMask=SRAM_READ_NOMAL
+	Endif	
+
+	SendControl(hFile,CtrMask)	' SRAM CE
+	ReadROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
+
+	hout=OpenFile(FileName,GENERIC_WRITE)
+	OutFile(hout,buf,info->SRAMSize)
+	CloseHandle(hout)
+
+	DBM(ex"Done\r\n")
+	free(buf)
+	
+	SetAddress(hFile,0,FALSE)
+	SendControl(hFile,DEFAULT_CTRLBUS)	'default
+EndSub
 

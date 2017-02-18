@@ -11,6 +11,8 @@ Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
 Const SRAM_ADDRESS_HiROM_NORMAL = &H1C0000
 Const SRAM_ADDRESS_HiROM_MAD 	= &H206000'&HA06000
 
+Const SRAM_ADDRESS_SA1 = &H400000
+
 Const OE = 1
 Const CE = 2
 Const WE = 4
@@ -19,11 +21,17 @@ Const SRAM_READ_NOMAL = RST or WE
 Const SRAM_READ_MAD   = RST or WE or CE
 Const SRAM_WRITE_NORMAL=RST or OE
 Const SRAM_WRITE_MAD  = RST or OE or CE
+
+Const SRAM_WRITE_SA1 = RST or OE or WE or CE
+
 Const DEFAULT_CTRLBUS = 12
+
+'↓の並びはコンボボックスとあわせること
 Enum SFC_ROM_TYPE
+	SFC_ROM_ExHiROM = 0
 	SFC_ROM_HiROM
 	SFC_ROM_LoROM 
-	SFC_ROM_ExHiROM
+	SFC_ROM_SA1
 End Enum
 	
 Type SFC_ROM_HEADER
@@ -54,7 +62,11 @@ Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
 	Next i
 	info->Title[21]=0
 
-	if data[21]=&H35 Then
+	info->CartType = data[22]
+	if (info->CartType And &HF0)=&H30 Then
+		info->ROMType=SFC_ROM_SA1
+		info->SRAMAddress=SRAM_ADDRESS_SA1
+	elseif data[21]=&H35 Then
 		info->ROMType=SFC_ROM_ExHiROM
 	Elseif (data[21] And &H01) = 0 Then 
 		info->ROMType=SFC_ROM_LoROM
@@ -63,7 +75,6 @@ Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
 		info->ROMType=SFC_ROM_HiROM
 		info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
 	Endif
-	info->CartType = data[22]
 	'	DBM("[SCI]"+Hex$(data[21]))
 	
 	Select Case (data[23])
@@ -133,7 +144,8 @@ Sub SendControl(hComPort AS HANDLE,b AS Byte)
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-	WriteFile(hComPort,cmd,2,VarPtr(dwAB),ByVal NULL)
+	DBM("SetCtrlBus : 0"+Hex$(b))
+	if WriteFile(hComPort,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError()))
 EndSub
 
 Sub SetAddress(hFile AS HANDLE,address AS DWord, isLoROM AS Byte)
@@ -188,82 +200,46 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 	ReadROM=ReadByte
 EndFunction
 
-Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
-	Dim hout AS HANDLE,buf AS BytePtr
-	Dim CtrMask as Byte
 
-	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
-	DBM("SRAM Dumping...")
-	DBM("Address:0x"+Hex$(info->SRAMAddress))
-	PumpMessage()
+
+Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
+	Dim cmd[1] AS Byte,rsv[6] As byte,FwVer AS Byte,retry AS Long
+	Dim dwWD As DWord
 	
-	buf=calloc(info->SRAMSize)
+	cmd[0] = Asc("v")
+*SEND_VER_CHECK
+	if WriteFile(hFile,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
+	if ReadFile(hFile,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
+	if msg=TRUE Then DBMN("Firmware ID : ") : DBM(rsv)
 
-	if info->Mad=TRUE Then
-		CtrMask=SRAM_READ_MAD
+	FwVer=rsv[4]
+	rsv[4]=0
+
+	if lstrcmp(rsv,FIRMWARE_ID)=0 Then 
+		if FwVer=FIRMWARE_VERSION Then
+			CheckFirmware=TRUE
+		Else
+			if msg=FALSE Then CheckFirmware=FALSE:ExitFunction
+			if MessageBox(hMainWnd,ex"ファームウェアバージョンが不一致です。\nFirmware : ver"+Chr$(FwVer)+ex"\nRequest : ver"+Chr$(FIRMWARE_VERSION)+ex"\n\n続行しますか？","FirmwareVersion mismatch",MB_YESNO or MB_ICONWARNING) = IDYES Then
+				CheckFirmware=TRUE
+			Else
+				CheckFirmware=FALSE
+			End If
+		End If
 	Else
-		CtrMask=SRAM_READ_NOMAL
-	Endif	
+		if retry>3 Then
+			if msg=TRUE Then MessageBox(hMainWnd,ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。","Firmware mismatch",MB_ICONERROR)
+			CheckFirmware=FALSE
+		Else
+			retry++
+			DBM("VerCheck retry...")
+			DBM("")
+			Goto *SEND_VER_CHECK
+		End If
 
-	SendControl(hFile,CtrMask)	' SRAM CE
-	ReadROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
+	End If
 
-	hout=OpenFile(FileName,GENERIC_WRITE)
-	OutFile(hout,buf,info->SRAMSize)
-	CloseHandle(hout)
-
-	DBM(ex"Done\r\n")
-	free(buf)
-	
-	SetAddress(hFile,0,FALSE)
-	SendControl(hFile,DEFAULT_CTRLBUS)	'default
-EndSub
-
-/*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
-    Ch4に3を設定。SRAMのOEとディスエーブル、CEをイネーブルにする。= CE:0 RST:1 OE:1
-    MADチップの場合は7を出力する。								  = CE:1 RST:1 OE:1
-    アドレスを設定する。
-    74138のCBAを100にし、データ出力モードにする。
-    このとき、STROBEはL(反転出力に注意)にしておく。
-    STROBEをHにし、WEをイネーブルにする。
-    BUSY線から74645が有効になっているか確認してからデータを出力する。
-    STROBEをLにし、WEをディスエーブルにする。
-    Ch4を1に設定する。MADチップの場合は5。 
-*/
-
-Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
-	Dim hIn AS HANDLE,buf AS BytePtr
-	Dim CtrMask as Byte
-
-	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
-	DBM("SRAM Writeing...")
-	DBM("Address:0x"+Hex$(info->SRAMAddress))
-	PumpMessage()
-
-	hIn=OpenFile(FileName,GENERIC_READ)	
-	if info->SRAMSize <> GetFileSize(hIn,NULL) Then
-		if MessageBox(hMainWnd,"ファイルサイズが不正です。続行しますか？",ProgramName+" - Write SRAM",MB_YESNO) = IDNO Then ExitSub
-	Endif
-
-	buf=calloc(info->SRAMSize)
-	LoadFile(hIn,buf,info->SRAMSize)
-	CloseHandle(hIn)
-
-	if info->Mad=TRUE Then
-		CtrMask=SRAM_WRITE_MAD
-	Else
-		CtrMask=SRAM_WRITE_NORMAL
-	Endif	
-
-	SendControl(hFile,CtrMask)	' SRAM CE
-	WriteROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
-
-	DBM(ex"Done\r\n")
-	free(buf)
-	
-	SendControl(hFile,DEFAULT_CTRLBUS)	'default
-	SetAddress(hFile,0,FALSE)
-EndSub
+End Function
 
 Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
 	Dim cmd[7] AS Byte
@@ -295,7 +271,8 @@ Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWo
 
 		WriteCount+=dwWD
 		if WriteCount => size Then exitdo
-		if (WriteCount Mod 100) =0 Then Sleep(5)
+		if (WriteCount Mod 32) =0 Then Sleep(5)
+		if (WriteCount Mod 128) =0 Then Sleep(10)
 		if dwWD=0 Then debug
 	Loop
 	
@@ -303,42 +280,3 @@ Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWo
 	
 EndFunction
 
-
-Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
-	Dim cmd[1] AS Byte,rsv[6] As byte,FwVer AS Byte,retry AS Long
-	Dim dwWD As DWord
-	
-	cmd[0] = Asc("v")
-*SEND_VER_CHECK
-	if WriteFile(hFile,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
-	if ReadFile(hFile,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
-	if msg=TRUE Then DBMN("Firmware ID : ") : DBM(rsv)
-
-	FwVer=rsv[4]
-	rsv[4]=0
-
-	if lstrcmp(rsv,FIRMWARE_ID)=0 Then 
-		if FwVer=FIRMWARE_VERSION Then
-			CheckFirmware=TRUE
-		Else
-			if msg=FALSE Then CheckFirmware=FALSE:ExitFunction
-			if MessageBox(hMainWnd,ex"ファームウェアバージョンが不一致です。\nFirmware : ver"+Chr$(FwVer)+ex"\nRequest : ver"+Chr$(FIRMWARE_VERSION)+ex"\n\n続行しますか？","FirmwareVersion mismatch",MB_YESNO or MB_ICONWARNING) = IDYES Then
-				CheckFirmware=TRUE
-			Else
-				CheckFirmware=FALSE
-			End If
-		End If
-	Else
-		if retry>GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH) Then
-			if msg=TRUE Then MessageBox(hMainWnd,ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。","Firmware mismatch",MB_ICONERROR)
-			CheckFirmware=FALSE
-		Else
-			retry++
-			DBM("VerCheck retry...")
-			DBM("")
-			Goto *SEND_VER_CHECK
-		End If
-
-	End If
-
-End Function

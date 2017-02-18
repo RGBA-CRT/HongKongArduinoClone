@@ -169,6 +169,10 @@ inline unsigned char readData()
   return b;
 }
 
+
+#define CART_WRITE_ENABLE()   PORTC &= 0b11101111
+#define CART_WRITE_DISABLE()  PORTC |= 0b00010000
+
 void writeSRAM(int isLoROM = false) {
   while (Serial.available() < 7)
     delay(1);
@@ -189,34 +193,40 @@ void writeSRAM(int isLoROM = false) {
     5.goto 1
   */
 
+  CART_WRITE_DISABLE();
   setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
   digitalWrite(DIR, HIGH); // Arduino => [A_Bus_IN]-[B_Bus_OUT] => SFC
 
+  byte data;
   unsigned long goalAdr = address + datasize;
   while (address < goalAdr) {
-    if (Serial.available() != 0) {
-      Disable74HC245();
-      setAddress(address, isLoROM);
+    while (Serial.available() < 1);
+    data = Serial.read();
 
-      Enable74HC245();
-      setData((byte)Serial.read());
+    //アドレス出力によりデータバス出力停止
+    CART_WRITE_DISABLE();
+    Disable74HC245();
+    setAddress(address, isLoROM);
 
-      address++;
-    } else {
-      delay(1);
-    }
+    //ENABLEの時間をなるべく長くしておく
+    CART_WRITE_ENABLE();
+    setData(data);
+
+    Enable74HC245();
+    address++;
   }
 
+  CART_WRITE_DISABLE();
   Disable74HC245();
   digitalWrite(DIR, LOW); //Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
 
 }
 
-inline void setCtrlBus(char b) {
-  digitalWrite(OE , (b & B0001) ? HIGH : LOW);
-  digitalWrite(CS , (b & B0010) ? HIGH : LOW);
-  digitalWrite(WE , (b & B0100) ? HIGH : LOW);
-  digitalWrite(RST, (b & B1000) ? HIGH : LOW);
+inline void setCtrlBus(byte b) {
+  digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
+  digitalWrite(CS , (b & 0b0010) ? HIGH : LOW);
+  digitalWrite(WE , (b & 0b0100) ? HIGH : LOW);
+  digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
 #ifdef _ENABLE_CIC
@@ -304,8 +314,7 @@ void loop() {
     case 'c':
       { //set control bus(OE WD RST CS)
         while (Serial.available() < 1) ;
-        byte b = Serial.read();
-        setCtrlBus(b);
+        setCtrlBus(Serial.read());
       } break;
 
     case 'a':
@@ -330,6 +339,20 @@ void loop() {
       { //Return fimware version
         Serial.write(FIRMWARE_ID);
         Serial.write((char)FIRMWARE_VERSION);
+      } break;
+
+    case 'g':
+      { //CPU ClockGen Start/Stop
+        while (Serial.available() < 1);
+        byte mode = Serial.read();
+#ifdef _ENABLE_CIC
+        if (mode == '1') {
+          clockgen.set_freq(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+          clockgen.output_enable(SI5351_CLK1, 1);
+        } else {
+          clockgen.output_enable(SI5351_CLK1, 0);
+        }
+#endif
       } break;
   }
 }
