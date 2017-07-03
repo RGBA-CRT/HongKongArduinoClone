@@ -3,7 +3,7 @@
 
 ## 概要
 このプログラムはたにやま氏が開発・公開された、"こーどねーむ「ホンコン」 with Arduino"に手を加えて
-高速化・SRAMの吸出しなどの機能を加えたものです。  
+高速化・SRAMの吸出しなどの機能を加えたものです。Windows専用です。  
   
 こーどねーむ「ホンコン」 with Arduino  
 <http://hongkongarduino.web.fc2.com/>
@@ -33,12 +33,14 @@
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
 
 
-##SA-1対応
+## 特殊カートリッジについて
 実験段階ですが、SA-1カートリッジの吸出ができるようになりました。
 ピンが足りなくて無理のある接続をしているため不安定です。
 詳しくはソースコードを参照。  
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
+
+その他特殊カートリッジ(NintendoPower, SDD1)には対応していません。BSX系ソフトもたぶん無理です。
 
 ##
 その他詳細はReadme.txtを参照
