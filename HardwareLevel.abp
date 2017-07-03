@@ -48,6 +48,7 @@ Type SFC_ROM_HEADER
 	Mad AS Byte
 EndType
 
+'↓このコードひどいから改善しよう
 Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
 	'カートリッジのヘッダエリアのデータをSFC_ROM_HEADERへ格納
 
@@ -144,7 +145,7 @@ Sub SendControl(hComPort AS HANDLE,b AS Byte)
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-	DBM("SetCtrlBus : 0"+Hex$(b))
+'	DBM("SetCtrlBus : 0"+Hex$(b))
 	if WriteFile(hComPort,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError()))
 EndSub
 
@@ -174,9 +175,9 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 	Dim dwReadByte As DWord
 
 	if isLoROM Then
-		cmd[0]=Asc("r")
+		cmd[0]=Asc("r")	'LoROM
 	Else
-		cmd[0]=Asc("R")
+		cmd[0]=Asc("R")	'HiROM
 	Endif
 
 	cmd[1] = (address >> (8 * 0)) AS Byte
@@ -190,6 +191,7 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 	WriteFile(hFile,cmd,7,VarPtr(dwReadByte),ByVal NULL)
 
 	dwReadByte=0
+
 
 	Do
 		if ReadFile(hFile,(data)+offset + ReadByte, size - ReadByte,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n    [Connection Error!]"):ExitDo
@@ -263,6 +265,7 @@ Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWo
 	WriteFile(hFile,cmd,7,VarPtr(dwWD),ByVal NULL)
 	Sleep(10)
 
+	DBM("MapMode:"+Chr$(cmd[0]) )
 	WriteCount=0
 
 	'1バイトずつ送信(100バイトずつウェイト置いた方がいいかも)

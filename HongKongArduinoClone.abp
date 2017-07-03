@@ -1,11 +1,11 @@
 #include "HongKongArduinoClone.idx"
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "0.3"
+Const VerStr = "0.3.2"	'Bugfix, hardtest
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 Const FIRMWARE_ID="HKAF"
-Const FIRMWARE_VERSION=&H30 'A'
+Const FIRMWARE_VERSION=&H30
 
 Const DEFAULT_BAUDRATE = 500000*2
 Const DEFAULT_CONTINUE = 20

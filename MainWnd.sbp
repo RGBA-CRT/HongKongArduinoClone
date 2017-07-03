@@ -77,6 +77,11 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	Dim baudrate As DWord
 	baudrate=GetPrivateProfileInt(ProgramName,"BaudRate",DEFAULT_BAUDRATE,INIFILE_PATH)
 	if baudrate=0 Then baudrate=DEFAULT_BAUDRATE
+
+#IFDEF _DEBUG
+MoveWindow(hMainWnd,0,0,475,330,TRUE)
+#ENDIF
+
 	SetWindowText(MWnd(EditBox6),Str$(baudrate))
 End Sub
 
@@ -155,7 +160,6 @@ Sub DBMN(Text AS BytePtr)
 	LastPos=GetWindowTextLength(hEB)
 	SendMessage(hEB,EM_SETSEL,LastPos,LastPos)
 	SendMessage(hEB,EM_REPLACESEL,0,Text As Long)
-
 EndSub
 
 Sub MainWnd_CommandButton5_Click()
@@ -172,7 +176,7 @@ Sub MainWnd_CommandButton5_Click()
 		hCOM=ConnectToCOM(txCom,rate)
 
 		if hCOM =< 0 Then 
-			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。\nErr."+Str$(GetLastError()),"接続失敗",0)
+			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。","接続失敗",0,GetLastError())
 			DBM("Failed.")
 			hCOM=0
 			free(txCom)	
@@ -296,6 +300,7 @@ Sub MainWnd_CommandButton2_Click()
 	Dim path As BytePtr
 
 	GetSFCinfo(info)
+'	info.ROMSize = &H400000	'debug
 
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0","sfc",info.Title)
@@ -345,28 +350,6 @@ Function GetCheckBox(Ctrl As HWND) As Byte
 	endif
 endfunction
 
-Sub MainWnd_CommandButton1_Click()
-	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_ROM_HEADER
-	DBM( "Get Cartridge Infomation")
-	
-	'ヘッダを読み出し＆ダイアログに情報を表示
-	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
-	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
-		lstrcpy(cartInfo.Title,"[ERR]通信エラー")
-		SetCartInfo(VarPtr(cartInfo))
-		ExitSub
-	End If
-	SloveCartInfo(buf,VarPtr(cartInfo))
-	SetCartInfo(VarPtr(cartInfo))
-
-	'アクセスランプをLow
-	SetAddress(hCOM,&H000000,FALSE)
-
-End Sub
-
-Sub MainWnd_EditBox6_Change()
-
-End Sub
 
 /*
 	Todo:ダブルクリックでテキストボックスを有効にして手動ROM・RAMサイズ入力
@@ -497,7 +480,7 @@ Sub MainWnd_CommandButton6_Click()
 	adr=GetDlgItemHex(MWnd(EditBox2))
 	DBM("Dump 0x"+Hex$(adr))
 '	SendControl(hCOM,12)
-	ReadROM(hCOM,data,0,adr,&h5000,GetCheckBox(MWnd(CheckBox5)))
+	ReadROM(hCOM,data,0,adr,&h5000,NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
 	Dim f AS File
 	f.openFile("test.bin",GENERIC_WRITE)
 	f.write(data,&h5000)
@@ -528,7 +511,7 @@ Sub MainWnd_CommandButton7_Click()
 	data=GetDlgItemHex(MWnd(EditBox3))
 	adr=GetDlgItemHex(MWnd(EditBox4))
 	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
-	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox5)))
+	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox6)))
 End Sub
 
 'RST WE CS OE
@@ -543,6 +526,33 @@ Sub MainWnd_CommandButton8_Click()
 End Sub
 
 
-Sub MainWnd_CheckBox6_Click()
+Sub MainWnd_CommandButton9_Click()
+	DBM("回路デバッグモード")
+	DBM("ESCキーで抜ける")
+	Do
+		MainWnd_CommandButton1_Click()
+		Sleep(300)
+		PumpMessage()
+		if GetKeyState(VK_ESCAPE) And &H80 Then ExitDo
+	Loop
+End Sub
 
+Sub MainWnd_CommandButton1_Click()
+	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_ROM_HEADER
+	DBM( "Get Cartridge Infomation")
+	
+	'ヘッダを読み出し＆ダイアログに情報を表示
+	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
+	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
+		lstrcpy(cartInfo.Title,"[ERR]通信エラー")
+		SetCartInfo(VarPtr(cartInfo))
+		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
+		DisconnectDevice()
+		ExitSub
+	End If
+	SloveCartInfo(buf,VarPtr(cartInfo))
+	SetCartInfo(VarPtr(cartInfo))
+
+	'アクセスランプをLow
+	SetAddress(hCOM,&H000000,FALSE)
 End Sub
