@@ -1,14 +1,54 @@
+'スーファミシステム系
 
+Const SFC_SPEC_HEADER_SIZE=32
+Const SFC_SPEC_HEADER_ADDR=&HFFC0
+
+Const HiROM_START_ADR=&HC00000
+
+Const SRAM_ADDRESS_LoROM_NORMAL = &H700000'&H380000
+Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
+Const SRAM_ADDRESS_HiROM_NORMAL = &H1C0000
+Const SRAM_ADDRESS_HiROM_MAD 	= &H206000'&HA06000
+Const SRAM_ADDRESS_SA1 = &H400000
+
+Const SFC_ROM_TYPE_NUM = 6
+Enum SFC_ROM_TYPE
+	SFC_ROM_LoROM = 0
+	SFC_ROM_HiROM = 1
+	SFC_ROM_SDD1= 2
+	SFC_ROM_SA1	= 3
+	SFC_ROM_ExHiROM = 5
+	SFC_ROM_SPC7110 = &H0A
+End Enum
+	
+Type SFC_ROM_HEADER
+	Title[21] AS Byte
+	MapMode AS Byte
+	ROMType As Byte
+	CartType AS Byte
+	ROMSize AS DWord
+	SRAMSize AS DWord
+	SRAMAddress As DWord
+	Country AS Byte
+	Version AS Byte
+	CheckSum1 AS Word
+	CheckSum2 AS Word
+	Mad AS Byte
+EndType
+
+'ROMの吸出し
 Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
 	Dim DumpAddress As DWord, offset AS DWord, ret AS DWord, CheckSum=0 AS DWord,
+	Dim sdd1Bank=0 AS Long
 
 	Dim buf AS BytePtr,nowSize As DWord,Size AS DWord,bRomType AS Byte
 	Dim hout AS HANDLE,C AS Long	'コンテニューカウンタ
 	Dim lt AS DWord,time AS DWord
 
-	if info->ROMType=SFC_ROM_HiROM or info->ROMType=SFC_ROM_SA1  Then
+	'アドレス系準備
+	if info->ROMType=SFC_ROM_HiROM or info->ROMType=SFC_ROM_SA1  or info->ROMType=SFC_ROM_SDD1  Then
 		bRomType=FALSE
 		DumpAddress=HiROM_START_ADR
 		offset=HiROM_START_ADR
@@ -17,18 +57,8 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 		DumpAddress=0
 		offset=0
 	Endif
-
 	Size=info->ROMSize
-'	DBM("ROM Size : "+Hex$(Size))
-
-	buf=calloc(DUMP_BUFFER_SIZE+12)
 	SendControl(hCOM,DEFAULT_CTRLBUS)
-
-	DBM("(Pless Esc to Cancel)")
-	DBMN("Dumping")
-	hout=OpenFile(Path,GENERIC_WRITE)
-
-	lt=GetTickCount()
 
 	'設定ファイル読み込み
 	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
@@ -40,6 +70,24 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(Size/DUMP_BUFFER_SIZE) As Word))
 	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
 	SetDlgEnable(STATUS_DUMPING)
+
+	'SDD1のセットアップ
+	if info->ROMType=SFC_ROM_SDD1 Then
+		sdd1Bank=0
+		SDD1_SetBanks(hCOM,sdd1Bank)
+		SDD1_PrintBanks(hCOM)
+
+		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
+	End If
+
+	'ダンプバッファの作成	
+	buf=calloc(DUMP_BUFFER_SIZE+12)
+	hout=OpenFile(Path,GENERIC_WRITE)
+
+	DBM("(Pless Esc to Cancel)")
+	DBMN("Dumping")
+
+	lt=GetTickCount()
 
 	Do
 		'ESCキーでキャンセル
@@ -59,14 +107,32 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 		'出力＆チェックサム計算
 		OutFile(hout,buf,DUMP_BUFFER_SIZE)
 		CheckSum+=CalcChkSum(buf,DUMP_BUFFER_SIZE)
-	
+
 		'次のアドレスを計算
 		DumpAddress+=DUMP_BUFFER_SIZE
+		if DumpAddress-offset=&H400000 Then
+			'4MB超えする時
+			if info->ROMType=SFC_ROM_SDD1 Then
+				if sdd1Bank<4 Then
+					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
+					DBM(ex"\r\n")
+					sdd1Bank+=4
+					SDD1_SetBanks(hCOM,sdd1Bank)
+					SDD1_PrintBanks(hCOM)
+					DBM(ex"")
+
+					DumpAddress=offset	'アドレスリセット
+				Else
+					'4-7バンクを吸い出し終わったので終了
+					ExitDo
+				End If
+			End If
+		End If
 		if DumpAddress-offset>=Size Then ExitDo
 
 		'進捗表示
 		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
-		SetWindowText(MWnd(Static7),Str$(Int((DumpAddress-offset)/Size*100))+"%")
+		SetWindowText(MWnd(Static7),Str$(Int(((DumpAddress-offset)*(sdd1Bank/4+1))/Size*100))+"%")
 		DBMN(".")
 	Loop
 	time=GetTickCount()-lt
@@ -95,6 +161,8 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	SetAddress(hCOM,0,FALSE)
 EndSub
 
+
+'チェックサム計算
 Function checkContiguous(adr AS BytePtr,size AS DWord) AS Long
 	Dim i AS Long,someCount AS DWord,last AS Byte
 	For i=0 To size
@@ -109,8 +177,6 @@ Function checkContiguous(adr AS BytePtr,size AS DWord) AS Long
 	Next i
 	checkContiguous=TRUE
 End Function
-		
-
 
 Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
 	Dim i AS DWord
@@ -121,140 +187,6 @@ Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
 		i++
 	Loop
 End Function
-
-
-Sub GetSFCinfo(ByRef info as SFC_ROM_HEADER)
-	'カートリッジからヘッダを読み込んでSFC_ROM_HEADER構造体に格納
-
-	Dim buf[SFC_SPEC_HEADER_SIZE+5] AS Byte
-	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
-	SloveCartInfo(buf,VarPtr(info))
-
-	GetDlgOption(info)
-
-	SetCartInfo(VarPtr(info))
-EndSub
-
-Sub SetCartInfo(info AS *SFC_ROM_HEADER)
-	'SFC_ROM_HEADERの内容をGUIに表示
-
-	Dim CartChip[512] AS Byte
-	Const UNK_CART_TYPE_TEXT = " UNKNOWN CART TYPE"
-
-	SetWindowText(MWnd(ROMTITLE),info->Title)
-	SendMessage(MWnd(MAPPING),CB_SETCURSEL,info->ROMType,0)
-/*	if info->ROMType=SFC_ROM_HiROM Then
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,2,0)
-	Elseif info->ROMType=SFC_ROM_LoROM Then
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,3,0)
-	Else if info->
-		SendMessage(MWnd(MAPPING),CB_SETCURSEL,1,1)
-	endif*/
-	DBMN("Chips : ")
-	lstrcpy(CartChip,"ROM")
-
-	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
-	Select Case info->CartType>>4
-		Case &H00
-			Select Case info->CartType And &H0F
-				Case &H00 : lstrcat(CartChip,"")
-				Case &H01 : lstrcat(CartChip,"+RAM")
-				Case &H02 : lstrcat(CartChip,"+RAM+SRAM")
-				Case &H03 : lstrcat(CartChip,"+DSP")
-				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
-				Case &H05 : lstrcat(CartChip,"+DSP+RAM+SRAM")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case &H01 'SuperFX
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
-				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
-				Case &H05 : lstrcat(CartChip,"+GSU+RAM+SRAM")
-				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+SRAM")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-			lstrcat(CartChip," [SuperFX]")
-		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+SRAM")
-		Case &H03 
-			lstrcat(CartChip,"+SA-1+RAM")
-			if info->CartType = &H34 Then
-			Elseif info->CartType = &H35 then
-				 lstrcat(CartChip,"+SRAM")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			endif
-		Case &H04
-			lstrcat(CartChip,"+SDD1+")
-			if info->CartType And &H0F = 3 Then
-			Elseif info->CartType And &H0F = 5 then
-				 lstrcat(CartChip,"RAM+SRAM")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			endif
-		Case &H05 : lstrcat(CartChip,"+S-RTC+RAM+SRAM")
-		Case &H0E 
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
-				Case &H05 : lstrcat(CartChip,"+BS-X")
-				Case &H0A : lstrcat(CartChip,"+CX4")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case &H0F
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+CX4")
-				Case &H05
-					if info->ROMType=SFC_ROM_LoROM Then
-						lstrcat(CartChip,"+ST018+RAM+SRAM")
-					Else
-						lstrcat(CartChip,"+SPC7110+RAM+SRAM")
-					endif
-				Case &H0A6
-					if info->ROMSize=&H100000 Then
-						lstrcat(CartChip,"+ST010")
-					Else
-						lstrcat(CartChip,"+ST011")
-					endif
-				Case &H03 : lstrcat(CartChip,"+SPC7110+RAM+SRAM+RTC")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			EndSelect
-		Case Else
-			lstrcat(CartChip," UNKNOWN CART TYPE")
-	EndSelect
-
-	SetWindowText(MWnd(CART_CIPS),CartChip)
-	wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
-	DBM(CartChip)
-
-	SetWindowText(MWnd(ROM_SIZE),Str$(info->ROMSize/1024)+"KB ["+Str$((info->ROMSize*8)/(1024^2))+"MBit]")
-	if info->SRAMSize =0 Then
-		SetWindowText(MWnd(SRAM_SIZE),"None")		
-	Else
-		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
-	endif
-
-	DBMN("Country : ")
-	Select Case info->Country
-		Case 00 : DBM("Japan")
-		Case 01 : DBM("USA")
-		Case 02 : DBM("Europe")
-		Case 03 : DBM("UnDefined")
-	EndSelect
-
-	DBM("Version : "+Str$(info->Version/10+1.0))
-	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
-	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
-	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
-/*
-Dim nBank AS Long,rt[2]=[0,1,4] AS Byte
-if info->ROMType=SFC_ROM_ExHiROM Then
-	nBank=info->ROMSize*2
-Else
-	nBank=((info->ROMSize) * 1024 * 1024 / 8) / (32768 + ((rt[info->ROMType]) * 32768))
-End If
-	DBM("nBank=0x"+Hex$(nBank))*/
-	DBM("")
-
-EndSub	
 
 
 /*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
@@ -268,16 +200,6 @@ EndSub
     STROBEをLにし、WEをディスエーブルにする。
     Ch4を1に設定する。MADチップの場合は5。 
 */
-Sub SetCPU_Clock(hFile AS HANDLE,isStart AS BOOL)
-	Dim dwWB AS DWord
-	if isStart=TRUE Then
-		WriteFile(hFile,"g1", 2,VarPtr(dwWB) , ByVal NULL)
-	Else
-		WriteFile(hFile,"g0", 2,VarPtr(dwWB) , ByVal NULL)
-	End If
-End Sub
-
-
 Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 	Dim hIn AS HANDLE,buf AS BytePtr
 	Dim CtrMask as Byte
@@ -309,7 +231,7 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 	
 	Else
 		'SA-1 (sanni氏のcartreaderを参考)
-		DBM("SA-1 Write BW-RAM (can't work)")
+		DBM("SA-1 Write BW-RAM (動作不能)")
 		Dim cmd[512] AS Byte
 		Dim block AS Long,lastBlock AS Long,curByte AS DWord,i AS Long
 
@@ -342,7 +264,7 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 			Next curByte
 
 			Sleep(1000)
-Exitfor
+			Exitfor
 		Next block
 		cmd[0]=0
 		WriteROM(hFile,cmd,0,&H2227,1,FALSE)	'SRAM DISABLE
@@ -390,3 +312,77 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_ROM_HEADER,FileName AS BytePtr)
 	SendControl(hFile,DEFAULT_CTRLBUS)	'default
 EndSub
 
+'生のROMヘッダをSFC_ROM_HEADERに
+Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
+	'カートリッジのヘッダエリアのデータをSFC_ROM_HEADERへ格納
+
+	Dim i as Long
+
+	memcpy(info,data,21)
+	For i=0 To 20
+		if info->Title[i] = 0 Then
+			lstrcpy(info->Title,"CART CONNECTION ERR")
+			exitfor
+		Endif
+	Next i
+	info->Title[21]=0
+
+	info->CartType = data[22]
+	info->MapMode=data[21]
+	info->ROMType=(info->MapMode And &H0F)
+
+	Select Case info->ROMType
+		Case SFC_ROM_HiROM
+			info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
+
+		Case SRAM_ADDRESS_SA1
+			info->SRAMAddress=SRAM_ADDRESS_SA1
+
+		Case Else
+			info->SRAMAddress=SRAM_ADDRESS_LoROM_NORMAL
+
+	End Select
+	
+	info->ROMSize=&H0400<<data[23]
+
+	if data[24]<>0 then
+		info->SRAMSize = &H0400<<data[24]
+	Else
+		info->SRAMSize=0
+	End If
+
+	info->Country = data[25]
+	info->Version = data[27]
+	info->CheckSum1 = ((data[29] << 8) Or data[28]) AS Word
+	info->CheckSum2 = ((data[31] << 8) Or data[30]) AS Word
+EndSub
+
+
+
+'SDD1のバンクをセットアップ
+'SNESバンクC0, D0, E0, F0にbankStartから始まるROMバンク(1MByteごと)を割り当て
+Sub SDD1_SetBanks(hCOM AS HANDLE,bankStart AS Long)
+	Dim buf[3] AS Byte, i AS Long
+	DBM(sprintfStr("Setting S-DD1 bank %d-%d...",bankStart,bankStart+3))
+
+	For i=0 To 3
+		buf[i] = bankStart+i
+	Next i
+
+	SendControl(hCOM,RST or OE)
+	WriteROM(hCOM,buf,0,&H004804,4,FALSE)
+	SendControl(hCOM,DEFAULT_CTRLBUS)
+End Sub
+
+'現在のSDD1のバンク設定をGUIに出力
+Sub SDD1_PrintBanks(hCOM AS HANDLE)
+	Dim buf[3] AS Byte, i AS Long
+
+	SendControl(hCOM,DEFAULT_CTRLBUS)
+	ReadROM(hCOM,buf,0,&H004804,4,FALSE)
+			
+	For i=0 To 3
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d",&HC+i,&HC+i,buf[i]))
+	Next i
+
+End Sub

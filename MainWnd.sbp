@@ -66,8 +66,10 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	ListUpComPort(GetDlgItem(hMainWnd,ComList))
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"LoROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"HiROM" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"S-DD1 HiROM" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SA-1 HiROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"ExHiROM" AS Long)
-	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SA-1" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SPC7110 HiROM" AS Long)
 	
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 AS BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
@@ -161,6 +163,7 @@ Sub DBMN(Text AS BytePtr)
 	SendMessage(hEB,EM_SETSEL,LastPos,LastPos)
 	SendMessage(hEB,EM_REPLACESEL,0,Text As Long)
 EndSub
+
 
 Sub MainWnd_CommandButton5_Click()
 	if hCOM=0 then
@@ -299,7 +302,7 @@ Sub MainWnd_CommandButton2_Click()
 	Dim info AS SFC_ROM_HEADER
 	Dim path As BytePtr
 
-	GetSFCinfo(info)
+	GetDumpConfig(info)
 '	info.ROMSize = &H400000	'debug
 
 #ifndef _DEBUG
@@ -318,43 +321,10 @@ Sub MainWnd_CommandButton2_Click()
 	MessageBeep(MB_ICONASTERISK)
 End Sub
 
-Sub GetDlgOption(ByRef info as SFC_ROM_HEADER) 
-	'LoROM/HiROMの選択とMAD1のチェック取得
-
-	Dim Tmp[2] AS Byte
-
-	GetWindowText(MWnd(MAPPING),Tmp,3)
-	if Tmp[0]=Asc("H") Then 
-		info.ROMType=SFC_ROM_HiROM
-	Elseif Tmp[0]=Asc("S") Then
-		info.ROMType=SFC_ROM_SA1
-	Else
-		info.ROMType=SFC_ROM_LoROM
-	Endif
-
-	info.Mad=GetCheckBox(MWnd(CheckBox1))
-	if info.Mad=TRUE Then
-		if info.ROMType=SFC_ROM_HiROM Then
-			info.SRAMAddress=SRAM_ADDRESS_HiROM_MAD
-		Else
-			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
-		endif
-	endif
-EndSub
-
-Function GetCheckBox(Ctrl As HWND) As Byte
-	if SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
-		GetCheckBox=TRUE
-	Else
-		GetCheckBox=FALSE
-	endif
-endfunction
-
 
 /*
 	Todo:ダブルクリックでテキストボックスを有効にして手動ROM・RAMサイズ入力
-*/	
-
+*/
 Sub MainWnd_QueryClose(ByRef cancel As Integer)
 	SaveIniFile()
 End Sub
@@ -382,7 +352,7 @@ Sub MainWnd_CommandButton3_Click()
 	Dim info AS SFC_ROM_HEADER
 	Dim path As BytePtr
 
-	GetSFCinfo(info)
+	GetDumpConfig(info)
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",info.Title)
 	if path=0 Then ExitSub
@@ -409,13 +379,14 @@ Sub MainWnd_CommandButton4_Click()
 #endif
 	if MessageBox(hMainWnd,ex"この操作を行うとカセット内のセーブデータの内容が消えて上書きされます。\nまた、この機能は未完成のため正常にデータが書き込めない可能性があります。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
 	Dim info AS SFC_ROM_HEADER
-	GetSFCinfo(info)
+	GetDumpConfig(info)
 	WriteSRAM(hCOM,VarPtr(info),path)
 #ifndef _DEBUG
 	free(path)
 #endif
 	MessageBeep(MB_ICONASTERISK)
 End Sub
+
 
 Function SaveDialogCalloc(filter AS BytePtr,ext AS String)(defFileName AS BytePtr)	As BytePtr
 	Dim tOfn As OPENFILENAME,i As DWord
@@ -473,13 +444,14 @@ Sub MainWnd_Static1_DblClick()
 	exec("http://hongkongarduino.web.fc2.com/")
 End Sub
 
+'リードテスト
 Sub MainWnd_CommandButton6_Click()
 	if hCOM=0 Then ExitSub
 	Dim data As BytePtr,adr AS DWord
 	data=calloc(&H10000)
 	adr=GetDlgItemHex(MWnd(EditBox2))
 	DBM("Dump 0x"+Hex$(adr))
-'	SendControl(hCOM,12)
+
 	ReadROM(hCOM,data,0,adr,&h5000,NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
 	Dim f AS File
 	f.openFile("test.bin",GENERIC_WRITE)
@@ -498,11 +470,8 @@ Sub MainWnd_CommandButton6_Click()
 	DBM(data+&H5000)
 End Sub
 
-Sub MainWnd_CART_CIPS_Change()
-
-End Sub
-
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
+	'ESC+マウス中ボタンダブルクリックでテストモード
 	if GetKeyState(VK_ESCAPE) And &H80 Then MoveWindow(hMainWnd,0,0,475,330,TRUE)
 End Sub
 
@@ -514,7 +483,6 @@ Sub MainWnd_CommandButton7_Click()
 	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox6)))
 End Sub
 
-'RST WE CS OE
 Sub MainWnd_CommandButton8_Click()
 	if hCOM=0 Then ExitSub
 	Dim ctrl AS Byte
@@ -524,7 +492,6 @@ Sub MainWnd_CommandButton8_Click()
 
 	SendControl(hCOM,ctrl)
 End Sub
-
 
 Sub MainWnd_CommandButton9_Click()
 	DBM("回路デバッグモード")
@@ -556,3 +523,219 @@ Sub MainWnd_CommandButton1_Click()
 	'アクセスランプをLow
 	SetAddress(hCOM,&H000000,FALSE)
 End Sub
+
+Sub MainWnd_CommandButton10_Click()
+	if GetKeyState(VK_ESCAPE) And &H8000 Then
+		SDD1_SetBanks(hCOM,4)
+		DBM("SDD1 set bank 4-7")
+	Else
+		DBM("Current S-DD1 bank states : ")
+	End If
+	SDD1_PrintBanks(hCOM)
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------
+
+
+'吸出し設定をROMとGUIから読み出し
+Sub GetDumpConfig(ByRef info as SFC_ROM_HEADER)
+	'ROMからヘッダロード
+	Dim buf[SFC_SPEC_HEADER_SIZE+5] AS Byte
+	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
+	SloveCartInfo(buf,VarPtr(info))
+
+	'GUIの設定を反映
+	GetDlgOption(info)
+
+	SetCartInfo(VarPtr(info))
+EndSub
+
+Sub GetDlgOption(ByRef info as SFC_ROM_HEADER) 
+	'LoROM/HiROMの選択とMAD1のチェック取得
+
+	Dim mapperTable[SFC_ROM_TYPE_NUM]=[ _
+		SFC_ROM_LoROM, _
+		SFC_ROM_HiROM, _
+		SFC_ROM_SDD1, _
+		SFC_ROM_SA1, _
+		SFC_ROM_ExHiROM, _
+		SFC_ROM_SPC7110 _
+	] AS Byte, idx AS Long
+
+	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_ROM_TYPE_NUM
+	info.ROMType=mapperTable[idx]
+	info.MapMode = (info.MapMode And &HF0) or info.ROMType
+
+	info.Mad=GetCheckBox(MWnd(CheckBox1))
+	if info.Mad=TRUE Then
+		if info.ROMType=SFC_ROM_HiROM Then
+			info.SRAMAddress=SRAM_ADDRESS_HiROM_MAD
+		Else
+			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
+		endif
+	endif
+EndSub
+
+
+'MapMode (20 SrowRom LoROMのやつ）のGUI用関数
+Function MapModeToComboboxIndex(mapMode AS Byte) As Long
+	Dim mapTable[SFC_ROM_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A] AS Byte
+	Dim romMap As Byte
+	Dim i AS Long
+
+	romMap=(mapMode And &H0F)
+	For i=0 To SFC_ROM_TYPE_NUM
+		if mapTable[i]=romMap Then 
+			MapModeToComboboxIndex=i
+			ExitFor
+		End If
+	Next
+End Function
+
+Function GetRomSpeedString(mapMode AS Byte) AS BytePtr
+	if (mapMode And &H20) Then
+		GetRomSpeedString="Fast"
+	Else
+		GetRomSpeedString="Slow"
+	End If
+End Function
+
+Function GetRomMapString(mapMode AS Byte) AS BytePtr
+	Select Case (mapMode And &H0F)
+		Case 0
+			GetRomMapString="LoROM"
+		Case 1
+			GetRomMapString="HiROM"
+		Case 2
+			GetRomMapString="S-DD1"
+		Case 3
+			GetRomMapString="SA-1"
+		Case 5
+			GetRomMapString="ExHiROM"
+		Case &H0A
+			GetRomMapString="SPC7110"
+		Case Else
+			GetRomMapString="unknown"
+	End Select	
+End Function
+
+
+'カートリッジ情報をGUIに反映
+Sub SetCartInfo(info AS *SFC_ROM_HEADER)
+	'SFC_ROM_HEADERの内容をGUIに表示
+
+	Dim CartChip[512] AS Byte
+	Const UNK_CART_TYPE_TEXT = "+???"
+
+	SetWindowText(MWnd(ROMTITLE),info->Title)
+	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->MapMode),0)
+	DBM(sprintfStr("MapMode:[%02X]%s%s",info->MapMode,GetRomSpeedString(info->MapMode),GetRomMapString(info->MapMode)))
+
+	DBMN("Chips : ")
+	lstrcpy(CartChip,"ROM")
+
+	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
+	Select Case info->CartType>>4
+		Case &H00
+			Select Case info->CartType And &H0F
+				Case &H00 : lstrcat(CartChip,"")
+				Case &H01 : lstrcat(CartChip,"+RAM")
+				Case &H02 : lstrcat(CartChip,"+RAM+SRAM")
+				Case &H03 : lstrcat(CartChip,"+DSP")
+				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
+				Case &H05 : lstrcat(CartChip,"+DSP+RAM+SRAM")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case &H01 'SuperFX
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
+				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
+				Case &H05 : lstrcat(CartChip,"+GSU+RAM+SRAM")
+				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+SRAM")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+			lstrcat(CartChip," [SuperFX]")
+		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+SRAM")
+		Case &H03 
+			lstrcat(CartChip,"+SA-1+RAM")
+			if info->CartType = &H34 Then
+			Elseif info->CartType = &H35 then
+				 lstrcat(CartChip,"+SRAM")
+			Else
+				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			endif
+		Case &H04
+			lstrcat(CartChip,"+SDD1+")
+			if (info->CartType And &H0F) = 3 Then
+			Elseif info->CartType = &H45 then
+				 lstrcat(CartChip,"RAM+SRAM")
+			Else
+				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			endif
+		Case &H05 : lstrcat(CartChip,"+S-RTC+RAM+SRAM")
+		Case &H0E 
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
+				Case &H05 : lstrcat(CartChip,"+BS-X")
+				Case &H0A : lstrcat(CartChip,"+CX4")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case &H0F
+			Select Case info->CartType And &H0F
+				Case &H03 : lstrcat(CartChip,"+CX4")
+				Case &H05
+					if info->ROMType=SFC_ROM_LoROM Then
+						lstrcat(CartChip,"+ST018+RAM+SRAM")
+					Else
+						lstrcat(CartChip,"+SPC7110+RAM+SRAM")
+					endif
+				Case &H0A6
+					if info->ROMSize=&H100000 Then
+						lstrcat(CartChip,"+ST010")
+					Else
+						lstrcat(CartChip,"+ST011")
+					endif
+				Case &H03 : lstrcat(CartChip,"+SPC7110+RAM+SRAM+RTC")
+				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
+			EndSelect
+		Case Else
+			lstrcat(CartChip," UNKNOWN CART TYPE")
+	EndSelect
+
+	SetWindowText(MWnd(CART_CIPS),CartChip)
+	wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
+	DBM(CartChip)
+
+	SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
+						(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
+
+	if info->SRAMSize =0 Then
+		SetWindowText(MWnd(SRAM_SIZE),"None")		
+	Else
+		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
+	endif
+
+	DBMN("Country : ")
+	Select Case info->Country
+		Case 00 : DBM("Japan")
+		Case 01 : DBM("USA")
+		Case 02 : DBM("Europe")
+		Case 03 : DBM("UnDefined")
+	EndSelect
+
+	DBM("Version : "+Str$(info->Version/10+1.0))
+	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
+	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
+	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
+	DBM("")
+
+EndSub	
+
+Function GetCheckBox(Ctrl As HWND) As Byte
+	if SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
+		GetCheckBox=TRUE
+	Else
+		GetCheckBox=FALSE
+	endif
+endfunction

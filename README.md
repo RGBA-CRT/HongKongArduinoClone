@@ -28,19 +28,25 @@
 このプログラムについてのページ  
 <http://rgbacrt.seesaa.net/article/435543541.html>
 
+### 参考コード・資料
+ * 	[http://hongkongarduino.web.fc2.com/archive]  
+ * 	[https://github.com/sanni/cartreader/]  
+ * 	[http://problemkaputt.de/fullsnes.txt]  
 
 ## ダウンロード
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
 
 
 ## 特殊カートリッジについて
-実験段階ですが、SA-1カートリッジの吸出ができるようになりました。
-ピンが足りなくて無理のある接続をしているため不安定です。
-詳しくはソースコードを参照。  
+対応状況は以下の通りです。
+ * [NG] SFメモリカセット
+ * [NG] 特殊LoROM?(ダビスタ96)
+ * [NG] 8Mメモリパック
+ * [未テスト] ExHiROM(テイルズ)
+ * [OK] S-DD1
+ * [OK] SA-1
+ 
+SA-1は以下の回路を追加すると吸い出せるようになります。
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
 
-その他特殊カートリッジ(NintendoPower, SDD1)には対応していません。BSX系ソフトもたぶん無理です。
-
-##
-その他詳細はReadme.txtを参照

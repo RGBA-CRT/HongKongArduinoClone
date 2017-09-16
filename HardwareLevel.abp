@@ -1,17 +1,6 @@
 #include <RGBALib.sbp>
 
-Const SFC_SPEC_HEADER_SIZE=32
-Const SFC_SPEC_HEADER_ADDR=&HFFC0
-
-Const HiROM_START_ADR=&HC00000
-
-Const SRAM_ADDRESS_LoROM_NORMAL = &H700000'&H380000
-Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
-
-Const SRAM_ADDRESS_HiROM_NORMAL = &H1C0000
-Const SRAM_ADDRESS_HiROM_MAD 	= &H206000'&HA06000
-
-Const SRAM_ADDRESS_SA1 = &H400000
+'ファーム制御系
 
 Const OE = 1
 Const CE = 2
@@ -21,89 +10,10 @@ Const SRAM_READ_NOMAL = RST or WE
 Const SRAM_READ_MAD   = RST or WE or CE
 Const SRAM_WRITE_NORMAL=RST or OE
 Const SRAM_WRITE_MAD  = RST or OE or CE
-
 Const SRAM_WRITE_SA1 = RST or OE or WE or CE
 
 Const DEFAULT_CTRLBUS = 12
 
-'↓の並びはコンボボックスとあわせること
-Enum SFC_ROM_TYPE
-	SFC_ROM_ExHiROM = 0
-	SFC_ROM_HiROM
-	SFC_ROM_LoROM 
-	SFC_ROM_SA1
-End Enum
-	
-Type SFC_ROM_HEADER
-	Title[21] AS Byte
-	ROMType As SFC_ROM_TYPE
-	CartType AS Byte
-	ROMSize AS DWord
-	SRAMSize AS DWord
-	SRAMAddress As DWord
-	Country AS Byte
-	Version AS Byte
-	CheckSum1 AS Word
-	CheckSum2 AS Word
-	Mad AS Byte
-EndType
-
-'↓このコードひどいから改善しよう
-Sub SloveCartInfo(data AS BytePtr,info As *SFC_ROM_HEADER)
-	'カートリッジのヘッダエリアのデータをSFC_ROM_HEADERへ格納
-
-	Dim i as Long
-
-	memcpy(info,data,21)
-	For i=0 To 20
-		if info->Title[i] = 0 Then
-			lstrcpy(info->Title,"CART CONNECTION ERR")
-			exitfor
-		Endif
-	Next i
-	info->Title[21]=0
-
-	info->CartType = data[22]
-	if (info->CartType And &HF0)=&H30 Then
-		info->ROMType=SFC_ROM_SA1
-		info->SRAMAddress=SRAM_ADDRESS_SA1
-	elseif data[21]=&H35 Then
-		info->ROMType=SFC_ROM_ExHiROM
-	Elseif (data[21] And &H01) = 0 Then 
-		info->ROMType=SFC_ROM_LoROM
-		info->SRAMAddress=SRAM_ADDRESS_LoROM_NORMAL
-	Else
-		info->ROMType=SFC_ROM_HiROM
-		info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
-	Endif
-	'	DBM("[SCI]"+Hex$(data[21]))
-	
-	Select Case (data[23])
-		Case &H0D :	info->ROMSize = &H800000	'8MB  = 64MBit
-		Case &H0C : info->ROMSize = &H400000	'4MB  = 32MBit 
-		Case &H0B : info->ROMSize = &H200000	'2MB  = 16MBit
-		Case &H0A : info->ROMSize = &H100000	'1MB  =  8MBit
-		Case &H09 : info->ROMSize = &H080000	'512KB = 4MBit
-		Case &H08 : info->ROMSize = &H040000	'256KB = 2MBit
-	EndSelect
-
-	info->SRAMSize = data[24]
-	Select Case (data[24])
-		Case &H00 :	info->SRAMSize = &H0000	'なし
-		Case &H01 : info->SRAMSize = &H0800	'2KB
-		Case &H02 : info->SRAMSize = &H1000	'4KB
-		Case &H03 : info->SRAMSize = &H2000	'8KB
-		Case &H04 : info->SRAMSize = &H4000	'16KB
-		Case &H05 : info->SRAMSize = &H8000	'32KB
-		Case &H06 : info->SRAMSize = &H010000	'64KB
-		Case &H07 : info->SRAMSize = &H020000	'128KB
-	EndSelect
-
-	info->Country = data[25]
-	info->Version = data[27]
-	info->CheckSum1 = ((data[29] << 8) Or data[28]) AS Word
-	info->CheckSum2 = ((data[31] << 8) Or data[30]) AS Word
-EndSub
 
 Function SetComTimeOut(hComPortPort AS HANDLE,TimeOut AS DWord) AS Byte
 	Dim ct AS COMMTIMEOUTS
@@ -140,36 +50,38 @@ Function ConnectToCOM(PortName AS BytePtr,rate AS DWord) AS HANDLE
 	ConnectToCOM=hComPort
 EndFunction
 
+'RST OE WE CS などを制御
 Sub SendControl(hComPort AS HANDLE,b AS Byte)
-	'SetControl pin 0b[RST][WE][CS][OE]
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-'	DBM("SetCtrlBus : 0"+Hex$(b))
 	if WriteFile(hComPort,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError()))
 EndSub
 
+'アドレスセット
 Sub SetAddress(hFile AS HANDLE,address AS DWord, isLoROM AS Byte)
 	Dim cmd[7] AS Byte
 	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
 
+	'[0]コマンド
 	if isLoROM Then
 		cmd[0]=Asc("a")
 	Else
 		cmd[0]=Asc("A")
 	Endif
 
-	cmd[1] = (address >> (8 * 0)) AS Byte
-	cmd[2] = (address >> (8 * 1)) AS Byte
-	cmd[3] = (address >> (8 * 2)) AS Byte
+	'[1-3] アドレス(ビッグエンディアン)
+	cmd[1] = (address >>  0) AS Byte
+	cmd[2] = (address >>  8) AS Byte
+	cmd[3] = (address >> 16) AS Byte
 
 	WriteFile(hFile,cmd,4,VarPtr(dwReadByte),ByVal NULL)
-
 EndSub
 
+'カートリッジからのデータ受信(ROMだけでなくカートリッジ上のメモリ空間も対象)
+'コントロールバスはいじらないので手動でやる必要あり
 Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
-
 	Dim cmd[7] AS Byte
 	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
@@ -180,18 +92,17 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 		cmd[0]=Asc("R")	'HiROM
 	Endif
 
-	cmd[1] = (address >> (8 * 0)) AS Byte
-	cmd[2] = (address >> (8 * 1)) AS Byte
-	cmd[3] = (address >> (8 * 2)) AS Byte
+	cmd[1] = (address >>  0) AS Byte
+	cmd[2] = (address >>  8) AS Byte
+	cmd[3] = (address >> 16) AS Byte
 
-	cmd[4] = (size >> (8 * 0)) AS Byte
-	cmd[5] = (size >> (8 * 1)) AS Byte
-	cmd[6] = (size >> (8 * 2)) AS Byte
+	cmd[4] = (size >>   0) AS Byte
+	cmd[5] = (size >>   8) AS Byte
+	cmd[6] = (size >>  16) AS Byte
 
 	WriteFile(hFile,cmd,7,VarPtr(dwReadByte),ByVal NULL)
 
 	dwReadByte=0
-
 
 	Do
 		if ReadFile(hFile,(data)+offset + ReadByte, size - ReadByte,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n    [Connection Error!]"):ExitDo
@@ -202,8 +113,59 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 	ReadROM=ReadByte
 EndFunction
 
+'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
+'コントロールバスはいじらないので手動でやる必要あり
+Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
+	Dim cmd[7] AS Byte
+	Dim WriteCount As DWord
+	Dim dwWD As DWord
+
+	if isLoROM Then
+		cmd[0]=Asc("w")
+	Else
+		cmd[0]=Asc("W")
+	Endif
+
+	cmd[1] = (address >>  0) AS Byte
+	cmd[2] = (address >>  8) AS Byte
+	cmd[3] = (address >> 16) AS Byte
+
+	cmd[4] = (size >>   0) AS Byte
+	cmd[5] = (size >>   8) AS Byte
+	cmd[6] = (size >>  16) AS Byte
+
+	WriteFile(hFile,cmd,7,VarPtr(dwWD),ByVal NULL)
+	Sleep(10)
+
+	WriteCount=0
+
+	'1バイトずつ送信(100バイトずつウェイト置いた方がいいかも)
+	Do
+		WriteFile(hFile, data+WriteCount , 1 ,VarPtr(dwWD),ByVal NULL)
+
+		WriteCount+=dwWD
+		if WriteCount => size Then exitdo
+		if (WriteCount Mod 32) =0 Then Sleep(5)
+		if (WriteCount Mod 128) =0 Then Sleep(10)
+		if dwWD=0 Then debug
+	Loop
+	
+	WriteROM=WriteCount
+	
+EndFunction
 
 
+Sub SetCPU_Clock(hFile AS HANDLE,isStart AS BOOL)
+	Dim dwWB AS DWord
+	if isStart=TRUE Then
+		WriteFile(hFile,"g1", 2,VarPtr(dwWB) , ByVal NULL)
+	Else
+		WriteFile(hFile,"g0", 2,VarPtr(dwWB) , ByVal NULL)
+	End If
+End Sub
+
+
+'Arduinoに書かれているファームをチェック(別のスケッチか識別)
 Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
 	Dim cmd[1] AS Byte,rsv[6] As byte,FwVer AS Byte,retry AS Long
 	Dim dwWD As DWord
@@ -243,43 +205,4 @@ Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
 
 End Function
 
-Function WriteROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
-	Dim cmd[7] AS Byte
-	Dim WriteCount As DWord
-	Dim dwWD As DWord
-
-	if isLoROM Then
-		cmd[0]=Asc("w")
-	Else
-		cmd[0]=Asc("W")
-	Endif
-
-	cmd[1] = (address >> (8 * 0)) AS Byte
-	cmd[2] = (address >> (8 * 1)) AS Byte
-	cmd[3] = (address >> (8 * 2)) AS Byte
-
-	cmd[4] = (size >> (8 * 0)) AS Byte
-	cmd[5] = (size >> (8 * 1)) AS Byte
-	cmd[6] = (size >> (8 * 2)) AS Byte
-
-	WriteFile(hFile,cmd,7,VarPtr(dwWD),ByVal NULL)
-	Sleep(10)
-
-	DBM("MapMode:"+Chr$(cmd[0]) )
-	WriteCount=0
-
-	'1バイトずつ送信(100バイトずつウェイト置いた方がいいかも)
-	Do
-		WriteFile(hFile, data+WriteCount , 1 ,VarPtr(dwWD),ByVal NULL)
-
-		WriteCount+=dwWD
-		if WriteCount => size Then exitdo
-		if (WriteCount Mod 32) =0 Then Sleep(5)
-		if (WriteCount Mod 128) =0 Then Sleep(10)
-		if dwWD=0 Then debug
-	Loop
-	
-	WriteROM=WriteCount
-	
-EndFunction
 

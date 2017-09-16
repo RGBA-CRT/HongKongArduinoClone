@@ -38,6 +38,7 @@ Const EditBox3=1034
 Const EditBox4=1035
 Const CheckBox6=1036
 Const CommandButton9=1037
+Const CommandButton10=1038
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -101,7 +102,7 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,Static10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","Connect",&H50000000,186,44,51,21,hWnd,CommandButton5 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton5),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200102,79,100,157,84,hWnd,MAPPING As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200002,79,100,157,84,hWnd,MAPPING As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,MAPPING),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"STATIC","---",&H50000000,442,242,31,12,hWnd,Static7 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static7),WM_SETFONT,hFont_MainWnd As WPARAM,0)
@@ -133,6 +134,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CheckBox6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","auto",&H50000000,437,289,32,16,hWnd,CommandButton9 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton9),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,419,289,16,16,hWnd,CommandButton10 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -176,11 +179,6 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case BN_CLICKED
 							MainWnd_CommandButton6_Click()
 					End Select
-				Case CART_CIPS
-					Select Case HIWORD(wParam)
-						Case EN_CHANGE
-							MainWnd_CART_CIPS_Change()
-					End Select
 				Case CommandButton7
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
@@ -200,6 +198,11 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							MainWnd_CommandButton1_Click()
+					End Select
+				Case CommandButton10
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton10_Click()
 					End Select
 			End Select
 		Case Else
