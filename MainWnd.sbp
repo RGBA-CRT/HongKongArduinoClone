@@ -526,12 +526,14 @@ End Sub
 
 Sub MainWnd_CommandButton10_Click()
 	if GetKeyState(VK_ESCAPE) And &H8000 Then
-		SDD1_SetBanks(hCOM,4)
-		DBM("SDD1 set bank 4-7")
+'		SDD1_SetBanks(hCOM,4)
+		SPC7110_SetBanks(hCOM,1,FALSE)
+	'	DBM("SDD1 set bank 4-7")
 	Else
 		DBM("Current S-DD1 bank states : ")
 	End If
-	SDD1_PrintBanks(hCOM)
+'	SDD1_PrintBanks(hCOM)
+	SPC7110_PrintBanks(hCOM)
 End Sub
 
 
@@ -641,27 +643,27 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 			Select Case info->CartType And &H0F
 				Case &H00 : lstrcat(CartChip,"")
 				Case &H01 : lstrcat(CartChip,"+RAM")
-				Case &H02 : lstrcat(CartChip,"+RAM+SRAM")
+				Case &H02 : lstrcat(CartChip,"+RAM+BAT")
 				Case &H03 : lstrcat(CartChip,"+DSP")
 				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
-				Case &H05 : lstrcat(CartChip,"+DSP+RAM+SRAM")
+				Case &H05 : lstrcat(CartChip,"+DSP+RAM+BAT")
 				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			EndSelect
 		Case &H01 'SuperFX
 			Select Case info->CartType And &H0F
 				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
 				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
-				Case &H05 : lstrcat(CartChip,"+GSU+RAM+SRAM")
-				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+SRAM")
+				Case &H05 : lstrcat(CartChip,"+GSU+RAM+BAT")
+				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+BAT")
 				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			EndSelect
 			lstrcat(CartChip," [SuperFX]")
-		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+SRAM")
+		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+BAT")
 		Case &H03 
 			lstrcat(CartChip,"+SA-1+RAM")
 			if info->CartType = &H34 Then
 			Elseif info->CartType = &H35 then
-				 lstrcat(CartChip,"+SRAM")
+				 lstrcat(CartChip,"+BAT")
 			Else
 				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			endif
@@ -669,11 +671,11 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 			lstrcat(CartChip,"+SDD1+")
 			if (info->CartType And &H0F) = 3 Then
 			Elseif info->CartType = &H45 then
-				 lstrcat(CartChip,"RAM+SRAM")
+				 lstrcat(CartChip,"RAM+BAT")
 			Else
 				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			endif
-		Case &H05 : lstrcat(CartChip,"+S-RTC+RAM+SRAM")
+		Case &H05 : lstrcat(CartChip,"S-RTC+RAM+BAT")
 		Case &H0E 
 			Select Case info->CartType And &H0F
 				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
@@ -682,13 +684,13 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			EndSelect
 		Case &H0F
-			Select Case info->CartType And &H0F
+			Select Case (info->CartType And &H0F) AS DWord
 				Case &H03 : lstrcat(CartChip,"+CX4")
 				Case &H05
 					if info->ROMType=SFC_ROM_LoROM Then
-						lstrcat(CartChip,"+ST018+RAM+SRAM")
+						lstrcat(CartChip,"+ST018+RAM+BAT")
 					Else
-						lstrcat(CartChip,"+SPC7110+RAM+SRAM")
+						lstrcat(CartChip,"+SPC7110+RAM+BAT")
 					endif
 				Case &H0A6
 					if info->ROMSize=&H100000 Then
@@ -696,7 +698,7 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 					Else
 						lstrcat(CartChip,"+ST011")
 					endif
-				Case &H03 : lstrcat(CartChip,"+SPC7110+RAM+SRAM+RTC")
+				Case &H09 : lstrcat(CartChip,"+SPC7110+RAM+BAT+RTC")
 				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			EndSelect
 		Case Else

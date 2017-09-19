@@ -42,11 +42,14 @@
  * [NG] SFメモリカセット
  * [NG] 特殊LoROM?(ダビスタ96)
  * [NG] 8Mメモリパック
- * [未テスト] ExHiROM(テイルズ)
  * [OK] S-DD1
  * [OK] SA-1
+ * [OK] SPC7110
+ * [未確認] ExHiROM
+ * [未確認] CX4
+ * [未確認] STシリーズ
  
-SA-1は以下の回路を追加すると吸い出せるようになります。
+SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
 

@@ -41,21 +41,21 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
 	Dim DumpAddress As DWord, offset AS DWord, ret AS DWord, CheckSum=0 AS DWord,
-	Dim sdd1Bank=0 AS Long
+	Dim bBankChanged=FALSE AS BOOL	'8MBitBank
 
 	Dim buf AS BytePtr,nowSize As DWord,Size AS DWord,bRomType AS Byte
 	Dim hout AS HANDLE,C AS Long	'コンテニューカウンタ
 	Dim lt AS DWord,time AS DWord
 
 	'アドレス系準備
-	if info->ROMType=SFC_ROM_HiROM or info->ROMType=SFC_ROM_SA1  or info->ROMType=SFC_ROM_SDD1  Then
-		bRomType=FALSE
-		DumpAddress=HiROM_START_ADR
-		offset=HiROM_START_ADR
-	Else
+	if info->ROMType=SFC_ROM_LoROM  Then
 		bRomType=TRUE
 		DumpAddress=0
 		offset=0
+	Else
+		bRomType=FALSE
+		DumpAddress=HiROM_START_ADR
+		offset=HiROM_START_ADR
 	Endif
 	Size=info->ROMSize
 	SendControl(hCOM,DEFAULT_CTRLBUS)
@@ -65,20 +65,28 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
 	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
 
+	'SDD1のセットアップ
+	if info->ROMType=SFC_ROM_SDD1 Then
+		SDD1_SetBanks(hCOM,0)
+		SDD1_PrintBanks(hCOM)
+
+		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
+
+	Elseif info->ROMType=SFC_ROM_SPC7110 Then
+		DBM("Checking SPC7110...")
+		if SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
+			SPC7110_SetBanks(hCOM,0,FALSE) = FALSE Then
+			ErrMes(hMainWnd,ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。","SPC7110バンク切り替え失敗",0)
+			ExitSub
+		End If
+		SPC7110_PrintBanks(hCOM)
+	End If
+
 	'UI系
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
 	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(Size/DUMP_BUFFER_SIZE) As Word))
 	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
 	SetDlgEnable(STATUS_DUMPING)
-
-	'SDD1のセットアップ
-	if info->ROMType=SFC_ROM_SDD1 Then
-		sdd1Bank=0
-		SDD1_SetBanks(hCOM,sdd1Bank)
-		SDD1_PrintBanks(hCOM)
-
-		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
-	End If
 
 	'ダンプバッファの作成	
 	buf=calloc(DUMP_BUFFER_SIZE+12)
@@ -113,11 +121,11 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 		if DumpAddress-offset=&H400000 Then
 			'4MB超えする時
 			if info->ROMType=SFC_ROM_SDD1 Then
-				if sdd1Bank<4 Then
+				if bBankChanged=FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
 					DBM(ex"\r\n")
-					sdd1Bank+=4
-					SDD1_SetBanks(hCOM,sdd1Bank)
+					bBankChanged=TRUE
+					SDD1_SetBanks(hCOM,4)
 					SDD1_PrintBanks(hCOM)
 					DBM(ex"")
 
@@ -126,13 +134,21 @@ Sub DumpFullROM(info AS *SFC_ROM_HEADER,Path AS BytePtr)
 					'4-7バンクを吸い出し終わったので終了
 					ExitDo
 				End If
+			Elseif info->ROMType=SFC_ROM_SPC7110 Then
+				if bBankChanged=TRUE Then ExitDo
+
+				DBM("")
+				bBankChanged=TRUE
+				SPC7110_SetBanks(hCOM,1,FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
+				DumpAddress=offset+&H300000	'F0:0000からリスタート
+				'ここまで来るのは天外魔境Zero(Prog8M+Data4M)なので、ROMサイズを変更(40Mbit)
 			End If
 		End If
 		if DumpAddress-offset>=Size Then ExitDo
 
 		'進捗表示
 		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
-		SetWindowText(MWnd(Static7),Str$(Int(((DumpAddress-offset)*(sdd1Bank/4+1))/Size*100))+"%")
+		SetWindowText(MWnd(Static7),Str$(Int(((DumpAddress-offset)*(bBankChanged+1))/Size*100))+"%")
 		DBMN(".")
 	Loop
 	time=GetTickCount()-lt
@@ -385,4 +401,90 @@ Sub SDD1_PrintBanks(hCOM AS HANDLE)
 		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d",&HC+i,&HC+i,buf[i]))
 	Next i
 
+End Sub
+
+
+'SPC7110のバンクをセットアップ(要CPUクロック,ないと不安定な動作)
+'D0=#0, E0=#1, F0=#2, MROM num:0-3
+/*
+	基本：
+	・SPC7110はROMが物理的に2つあり、それぞれプログラム用とデータ用になっている
+	・プログラムROMは天外魔境ZEROで4Mあるためバンク切り替えが必要
+	・$4831-$4833に値を書くと$D0:0000-$FF:0000にマップされる
+	・$C0:0000-CF:FFFFはプログラムROM
+	・$4830はSRAMのコントロール(0x80でEnable)
+	・詳しいことはfullsnesへ
+
+	解析メモ：（※個人の感想です）
+	・何故か$4831-$4833にただ値を書いてもバンク切り替えが起こらない
+	 ->なぜかバンク0固定になる
+	 ->$4834に4以上の値を書くと値が反映された
+	 ->D0にバンク3をセットしても意図したバンクにならないことがわかった(F0ならOKだった)(なぜかプログラムROMがマップされた)
+	 ->どうやら$4834以上の値をバンクコントローラレジスタ$4831-$4833に書き込むと全バンク巻き込んでバンク0になる模様
+	 ->4ビットのレジスタで最大0x07まで
+
+	まとめ：
+	・たぶん$4834はデータROMの最大バンク数を記述
+	・$4834の値以下の値を$4831-$4833に書き込むことができる
+	 ->存在しないバンク番号を書き込むとプログラムROMがマップされる
+	 ->$4834の値を超えると$4831-$4833の全部を巻き込んでデータROMのバンク0ににされる
+	・以上より$4834には0x03を書き込むのがベスト
+
+	追記：
+	・SNESバンク D0 はバンク0以外を指定するとプログラムROMになる模様
+	　 ->5MB目を吸い出すときはSNESバンクF0を使おう
+	・データROMのバンク3を読み出すときには1-3バンク指定し、$4834には03を書き込むことで正常ダンプ成功
+
+*/
+
+Const SNES_SPC7110_VBANKS_COUNT = 3
+Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2
+Const SNES_SPC7110_MMC_ADR = &H4830
+Function SPC7110_SetBanks(hCOM AS HANDLE,bank AS Long,bSRAM_Enable As BOOL) AS BOOL
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] AS Byte, i AS Long
+
+	'RESET
+	SendControl(hCOM,WE or CE or OE)
+
+	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
+		buf[i+1] = bank+i
+		DBM(sprintfStr("[SPC7110]SET_VBANK%X:%0d ",i,buf[i+1]))
+	Next i
+	buf[0]=bSRAM_Enable<<7
+	buf[4]=&H03
+
+	SendControl(hCOM,RST or CE or OE)
+	WriteROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
+	SendControl(hCOM,DEFAULT_CTRLBUS)
+	ReadROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
+
+	'check bank
+	SPC7110_SetBanks=TRUE
+	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
+		if buf[i+1] <> bank+i Then SPC7110_SetBanks=FALSE :	ExitFor
+	Next i
+
+	if SPC7110_SetBanks=FALSE Then
+		DBM("bank change failed")
+	End If
+End Function
+
+Sub SPC7110_PrintBanks(hCOM AS HANDLE)
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] AS Byte, i AS Long
+
+'	SendControl(hCOM,RST or WE)
+	SendControl(hCOM,DEFAULT_CTRLBUS)
+	ReadROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
+	
+	if buf[0] And &H80 Then 
+		DBM("SRAM-ENABLE")
+	Else
+		DBM("SRAM-DISABLE")
+	End If
+
+	For i=1 To SNES_SPC7110_VBANKS_COUNT
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d",&HC+i,&HC+i,buf[i]))
+	Next i
+
+	DBM("Logical-MaxBank : "+Str$(buf[4]))
 End Sub
