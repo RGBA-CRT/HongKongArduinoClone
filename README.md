@@ -40,7 +40,7 @@
 ## 特殊カートリッジについて
 対応状況は以下の通りです。
  * [NG] SFメモリカセット
- * [NG] 特殊LoROM?(ダビスタ96)
+ * [OK] 特殊LoROM?(ダビスタ96)
  * [NG] 8Mメモリパック
  * [OK] S-DD1
  * [OK] SA-1
@@ -53,3 +53,10 @@ SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
 
+## 履歴
+	[2016/03/23]ver 0.0 - 初回リリース
+	[2016/07/20]ver 0.1 - チェックサム判定機能追加
+	[2017/02/17]ver 0.3 - 最適化＆バグフィックス、ファーム判定機能追加
+	[2017/09/17]ver 0.4 - S-DD1に対応
+	[2017/09/19]ver 0.5 - SPC7110に対応
+	[2017/12/24]ver 0.6 - ダビスタ96(特殊LoROM)に対応

@@ -102,7 +102,7 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,Static10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","Connect",&H50000000,186,44,51,21,hWnd,CommandButton5 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton5),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200002,79,100,157,84,hWnd,MAPPING As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200002,79,100,157,160,hWnd,MAPPING As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,MAPPING),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"STATIC","---",&H50000000,442,242,31,12,hWnd,Static7 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static7),WM_SETFONT,hFont_MainWnd As WPARAM,0)
@@ -203,6 +203,11 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							MainWnd_CommandButton10_Click()
+					End Select
+				Case MAPPING
+					Select Case HIWORD(wParam)
+						Case CBN_EDITCHANGE
+							MainWnd_MAPPING_EditChange()
 					End Select
 			End Select
 		Case Else

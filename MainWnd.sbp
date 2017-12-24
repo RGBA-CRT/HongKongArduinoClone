@@ -70,6 +70,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SA-1 HiROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"ExHiROM" AS Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SPC7110 HiROM" AS Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"Special LoROM" AS Long)
 	
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 AS BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
@@ -299,7 +300,7 @@ End Sub
 Sub MainWnd_CommandButton2_Click()
 	'ROM吸出しボタン
 
-	Dim info AS SFC_ROM_HEADER
+	Dim info AS SFC_CART_INFO
 	Dim path As BytePtr
 
 	GetDumpConfig(info)
@@ -349,7 +350,7 @@ Sub SaveIniFile()
 EndSub
 
 Sub MainWnd_CommandButton3_Click()
-	Dim info AS SFC_ROM_HEADER
+	Dim info AS SFC_CART_INFO
 	Dim path As BytePtr
 
 	GetDumpConfig(info)
@@ -378,7 +379,7 @@ Sub MainWnd_CommandButton4_Click()
 	path="write.srm"
 #endif
 	if MessageBox(hMainWnd,ex"この操作を行うとカセット内のセーブデータの内容が消えて上書きされます。\nまた、この機能は未完成のため正常にデータが書き込めない可能性があります。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
-	Dim info AS SFC_ROM_HEADER
+	Dim info AS SFC_CART_INFO
 	GetDumpConfig(info)
 	WriteSRAM(hCOM,VarPtr(info),path)
 #ifndef _DEBUG
@@ -477,7 +478,7 @@ End Sub
 
 Sub MainWnd_CommandButton7_Click()
 	Dim data As Byte,adr AS DWord
-	data=GetDlgItemHex(MWnd(EditBox3))
+	data=GetDlgItemHex(MWnd(EditBox3)) AS Byte
 	adr=GetDlgItemHex(MWnd(EditBox4))
 	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
 	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox6)))
@@ -486,8 +487,8 @@ End Sub
 Sub MainWnd_CommandButton8_Click()
 	if hCOM=0 Then ExitSub
 	Dim ctrl AS Byte
-	ctrl=GetCheckBox(MWnd(CheckBox2))<<3 or GetCheckBox(MWnd(CheckBox3))<<2 or _
-		GetCheckBox(MWnd(CheckBox4))<<1 or GetCheckBox(MWnd(CheckBox5))
+	ctrl=(GetCheckBox(MWnd(CheckBox2))<<3 or GetCheckBox(MWnd(CheckBox3))<<2 or _
+		GetCheckBox(MWnd(CheckBox4))<<1 or GetCheckBox(MWnd(CheckBox5))) AS Byte
 	DBM("SetCtrlBus : 0"+Hex$(ctrl))
 
 	SendControl(hCOM,ctrl)
@@ -505,9 +506,9 @@ Sub MainWnd_CommandButton9_Click()
 End Sub
 
 Sub MainWnd_CommandButton1_Click()
-	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_ROM_HEADER
+	Dim buf[SFC_SPEC_HEADER_SIZE+2] AS Byte,cartInfo AS SFC_CART_INFO
 	DBM( "Get Cartridge Infomation")
-	
+
 	'ヘッダを読み出し＆ダイアログに情報を表示
 	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
 	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
@@ -517,15 +518,21 @@ Sub MainWnd_CommandButton1_Click()
 		DisconnectDevice()
 		ExitSub
 	End If
-	SloveCartInfo(buf,VarPtr(cartInfo))
+	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(cartInfo))
 	SetCartInfo(VarPtr(cartInfo))
+	if cartInfo.ROMType=SFC_ROM_HiROM Then 
+		SetCheckBox(MWnd(CheckBox1),TRUE)
+	else		
+		SetCheckBox(MWnd(CheckBox1),FALSE)
+	End If
 
 	'アクセスランプをLow
 	SetAddress(hCOM,&H000000,FALSE)
 End Sub
 
+'#console
 Sub MainWnd_CommandButton10_Click()
-	if GetKeyState(VK_ESCAPE) And &H8000 Then
+/*	if GetKeyState(VK_ESCAPE) And &H8000 Then
 '		SDD1_SetBanks(hCOM,4)
 		SPC7110_SetBanks(hCOM,1,FALSE)
 	'	DBM("SDD1 set bank 4-7")
@@ -533,7 +540,22 @@ Sub MainWnd_CommandButton10_Click()
 		DBM("Current S-DD1 bank states : ")
 	End If
 '	SDD1_PrintBanks(hCOM)
-	SPC7110_PrintBanks(hCOM)
+	SPC7110_PrintBanks(hCOM)*/
+/*	Dim Buf[32] AS Byte,i AS Long,i2 As Long
+	Dim out AS File
+	AllocConsole()
+	Print "Start SRAM SHEARCH"
+	out.openFile("fullbus.bin",GENERIC_WRITE)
+	Do
+		ReadROM(hCOM,Buf,0,i*32,32,FALSE)
+
+		if i*32 > &H1000000 Then ExitDo
+		i+=1
+		if i Mod &H100 = 0 Then printf(ex"%08X\n",i*32)
+		out.write(Buf,32)
+
+	Loop
+	out.close()*/
 End Sub
 
 
@@ -541,11 +563,11 @@ End Sub
 
 
 '吸出し設定をROMとGUIから読み出し
-Sub GetDumpConfig(ByRef info as SFC_ROM_HEADER)
+Sub GetDumpConfig(ByRef info as SFC_CART_INFO)
 	'ROMからヘッダロード
 	Dim buf[SFC_SPEC_HEADER_SIZE+5] AS Byte
 	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
-	SloveCartInfo(buf,VarPtr(info))
+	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))
 
 	'GUIの設定を反映
 	GetDlgOption(info)
@@ -553,7 +575,7 @@ Sub GetDumpConfig(ByRef info as SFC_ROM_HEADER)
 	SetCartInfo(VarPtr(info))
 EndSub
 
-Sub GetDlgOption(ByRef info as SFC_ROM_HEADER) 
+Sub GetDlgOption(ByRef info as SFC_CART_INFO) 
 	'LoROM/HiROMの選択とMAD1のチェック取得
 
 	Dim mapperTable[SFC_ROM_TYPE_NUM]=[ _
@@ -562,7 +584,8 @@ Sub GetDlgOption(ByRef info as SFC_ROM_HEADER)
 		SFC_ROM_SDD1, _
 		SFC_ROM_SA1, _
 		SFC_ROM_ExHiROM, _
-		SFC_ROM_SPC7110 _
+		SFC_ROM_SPC7110, _
+		SFC_ROM_SpLoROM _
 	] AS Byte, idx AS Long
 
 	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_ROM_TYPE_NUM
@@ -582,11 +605,15 @@ EndSub
 
 'MapMode (20 SrowRom LoROMのやつ）のGUI用関数
 Function MapModeToComboboxIndex(mapMode AS Byte) As Long
-	Dim mapTable[SFC_ROM_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A] AS Byte
+	Dim mapTable[SFC_ROM_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0] AS Byte
 	Dim romMap As Byte
 	Dim i AS Long
-
-	romMap=(mapMode And &H0F)
+'debug
+'	if mapMode=&HF0 Then	'SpecialLoROM とかのヘッダから判断したmapModeじゃない場合にはこっちで
+		romMap=mapMode
+'	Else	
+'		romMap=(mapMode And &H0F)
+'	Endif
 	For i=0 To SFC_ROM_TYPE_NUM
 		if mapTable[i]=romMap Then 
 			MapModeToComboboxIndex=i
@@ -624,14 +651,14 @@ End Function
 
 
 'カートリッジ情報をGUIに反映
-Sub SetCartInfo(info AS *SFC_ROM_HEADER)
-	'SFC_ROM_HEADERの内容をGUIに表示
+Sub SetCartInfo(info AS *SFC_CART_INFO)
+	'SFC_CART_INFOの内容をGUIに表示
 
 	Dim CartChip[512] AS Byte
 	Const UNK_CART_TYPE_TEXT = "+???"
 
 	SetWindowText(MWnd(ROMTITLE),info->Title)
-	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->MapMode),0)
+	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->ROMType),0)
 	DBM(sprintfStr("MapMode:[%02X]%s%s",info->MapMode,GetRomSpeedString(info->MapMode),GetRomMapString(info->MapMode)))
 
 	DBMN("Chips : ")
@@ -709,8 +736,12 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 	wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
 	DBM(CartChip)
 
-	SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
-						(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
+	if info->ROMSize =0 Then
+		SetWindowText(MWnd(ROM_SIZE),"None")		
+	Else
+		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
+							(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
+	endif
 
 	if info->SRAMSize =0 Then
 		SetWindowText(MWnd(SRAM_SIZE),"None")		
@@ -723,13 +754,19 @@ Sub SetCartInfo(info AS *SFC_ROM_HEADER)
 		Case 00 : DBM("Japan")
 		Case 01 : DBM("USA")
 		Case 02 : DBM("Europe")
-		Case 03 : DBM("UnDefined")
+		Case 03 : DBM("(unknown)")
 	EndSelect
 
 	DBM("Version : "+Str$(info->Version/10+1.0))
-	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
+	if info->hasExtraHeader Then
+		'DBM("Extra Header Found.")
+		DBM("MakerID : "+Chr$(info->rawHeader.MakerCode And &HFF)+Chr$((info->rawHeader.MakerCode >> 8) And &HFF))
+		DBM("GameCode: "+Dw2Str(info->rawHeader.GameCode))
+	End If
 	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
 	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
+	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
+
 	DBM("")
 
 EndSub	
@@ -741,3 +778,10 @@ Function GetCheckBox(Ctrl As HWND) As Byte
 		GetCheckBox=FALSE
 	endif
 endfunction
+Function SetCheckBox(Ctrl As HWND,bValue AS BOOL) As Byte
+	SendMessage(Ctrl,BM_SETCHECK,bValue,bValue)
+endfunction
+
+Sub MainWnd_MAPPING_EditChange()
+
+End Sub

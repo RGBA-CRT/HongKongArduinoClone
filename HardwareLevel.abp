@@ -12,7 +12,7 @@ Const SRAM_WRITE_NORMAL=RST or OE
 Const SRAM_WRITE_MAD  = RST or OE or CE
 Const SRAM_WRITE_SA1 = RST or OE or WE or CE
 
-Const DEFAULT_CTRLBUS = 12
+Const DEFAULT_CTRLBUS = &H0C	'RST WE
 
 
 Function SetComTimeOut(hComPortPort AS HANDLE,TimeOut AS DWord) AS Byte
