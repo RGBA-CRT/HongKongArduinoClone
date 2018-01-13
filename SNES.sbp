@@ -4,22 +4,23 @@ Const SFC_SPEC_HEADER_SIZE=&H20+&H10
 Const SFC_SPEC_HEADER_ADDR=&HFFC0-&H10
 
 Const HiROM_START_ADR=&HC00000
+Const HIROM_SRAM_BANKSIZE = 1024*8
 
 Const SRAM_ADDRESS_LoROM_NORMAL = &H700000'&H380000
 Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
-Const SRAM_ADDRESS_HiROM_NORMAL = &H1C0000
-Const SRAM_ADDRESS_HiROM_MAD 	= &H206000'&HA06000
+Const SRAM_ADDRESS_HiROM_NORMAL = &H306000
+Const SRAM_ADDRESS_HiROM_MAD 	= &H306000'&HA06000
 Const SRAM_ADDRESS_SA1 = &H400000
 
-Const SFC_ROM_TYPE_NUM = 7
-Enum SFC_ROM_TYPE	'ヘッダのRomTypeの下位4ビット
-	SFC_ROM_LoROM = 0
-	SFC_ROM_HiROM = 1
-	SFC_ROM_SDD1= 2
-	SFC_ROM_SA1	= 3
-	SFC_ROM_ExHiROM = 5
-	SFC_ROM_SPC7110 = &H0A
-	SFC_ROM_SpLoROM = &HF0	'ダビスタ用で、ヘッダからはわからない
+Const SFC_MAP_TYPE_NUM = 7
+Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
+	SFC_MAP_LoROM = 0
+	SFC_MAP_HiROM = 1
+	SFC_MAP_SDD1= 2
+	SFC_MAP_SA1	= 3
+	SFC_MAP_ExHiROM = 5
+	SFC_MAP_SPC7110 = &H0A
+	SFC_MAP_SpLoROM = &HF0	'ダビスタ用で、ヘッダからはわからない
 End Enum
 	
 Type SFC_CART_INFO
@@ -72,7 +73,7 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 	Dim lt AS DWord,time AS DWord
 
 	'アドレス系準備
-	if info->ROMType=SFC_ROM_LoROM or info->ROMType=SFC_ROM_SpLoROM Then
+	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM Then
 		bRomType=TRUE
 		DumpAddress=0
 		offset=0
@@ -90,13 +91,13 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
 
 	'特殊系のセットアップ
-	if info->ROMType=SFC_ROM_SDD1 Then
+	if info->ROMType=SFC_MAP_SDD1 Then
 		SDD1_SetBanks(hCOM,0)
 		SDD1_PrintBanks(hCOM)
 
 		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
 
-	Elseif info->ROMType=SFC_ROM_SPC7110 Then
+	Elseif info->ROMType=SFC_MAP_SPC7110 Then
 		DBM("Checking SPC7110...")
 		if SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
 			SPC7110_SetBanks(hCOM,0,FALSE) = FALSE Then
@@ -143,7 +144,7 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 		'次のアドレスを計算
 		DumpAddress+=DUMP_BUFFER_SIZE
 		'特殊系の小細工
-		if info->ROMType=SFC_ROM_SpLoROM Then
+		if info->ROMType=SFC_MAP_SpLoROM Then
 			if DumpAddress-offset=&H200000 Then
 				'吸出しアドレスをバンク80hに飛ばす
 				offset=&H400000		'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
@@ -164,7 +165,7 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 
 		Else if DumpAddress-offset=&H400000 Then
 			'4MB超えする時
-			if info->ROMType=SFC_ROM_SDD1 Then
+			if info->ROMType=SFC_MAP_SDD1 Then
 				if bBankChanged=FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
 					DBM(ex"\r\n")
@@ -178,7 +179,7 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 					'4-7バンクを吸い出し終わったので終了
 					ExitDo
 				End If
-			Elseif info->ROMType=SFC_ROM_SPC7110 Then
+			Elseif info->ROMType=SFC_MAP_SPC7110 Then
 				if bBankChanged=TRUE Then ExitDo
 				DBM("")
 				bBankChanged=TRUE
@@ -266,7 +267,7 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 
 	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
 	DBM("SRAM Writeing...")
-	DBM("Address:0x"+Hex$(info->SRAMAddress))
+	DBM("SRAM Adr : "+Hex$(info->SRAMAddress)+"h")
 	PumpMessage()
 
 	hIn=OpenFile(FileName,GENERIC_READ)	
@@ -278,16 +279,37 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	LoadFile(hIn,buf,info->SRAMSize)
 	CloseHandle(hIn)
 
-	if info->ROMType <> SFC_ROM_SA1 Then
+	if info->ROMType <> SFC_MAP_SA1 Then
 		'ノーマルカートリッジ
 		if info->Mad=TRUE Then
 			CtrMask=SRAM_WRITE_MAD
 		Else
 			CtrMask=SRAM_WRITE_NORMAL
 		Endif	
-
 		SendControl(hFile,CtrMask)	' SRAM CE
-		WriteROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
+
+		if info->ROMType = SFC_MAP_HiROM Then
+			Dim BankCount AS Long,WriteSize AS DWord,bi AS Long,WriteAdr AS DWord
+			BankCount=info->SRAMSize/HIROM_SRAM_BANKSIZE -1 	'8KBバンクごとに分ける
+			if BankCount<0 Then  BankCount=0
+
+			DBM("SRAM BANK COUNT : "+Str$(BankCount+1))
+			if BankCount=0 Then
+				WriteSize=info->SRAMSize	'normal Write
+			Else
+				WriteSize=HIROM_SRAM_BANKSIZE 'Write with bank change 
+			Endif
+
+			For bi=0 To BankCount
+				WriteAdr=info->SRAMAddress+bi*&H010000
+				DBM(sprintfStr("Address %06Xh-%06Xh",WriteAdr,WriteAdr+WriteSize))
+				PumpMessage()				
+				WriteROM(hFile,buf+bi*WriteSize, 0, WriteAdr , WriteSize,FALSE)
+			Next bi
+		Else
+
+			WriteROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
+		Endif
 	
 	Else
 		'SA-1 (sanni氏のcartreaderを参考)
@@ -345,11 +367,17 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	Dim hout AS HANDLE,buf AS BytePtr
 	Dim CtrMask as Byte
 
+	hout=OpenFileEx(FileName,GENERIC_WRITE)
+	if hout=NULL Then
+		DBM("Cannot open file! "+MakeStr(FileName))
+		ErrMes(hMainWnd,"SRAMを保存できませんでした。",0,0,GetLastError())
+		ExitSub
+	Endif
+
 	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
 	DBM("SRAM Dumping...")
-	DBM("Address:0x"+Hex$(info->SRAMAddress))
 	PumpMessage()
-	
+
 	buf=calloc(info->SRAMSize)
 
 	if info->Mad=TRUE Then
@@ -359,10 +387,30 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	Endif	
 
 	SendControl(hFile,CtrMask)	' SRAM CE
-	ReadROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
 
-	hout=OpenFile(FileName,GENERIC_WRITE)
-	OutFile(hout,buf,info->SRAMSize)
+	if info->ROMType = SFC_MAP_HiROM Then
+		Dim BankCount AS Long,DumpSize AS DWord,bi AS Long,DumpAdr AS DWord
+		BankCount=info->SRAMSize/HIROM_SRAM_BANKSIZE -1 	'8KBバンクごとに分ける
+		if BankCount<0 Then  BankCount=0
+
+		DBM("SRAM BANK COUNT : "+Str$(BankCount))
+		if BankCount=0 Then
+			DumpSize=info->SRAMSize	'normal dump
+		Else
+			DumpSize=HIROM_SRAM_BANKSIZE 'dump with bank change 
+		Endif
+
+		For bi=0 To BankCount
+			DumpAdr=info->SRAMAddress+bi*&H010000
+			DBM(sprintfStr("Address %06Xh-%06Xh",DumpAdr,DumpAdr+DumpSize))
+			ReadROM(hFile,buf, 0, DumpAdr, DumpSize,FALSE)
+			OutFile(hout,buf,DumpSize)
+		Next bi
+	Else
+		ReadROM(hFile,buf, 0, info->SRAMAddress, info->SRAMSize,FALSE)
+		OutFile(hout,buf,info->SRAMSize)
+	End If
+
 	CloseHandle(hout)
 
 	DBM(ex"Done\r\n")
@@ -372,6 +420,16 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	SendControl(hFile,DEFAULT_CTRLBUS)	'default
 EndSub
 
+Function isSameBin(bin1 AS BytePtr,bin2 AS BytePtr,len AS DWord) AS BOOL
+	Dim i AS Long
+	For i=0 To len-1
+		if bin1[i]<>bin2[i] Then
+			isSameBin=FALSE
+			ExitFunction
+		Endif
+	Next
+	isSameBin=TRUE
+End Function
 
 '生のROMヘッダをSFC_CART_INFOに
 Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
@@ -400,12 +458,14 @@ Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	info->CartType = data->CartType
 	info->MapMode=data->MapMode
 	info->ROMType=(info->MapMode And &H0F)
+
+	'ダビスタ96対策
 	if info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZDBJ") And data->Checksum2=&HCC86 Then
-		info->ROMType=SFC_ROM_SpLoROM
+		info->ROMType=SFC_MAP_SpLoROM
 	End If
 
 	Select Case info->ROMType
-		Case SFC_ROM_HiROM
+		Case SFC_MAP_HiROM
 			info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
 
 		Case SRAM_ADDRESS_SA1
