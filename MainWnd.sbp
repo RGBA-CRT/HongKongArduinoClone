@@ -556,6 +556,36 @@ Sub MainWnd_CommandButton10_Click()
 
 	Loop
 	out.close()*/
+	
+	'dump BSMC-HM from SpLoROM
+	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
+	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(1024*1024/DEFAULT_DUMP_SIZE) As Word))
+	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
+	SetDlgEnable(STATUS_DUMPING)
+
+	dim i AS Long
+	Dim out AS File,buf AS BytePtr
+	out.openFile("dump.bs",GENERIC_WRITE)
+	buf=calloc(DEFAULT_DUMP_SIZE)
+
+	DBM("BSX MEMPACK DUMP")
+	For i=0 To 1024*1024/DEFAULT_DUMP_SIZE-1
+		ReadROM(hCOM,buf,0,BSX_MEMPACK_ADR_LoROM+DEFAULT_DUMP_SIZE*i,DEFAULT_DUMP_SIZE,TRUE)
+		out.write(buf,DEFAULT_DUMP_SIZE)
+		DBM("Lo:"+Hex$(BSX_MEMPACK_ADR_LoROM+DEFAULT_DUMP_SIZE*i))
+		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
+		SetWindowText(MWnd(Static7),Str$(Int(DEFAULT_DUMP_SIZE*i*100/(1024*1024)))+"%")
+		PumpMessage()
+	Next i 
+	free(buf)
+	out.close()
+	DBM("END")
+	
+	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
+	SetWindowText(MWnd(Static7),"100%")
+	SetDlgEnable(STATUS_CONNECTED)
+
+	SetAddress(hCOM,0,FALSE)
 End Sub
 
 
@@ -784,5 +814,9 @@ Function SetCheckBox(Ctrl As HWND,bValue AS BOOL) As Byte
 endfunction
 
 Sub MainWnd_MAPPING_EditChange()
+
+End Sub
+
+Sub MainWnd_CheckBox6_Click()
 
 End Sub

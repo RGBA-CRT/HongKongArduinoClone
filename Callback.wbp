@@ -209,6 +209,11 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case CBN_EDITCHANGE
 							MainWnd_MAPPING_EditChange()
 					End Select
+				Case CheckBox6
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CheckBox6_Click()
+					End Select
 			End Select
 		Case Else
 			EventCall_MainWnd=DefWindowProc(hWnd,message,wParam,lParam)

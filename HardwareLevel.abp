@@ -87,7 +87,7 @@ Function ReadROM(hFile AS HANDLE,data AS BytePtr, offset AS Long,address AS DWor
 	Dim dwReadByte As DWord
 
 	if isLoROM Then
-		cmd[0]=Asc("r")	'LoROM
+		cmd[0]=Asc("r")	'LoROM	
 	Else
 		cmd[0]=Asc("R")	'HiROM
 	Endif

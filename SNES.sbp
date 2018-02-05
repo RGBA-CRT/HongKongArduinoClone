@@ -12,6 +12,8 @@ Const SRAM_ADDRESS_HiROM_NORMAL = &H306000
 Const SRAM_ADDRESS_HiROM_MAD 	= &H306000'&HA06000
 Const SRAM_ADDRESS_SA1 = &H400000
 
+Const BSX_MEMPACK_ADR_LoROM = &H700000
+
 Const SFC_MAP_TYPE_NUM = 7
 Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
 	SFC_MAP_LoROM = 0
@@ -152,13 +154,17 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 				Size=&H100000
 
 				'特殊LoROMのチェックサムの出し方がわからなかったので、
-				'このプログラムのアルゴリズムで出したダビスタのチェックサムを強制的にセットする
-				'サウンドノベルツクール2は知らない
+				'このプログラムのアルゴリズムで出したのチェックサムを強制的にセットする
 				if info->CheckSum2=&HCC86 Then
+					'ダビスタ96
 					info->CheckSum1=&H83BD
 					info->CheckSum2=&H7C42
+				Else if info->CheckSum2=&HA77B Then
+					'サウンドノベルツクール
+					info->CheckSum1=&H3681
+					info->CheckSum2=&HC97E
 				Else
-					DBM("未知の特殊LoROM：ダビスタ96以外はチェックサムエラーが必ず出ます。")
+					DBM(ex"\r\n未知の特殊LoROM：ダビスタ96以外はチェックサムエラーが必ず出ます。")
 				End If
 				DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
 			Endif
@@ -201,6 +207,8 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 	DBM(ex"\r\nTime  : "+Str$(time)+ex"ms")
 	DBM("Speed : "+Str$(Int(Size/(time/1000)) AS Long)+ex"byte/sec\r\n")
 
+	DBM("HeaderSum:"+Hex$(info->CheckSum2))
+	DBM("ActualSum:"+Hex$(CheckSum And &HFFFF))
 	if info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
 		DBM(ex"Checksum OK")
 		DBM(ex"Successful!!!")
@@ -420,16 +428,6 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	SendControl(hFile,DEFAULT_CTRLBUS)	'default
 EndSub
 
-Function isSameBin(bin1 AS BytePtr,bin2 AS BytePtr,len AS DWord) AS BOOL
-	Dim i AS Long
-	For i=0 To len-1
-		if bin1[i]<>bin2[i] Then
-			isSameBin=FALSE
-			ExitFunction
-		Endif
-	Next
-	isSameBin=TRUE
-End Function
 
 '生のROMヘッダをSFC_CART_INFOに
 Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
@@ -460,7 +458,15 @@ Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	info->ROMType=(info->MapMode And &H0F)
 
 	'ダビスタ96対策
-	if info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZDBJ") And data->Checksum2=&HCC86 Then
+/*	if (info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZDBJ") And data->Checksum2=&HCC86) or _
+		(info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZSNJ") And data->Checksum2=&HA77B) Then
+		info->ROMType=SFC_MAP_SpLoROM
+	End If
+*/	
+	'SpecialLoROMはLoROMの衛星対応カートリッジ
+	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
+	'ここではダビスタ96とサウンドノベルツクールがヒットするはず
+	if info->ROMType = SFC_MAP_LoROM And (info->rawHeader.GameCode And &HFF)=Asc("Z")  And ((info->rawHeader.GameCode>>24) And &HFF)=Asc("J") Then
 		info->ROMType=SFC_MAP_SpLoROM
 	End If
 
