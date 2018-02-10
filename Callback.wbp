@@ -135,9 +135,9 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CheckBox6),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","auto",&H50000000,437,289,32,16,hWnd,CommandButton9 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton9),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,419,289,16,16,hWnd,CommandButton10 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,430,289,8,16,hWnd,CommandButton10 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,221,206,16,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,423,289,8,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
