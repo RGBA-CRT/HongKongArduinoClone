@@ -1,14 +1,17 @@
-//こーどねーむ「ホンコン」 with Arduino 高速版ファームウェア
-//Original : たにやま 2016/2/14 [http://hongkongarduino.web.fc2.com/]
-//Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
-//2016/7/2  Add LastAdr
-//2016/8/29 SnesCIC対応
-//2017/2/15 マジックナンバー追加
+/* こーどねーむ「ホンコン」 with Arduino 高速版ファームウェア
+   Original : たにやま 2016/2/14 [http://hongkongarduino.web.fc2.com/]
+   Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
+   Some codes are referenced to [https://github.com/sanni/cartreader/]
+   History:
+    2016/7/2  Add LastAdr
+    2016/8/29 SnesCIC対応
+    2017/2/15 マジックナンバー追加
+*/
 
 //[HongKongArduinoFast.hex]は-O2でコンパイルされたバイナリです。
 //通常は↑を書き込んで使ってください
 //ボーレートはお使いのArduinoのデータシートを参考に設定してください↓
-#define SERIAL_BAUDRATE 500000*2 //62.5KB/s * 2
+#define SERIAL_BAUDRATE 500000*2 //62.5KB/s 
 #define FIRMWARE_ID "HKAF"
 #define FIRMWARE_VERSION '0'
 
@@ -130,8 +133,10 @@ inline void outCh(int ch, byte b)
 //アドレスバスを設定
 inline void setAddress(unsigned long address, int isLoROM)
 {
-  if (isLoROM)
-    address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
+  if (isLoROM){
+    address = (address & 0xFF8000)<<1 | (address & 0x007FFF) | 0x8000 ;
+    //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
+  }
 
   //変更のないFlipFlopはいじらない
   byte spritAdr = address;
@@ -173,6 +178,8 @@ inline unsigned char readData()
 #define CART_WRITE_ENABLE()   PORTC &= 0b11101111
 #define CART_WRITE_DISABLE()  PORTC |= 0b00010000
 
+//ttps://github.com/sanni/cartreader/blob/master/Cart_Reader/SNES.ino
+//要修正
 void writeSRAM(int isLoROM = false) {
   while (Serial.available() < 7)
     delay(1);
@@ -275,7 +282,7 @@ void setup()
   digitalWrite(RST, HIGH);
 
   //アクセスランプを消灯＆アドレスバス初期化
-  //setAddressは差分しかセットしないので、手動でFFを初期化
+  //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
   setDataDir(OUTPUT);
   outCh(0, 0x00); lastadr[0] = 0;
   outCh(1, 0x00); lastadr[1] = 0;

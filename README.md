@@ -62,3 +62,4 @@ Dump from SA-1 and SPC7110 needs following circuits.
 	[2017/09/17]ver 0.4 - S-DD1に対応
 	[2017/09/19]ver 0.5 - SPC7110に対応
 	[2017/12/24]ver 0.6 - ダビスタ96(特殊LoROM)に対応, HiROM 256Kbit SRAMに対応
+	[2018/02/10]ver 0.62- UIを微修正。D&DでROMヘッダを表示するようにした。

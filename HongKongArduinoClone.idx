@@ -11,6 +11,7 @@
 #include "MainWnd.sbp"
 #include "HardwareLevel.abp"
 #include "SNES.sbp"
+#include "LicenceList.abp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

@@ -174,7 +174,7 @@ Function CheckFirmware(hFile AS HANDLE,msg As BOOL) AS BOOL
 *SEND_VER_CHECK
 	if WriteFile(hFile,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 	if ReadFile(hFile,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
-	if msg=TRUE Then DBMN("Firmware ID : ") : DBM(rsv)
+	if msg=TRUE Then DBMN("Firmware ID : ") : DBM(rsv) : DBM("")
 
 	FwVer=rsv[4]
 	rsv[4]=0

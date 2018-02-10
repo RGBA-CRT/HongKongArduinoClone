@@ -4,7 +4,7 @@ WINDOW:MainWnd
     SIZE      = 475,285
     CAPTION   = "HongKongArduinoClone v0.6"
     STYLE     = &H10ca0000
-    EXSTYLE   = &H00000000
+    EXSTYLE   = &H00000010
     ID        = 0
     BGCOLOR   = 15
     FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
@@ -15,7 +15,7 @@ WINDOW:MainWnd
     FILEPATH  = MainWnd.sbp
     ITEM      = Static1,9,8,230,27,"This program is designed for http://hongkongarduino.web.fc2.com/",&H50000101,&H00020000,11
     ITEM      = Static2,13,50,60,12,"Serial Prot : ",&H50000000,&H00000000,11
-    ITEM      = ComList,79,45,99,215,"",&H50200402,&H00000000,3
+    ITEM      = ComList,79,45,99,215,"",&H50200502,&H00000000,3
     ITEM      = Static3,13,80,60,13,"ROM Title : ",&H50000000,&H00000000,11
     ITEM      = Static4,13,103,60,13,"Mapping : ",&H50000000,&H00000000,11
     ITEM      = Static5,13,128,60,13,"Cart Cips : ",&H50000000,&H00000000,11
@@ -52,4 +52,5 @@ WINDOW:MainWnd
     ITEM      = CheckBox6,417,277,44,15,"L/H",&H50000003,&H00000000,2
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,419,289,16,16,"",&H50000000,&H00000000,1
+    ITEM      = CommandButton11,221,206,16,16,"",&H50000000,&H00000000,1
 END

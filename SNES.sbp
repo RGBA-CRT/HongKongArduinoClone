@@ -12,7 +12,9 @@ Const SRAM_ADDRESS_HiROM_NORMAL = &H306000
 Const SRAM_ADDRESS_HiROM_MAD 	= &H306000'&HA06000
 Const SRAM_ADDRESS_SA1 = &H400000
 
-Const BSX_MEMPACK_ADR_LoROM = &H700000
+'LoROMモードにおけるBSMCの位置Cn:8000h
+Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60
+
 
 Const SFC_MAP_TYPE_NUM = 7
 Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
@@ -24,22 +26,29 @@ Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
 	SFC_MAP_SPC7110 = &H0A
 	SFC_MAP_SpLoROM = &HF0	'ダビスタ用で、ヘッダからはわからない
 End Enum
-	
+
+'スーファミヘッダから取得した情報
+'後の都合のいい処理がしてある。
+'生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
-	Title[21] AS Byte
-	MapMode AS Byte
+	Title[21] As Byte
+	MapMode As Byte
 	ROMType As Byte
-	CartType AS Byte
-	ROMSize AS DWord
-	SRAMSize AS DWord
+	CartType As Byte
+	ROMSize As DWord
+	SRAMSize As DWord
 	SRAMAddress As DWord
-	Country AS Byte
-	Version AS Byte
-	CheckSum1 AS Word
-	CheckSum2 AS Word
-	Mad AS Byte
-	hasExtraHeader AS BOOL
-	rawHeader AS SFC_CART_HEADER
+	Country As Byte
+	Version As Byte
+	CheckSum1 As Word
+	CheckSum2 As Word
+	Mad As Byte
+	hasExtraHeader As BOOL
+	isBSX  AS BOOL
+	MakerCode AS Word
+	MakerName AS BytePtr
+	GameCode[4] AS Byte
+	rawHeader As SFC_CART_HEADER
 EndType
 
 
@@ -51,7 +60,7 @@ Type Align(1) SFC_CART_HEADER
 	ExVersion	AS Byte
 	CartSubNum	AS Byte
 	'------------------
-	GameTitle[20] AS Byte
+	GameTitle[20] As Byte
 	MapMode 	AS Byte
 	CartType 	AS Byte
 	RomSize 	AS Byte
@@ -64,15 +73,15 @@ Type Align(1) SFC_CART_HEADER
 End Type
 
 'ROMの吸出し
-Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
+Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
-	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE AS DWord
-	Dim DumpAddress As DWord, offset AS DWord, ret AS DWord, CheckSum=0 AS DWord,
-	Dim bBankChanged=FALSE AS BOOL	'8MBitBank
+	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE As DWord
+	Dim DumpAddress As DWord, offset As DWord, ret As DWord, CheckSum=0 As DWord,
+	Dim bBankChanged=FALSE As BOOL	'8MBitBank
 
-	Dim buf AS BytePtr,nowSize As DWord,Size AS DWord,bRomType AS Byte
-	Dim hout AS HANDLE,C AS Long	'コンテニューカウンタ
-	Dim lt AS DWord,time AS DWord
+	Dim buf As BytePtr,nowSize As DWord,Size As DWord,bRomType As Byte
+	Dim hout As HANDLE,C As Long	'コンテニューカウンタ
+	Dim lt As DWord,time As DWord
 
 	'アドレス系準備
 	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM Then
@@ -205,7 +214,7 @@ Sub DumpFullROM(info AS *SFC_CART_INFO,Path AS BytePtr)
 	time=GetTickCount()-lt
 
 	DBM(ex"\r\nTime  : "+Str$(time)+ex"ms")
-	DBM("Speed : "+Str$(Int(Size/(time/1000)) AS Long)+ex"byte/sec\r\n")
+	DBM("Speed : "+Str$(Int(Size/(time/1000)) As Long)+ex"byte/sec\r\n")
 
 	DBM("HeaderSum:"+Hex$(info->CheckSum2))
 	DBM("ActualSum:"+Hex$(CheckSum And &HFFFF))
@@ -232,8 +241,8 @@ EndSub
 
 
 'チェックサム計算
-Function checkContiguous(adr AS BytePtr,size AS DWord) AS Long
-	Dim i AS Long,someCount AS DWord,last AS Byte
+Function checkContiguous(adr As BytePtr,size As DWord) As Long
+	Dim i As Long,someCount As DWord,last As Byte
 	For i=0 To size
 		if last=adr[i] Then
 			/*if last<>0 Then*/ someCount++	'0連続はよくあるので除外
@@ -247,8 +256,8 @@ Function checkContiguous(adr AS BytePtr,size AS DWord) AS Long
 	checkContiguous=TRUE
 End Function
 
-Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
-	Dim i AS DWord
+Function CalcChkSum(data As BytePtr,length As DWord) As DWord
+	Dim i As DWord
 	CalcChkSum=0
 	Do
 		CalcChkSum += data[i]
@@ -269,9 +278,9 @@ End Function
     STROBEをLにし、WEをディスエーブルにする。
     Ch4を1に設定する。MADチップの場合は5。 
 */
-Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
-	Dim hIn AS HANDLE,buf AS BytePtr
-	Dim CtrMask as Byte
+Sub WriteSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
+	Dim hIn As HANDLE,buf As BytePtr
+	Dim CtrMask As Byte
 
 	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
 	DBM("SRAM Writeing...")
@@ -297,8 +306,8 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 		SendControl(hFile,CtrMask)	' SRAM CE
 
 		if info->ROMType = SFC_MAP_HiROM Then
-			Dim BankCount AS Long,WriteSize AS DWord,bi AS Long,WriteAdr AS DWord
-			BankCount=info->SRAMSize/HIROM_SRAM_BANKSIZE -1 	'8KBバンクごとに分ける
+			Dim BankCount As DWord,WriteSize As DWord,bi As Long,WriteAdr As DWord
+			BankCount=(info->SRAMSize/HIROM_SRAM_BANKSIZE -1) AS DWord 	'8KBバンクごとに分ける
 			if BankCount<0 Then  BankCount=0
 
 			DBM("SRAM BANK COUNT : "+Str$(BankCount+1))
@@ -322,10 +331,10 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	Else
 		'SA-1 (sanni氏のcartreaderを参考)
 		DBM("SA-1 Write BW-RAM (動作不能)")
-		Dim cmd[512] AS Byte
-		Dim block AS Long,lastBlock AS Long,curByte AS DWord,i AS Long
+		Dim cmd[512] As Byte
+		Dim block As Long,lastBlock As DWord,curByte As DWord,i As Long
 
-		lastBlock=info->SRAMSize/&H2000
+		lastBlock=(info->SRAMSize/&H2000) AS DWord
 		DBM("blocks = "+Hex$(lastBlock))
 
 		SetCPU_Clock(hFile,TRUE)
@@ -333,14 +342,14 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 		SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
 
 		for block=0 To lastBlock-1
-			cmd[0]=block
-			cmd[1]=block
+			cmd[0]=block As Byte
+			cmd[1]=block As Byte
 			WriteROM(hFile,cmd,0,&H2224,2,FALSE)	'MAP SRAM to 0x6000~0x7FFF
 			cmd[0]=&H80
 			cmd[1]=&H80
 			WriteROM(hFile,cmd,0,&H2226,2,FALSE)	'SRAM WRITE ENABLE
 			DBM("Writeing block"+Str$(block))
-			FillMemory(cmd,512,block+lastBlock)
+			FillMemory(cmd,512,(block+lastBlock) As Byte)
 
 			for curByte=0 To &H7FFF Step 512
 				if curByte < &H6000 Then
@@ -371,9 +380,9 @@ Sub WriteSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	SetAddress(hFile,0,FALSE)
 EndSub
 
-Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
-	Dim hout AS HANDLE,buf AS BytePtr
-	Dim CtrMask as Byte
+Sub DumpSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
+	Dim hout As HANDLE,buf As BytePtr
+	Dim CtrMask As Byte
 
 	hout=OpenFileEx(FileName,GENERIC_WRITE)
 	if hout=NULL Then
@@ -397,8 +406,8 @@ Sub DumpSRAM(hFile AS HANDLE,info AS *SFC_CART_INFO,FileName AS BytePtr)
 	SendControl(hFile,CtrMask)	' SRAM CE
 
 	if info->ROMType = SFC_MAP_HiROM Then
-		Dim BankCount AS Long,DumpSize AS DWord,bi AS Long,DumpAdr AS DWord
-		BankCount=info->SRAMSize/HIROM_SRAM_BANKSIZE -1 	'8KBバンクごとに分ける
+		Dim BankCount As DWord,DumpSize As DWord,bi As Long,DumpAdr As DWord
+		BankCount=(info->SRAMSize/HIROM_SRAM_BANKSIZE -1) AS DWord 	'8KBバンクごとに分ける
 		if BankCount<0 Then  BankCount=0
 
 		DBM("SRAM BANK COUNT : "+Str$(BankCount))
@@ -430,14 +439,12 @@ EndSub
 
 
 '生のROMヘッダをSFC_CART_INFOに
-Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
+Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	'カートリッジのヘッダエリアのデータをSFC_CART_INFOへ格納
 
-	Dim i as Long
+	Dim i As Long
 
 	memcpy(VarPtr(info->rawHeader),data,Sizeof(SFC_CART_HEADER))
-	'拡張（？）ヘッダがあるかチェック
-	info->hasExtraHeader=isSameBin(info->rawHeader.dummy0,ex"\x00\x00\x00\x00\x00\x00",7)
 
 	memcpy(info,data->GameTitle,21)
 	if info->Title[i] = 0 Then
@@ -457,17 +464,33 @@ Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	info->MapMode=data->MapMode
 	info->ROMType=(info->MapMode And &H0F)
 
-	'ダビスタ96対策
-/*	if (info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZDBJ") And data->Checksum2=&HCC86) or _
-		(info->hasExtraHeader And info->rawHeader.GameCode=Str2Dw("ZSNJ") And data->Checksum2=&HA77B) Then
-		info->ROMType=SFC_MAP_SpLoROM
+	
+	'拡張（？）ヘッダがあるかチェック
+	info->hasExtraHeader = ( (data->MakerCode>>8 >= &H20) And _
+		(NOT(isSameBin(VarPtr(data->MakerCode),ex"\x00\x00\x00\x00\x00\x00\x00",7))) And _
+		(NOT(isSameBin(VarPtr(data->MakerCode),ex"\xFF\xFF\xFF\xFF\xFF\xFF\xFF",7))) ) And &H01
+
+	if info->hasExtraHeader Then
+		'ヘッダのコードは文字列で来る
+		'code = 下位 or 上位<<4
+		Dim code AS Word
+		code=data->MakerCode
+		if code=0 Then code=&H3030
+		code= ((code And &HFF00) -&H3000)>>8 or ( (code And &H0F) + (&H09 * ((code>>6) And &H01)) << 4 )
+		info->MakerCode=code
+		info->MakerName=getLicenceString(code)
+		lstrcpy(info->GameCode,Dw2Str(info->rawHeader.GameCode))
+		if lstrcmp(info->GameCode,"    ")=0 Then lstrcpy(info->GameCode,"????")
 	End If
-*/	
+
 	'SpecialLoROMはLoROMの衛星対応カートリッジ
 	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
 	'ここではダビスタ96とサウンドノベルツクールがヒットするはず
-	if info->ROMType = SFC_MAP_LoROM And (info->rawHeader.GameCode And &HFF)=Asc("Z")  And ((info->rawHeader.GameCode>>24) And &HFF)=Asc("J") Then
-		info->ROMType=SFC_MAP_SpLoROM
+	If info->GameCode[0]=Asc("Z")  And info->GameCode[3]=Asc("J") Then 
+		info->isBSX=TRUE
+		if info->ROMType = SFC_MAP_LoROM Then
+			info->ROMType=SFC_MAP_SpLoROM
+		End If
 	End If
 
 	Select Case info->ROMType
@@ -496,8 +519,8 @@ Sub SloveCartInfo(data AS *SFC_CART_HEADER,info As *SFC_CART_INFO)
 
 	info->Country = data->CountryID
 	info->Version = data->Version
-	info->CheckSum1 = data->Checksum1 '((data[29] << 8) Or data[28]) AS Word
-	info->CheckSum2 = data->Checksum2 '((data[31] << 8) Or data[30]) AS Word
+	info->CheckSum1 = data->Checksum1 '((data[29] << 8) Or data[28]) As Word
+	info->CheckSum2 = data->Checksum2 '((data[31] << 8) Or data[30]) As Word
 
 EndSub
 
@@ -505,12 +528,12 @@ EndSub
 
 'SDD1のバンクをセットアップ
 'SNESバンクC0, D0, E0, F0にbankStartから始まるROMバンク(1MByteごと)を割り当て
-Sub SDD1_SetBanks(hCOM AS HANDLE,bankStart AS Long)
-	Dim buf[3] AS Byte, i AS Long
+Sub SDD1_SetBanks(hCOM As HANDLE,bankStart As Long)
+	Dim buf[3] As Byte, i As Long
 	DBM(sprintfStr("Setting S-DD1 bank %d-%d...",bankStart,bankStart+3))
 
 	For i=0 To 3
-		buf[i] = bankStart+i
+		buf[i] = (bankStart+i) AS Byte
 	Next i
 
 	SendControl(hCOM,RST or OE)
@@ -519,8 +542,8 @@ Sub SDD1_SetBanks(hCOM AS HANDLE,bankStart AS Long)
 End Sub
 
 '現在のSDD1のバンク設定をGUIに出力
-Sub SDD1_PrintBanks(hCOM AS HANDLE)
-	Dim buf[3] AS Byte, i AS Long
+Sub SDD1_PrintBanks(hCOM As HANDLE)
+	Dim buf[3] As Byte, i As Long
 
 	SendControl(hCOM,DEFAULT_CTRLBUS)
 	ReadROM(hCOM,buf,0,&H004804,4,FALSE)
@@ -568,17 +591,17 @@ End Sub
 Const SNES_SPC7110_VBANKS_COUNT = 3
 Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2
 Const SNES_SPC7110_MMC_ADR = &H4830
-Function SPC7110_SetBanks(hCOM AS HANDLE,bank AS Long,bSRAM_Enable As BOOL) AS BOOL
-	Dim buf[SNES_SPC7110_MMC_REG_SIZE] AS Byte, i AS Long
+Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As BOOL
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
 
 	'RESET
 	SendControl(hCOM,WE or CE or OE)
 
 	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
-		buf[i+1] = bank+i
+		buf[i+1] = (bank+i) AS Byte
 		DBM(sprintfStr("[SPC7110]SET_VBANK%X:%0d ",i,buf[i+1]))
 	Next i
-	buf[0]=bSRAM_Enable<<7
+	buf[0]=(bSRAM_Enable<<7) As Byte
 	buf[4]=&H03
 
 	SendControl(hCOM,RST or CE or OE)
@@ -597,8 +620,8 @@ Function SPC7110_SetBanks(hCOM AS HANDLE,bank AS Long,bSRAM_Enable As BOOL) AS B
 	End If
 End Function
 
-Sub SPC7110_PrintBanks(hCOM AS HANDLE)
-	Dim buf[SNES_SPC7110_MMC_REG_SIZE] AS Byte, i AS Long
+Sub SPC7110_PrintBanks(hCOM As HANDLE)
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
 
 '	SendControl(hCOM,RST or WE)
 	SendControl(hCOM,DEFAULT_CTRLBUS)

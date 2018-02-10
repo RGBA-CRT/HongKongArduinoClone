@@ -39,6 +39,7 @@ Const EditBox4=1035
 Const CheckBox6=1036
 Const CommandButton9=1037
 Const CommandButton10=1038
+Const CommandButton11=1039
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -62,7 +63,7 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"STATIC","Serial Prot : ",&H50000000,13,50,60,12,hWnd,Static2 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static2),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,79,45,99,215,hWnd,ComList As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200502,79,45,99,215,hWnd,ComList As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,ComList),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"STATIC","ROM Title : ",&H50000000,13,80,60,13,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static3),WM_SETFONT,hFont_MainWnd As WPARAM,0)
@@ -136,6 +137,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CommandButton9),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,419,289,16,16,hWnd,CommandButton10 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,221,206,16,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -147,6 +150,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			MainWnd_RButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
 		Case WM_MBUTTONDBLCLK
 			MainWnd_MButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
+		Case WM_DROPFILES
+			MainWnd_DropFiles(wParam As HDROP)
 		Case WM_COMMAND
 			Select Case LOWORD(wParam)
 				Case CommandButton5
@@ -213,6 +218,11 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							MainWnd_CheckBox6_Click()
+					End Select
+				Case CommandButton11
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton11_Click()
 					End Select
 			End Select
 		Case Else

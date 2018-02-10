@@ -1,7 +1,7 @@
 #include "HongKongArduinoClone.idx"
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "0.61a"	'hirom sram + bstest
+Const VerStr = "0.62"	'hirom sram + bstest + 
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 Const FIRMWARE_ID="HKAF"
