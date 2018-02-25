@@ -5,34 +5,31 @@
    History:
     2016/7/2  Add LastAdr
     2016/8/29 SnesCIC対応
-    2017/2/15 マジックナンバー追加
+    2017/2/15 [HKAF0]ファームチェック導入
+    2018/2/26 [HKAF1]動的ファームウェア
 */
 
-//[HongKongArduinoFast.hex]は-O2でコンパイルされたバイナリです。
-//通常は↑を書き込んで使ってください
-//ボーレートはお使いのArduinoのデータシートを参考に設定してください↓
-#define SERIAL_BAUDRATE 500000*2 //62.5KB/s 
+//config
+#define INITIAL_BAUDRATE 115200
+#define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '0'
+#define FIRMWARE_VERSION '1'
+#define _ENABLE_CIC
 
 /*
   Reference :
     'r' or 'R' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
-               指定したアドレスからデーターサイズ分を送信します。
+               指定したアドレスからデーターサイズ分を送信
 
     'w' or 'W' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
-               アドレスをインクリメントしながら書き込んでいきます。
+               アドレスをインクリメントしながら書き込んでいく
 
-    'a' or 'A' の引数はアドレス(３バイト)で、アドレスバスを操作できます。
+    'a' or 'A' の引数はアドレス(３バイト)　アドレスバスを操作
 
-    'c'　の引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作します。
-    'v'  引数なし。バージョンを返します。FIRMWARE_ID+FIRMWARE_VERSIONの形式です。
-
-  コードは以下の方針でいきます
-  ・ループを展開
-  ・見易さよりも速度優先
-  ・レガシーなCの文法にこだわらない
-  ・コンパイルオプションO1 O2 O3で一番早かったものを使用
+    'c'　引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作
+    'v'  引数なし。バージョンを返します。FIRMWARE_ID+FIRMWARE_VERSIONの形式
+    'g'  クロック関連　引数は'0'か'1'
+    'b'　ボーレートを変更 引数は32ビットリトルエンディアン
 */
 /* ENABLLE_CICモードの場合
   　・Si5351なし起動 ：
@@ -44,7 +41,6 @@
 */
 
 //----------------- 実験コード ------------------
-#define _ENABLE_CIC
 #ifdef _ENABLE_CIC
 
 #include "si5351.h"
@@ -133,8 +129,8 @@ inline void outCh(int ch, byte b)
 //アドレスバスを設定
 inline void setAddress(unsigned long address, int isLoROM)
 {
-  if (isLoROM){
-    address = (address & 0xFF8000)<<1 | (address & 0x007FFF) | 0x8000 ;
+  if (isLoROM) {
+    address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
     //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
   }
 
@@ -288,7 +284,7 @@ void setup()
   outCh(1, 0x00); lastadr[1] = 0;
   outCh(2, 0x00); lastadr[2] = 0;
 
-  Serial.begin(SERIAL_BAUDRATE);
+  Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
 void loop() {
@@ -346,6 +342,7 @@ void loop() {
       { //Return fimware version
         Serial.write(FIRMWARE_ID);
         Serial.write((char)FIRMWARE_VERSION);
+
       } break;
 
     case 'g':
@@ -361,6 +358,42 @@ void loop() {
         }
 #endif
       } break;
+
+    case 'b':
+      { //Set boudrate
+        //  Serial.print("\r\n!");
+        while (Serial.available() < 4);
+
+        unsigned long new_boudrate = Serial.read()
+                                     | (unsigned long)Serial.read() << 8
+                                     | (unsigned long)Serial.read() << 16
+                                     | (unsigned long)Serial.read() << 24;
+
+        /*  Serial.print((unsigned char)((new_boudrate >> 24) & 0xff), HEX);
+          Serial.print((unsigned char)((new_boudrate >> 16) & 0xff), HEX);
+          Serial.print((unsigned char)((new_boudrate >>  8) & 0xff), HEX);
+          Serial.print((unsigned char)((new_boudrate      ) & 0xff), HEX);
+          Serial.print("\r\n");
+          Serial.print(new_boudrate, HEX);*/
+        Serial.end();
+        Serial.begin(new_boudrate);
+     
+        /* char test = 0;
+          while (1) {
+           if (test & 1) setAddress(0xFFFFFF, false);
+           else setAddress(0x000000, false);
+           Serial.print(test, HEX);
+           Serial.print(" : ");
+           Serial.print((char)((new_boudrate >> 24) & 0xff), HEX);
+           Serial.print((char)((new_boudrate >> 16) & 0xff), HEX);
+           Serial.print((char)((new_boudrate >> 8) & 0xff), HEX);
+           Serial.print((char)((new_boudrate    ) & 0xff), HEX);
+           Serial.print("  \r");
+           test++;
+           delay(500);
+          }*/
+        break;
+      }
   }
 }
 
