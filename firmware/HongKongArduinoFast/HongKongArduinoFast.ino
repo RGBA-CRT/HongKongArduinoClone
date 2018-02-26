@@ -3,17 +3,22 @@
    Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
    Some codes are referenced to [https://github.com/sanni/cartreader/]
    History:
-    2016/7/2  Add LastAdr
+    2016/7/2  Add LastAdr(Max55KB/s)
     2016/8/29 SnesCIC対応
     2017/2/15 [HKAF0]ファームチェック導入
-    2018/2/26 [HKAF1]動的ファームウェア
+    2018/2/26 [HKAF1]動的ボーレート
+    2018/2/26 bankを超える吸出しは不可に(62Kb/s)
 */
 
 //config
+//シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
 #define FIRMWARE_VERSION '1'
+#define BUFFER_LEN 128
+
+//クロック回路有効/無効
 #define _ENABLE_CIC
 
 /*
@@ -30,6 +35,14 @@
     'v'  引数なし。バージョンを返します。FIRMWARE_ID+FIRMWARE_VERSIONの形式
     'g'  クロック関連　引数は'0'か'1'
     'b'　ボーレートを変更 引数は32ビットリトルエンディアン
+*/
+/*
+  接続方法：
+  　1.INITIAL_BAUDRATE[bps]で通信開始
+    2.'v'コマンドを送る, 正常にFIRMWARE_IDが返ってくるまでリトライ
+    3.'b'コマンドでボーレートを1000000bpsとかにする。
+    4.手順2と同じく'v'コマンドで応答が来るまで待つ。
+      この時に応答がなければそのボーレートは使用不可
 */
 /* ENABLLE_CICモードの場合
   　・Si5351なし起動 ：
@@ -127,10 +140,12 @@ inline void outCh(int ch, byte b)
 }
 
 //アドレスバスを設定
-inline void setAddress(unsigned long address, int isLoROM)
+inline void setAddress(byte bank, word address, int isLoROM)
 {
   if (isLoROM) {
-    address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
+    //address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
+    bank = (bank << 1) | (address >> 15);
+    address |= 0x8000;
     //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
   }
 
@@ -147,10 +162,9 @@ inline void setAddress(unsigned long address, int isLoROM)
     lastadr[1] = spritAdr;
   }
 
-  spritAdr = address >> 16;
-  if (lastadr[2] != spritAdr) {
-    outCh(2, spritAdr);
-    lastadr[2] = spritAdr;
+  if (lastadr[2] != bank) {
+    outCh(2, bank);
+    lastadr[2] = bank;
   }
 }
 
@@ -180,9 +194,9 @@ void writeSRAM(int isLoROM = false) {
   while (Serial.available() < 7)
     delay(1);
 
-  unsigned long address = Serial.read();;
+  word address = Serial.read();
   address += ((unsigned long)Serial.read() << 8);
-  address += ((unsigned long)Serial.read() << 8 * 2);
+  byte bank = Serial.read();
 
   unsigned long datasize = Serial.read();
   datasize += ((unsigned long)Serial.read() << 8);
@@ -209,7 +223,7 @@ void writeSRAM(int isLoROM = false) {
     //アドレス出力によりデータバス出力停止
     CART_WRITE_DISABLE();
     Disable74HC245();
-    setAddress(address, isLoROM);
+    setAddress(bank, address, isLoROM);
 
     //ENABLEの時間をなるべく長くしておく
     CART_WRITE_ENABLE();
@@ -287,6 +301,33 @@ void setup()
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
+#define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
+
+inline void readRom(byte isLoROM) {
+  byte buf[BUFFER_LEN];
+  while (Serial.available() < 6);
+  word address = Serial_readWord();
+  byte bank = Serial.read();
+
+  word datasize = Serial_readWord();
+  Serial.read();  //互換性のためだけ
+
+  word goalAdr = address + datasize;
+  word i = 0;
+  while (1) {
+    setAddress(bank, address, isLoROM);
+ /*   buf[i] = readData();
+    address++; i++;
+    if (i >= BUFFER_LEN) {
+      Serial.write(buf, i);
+      i = 0;
+    }*/
+    Serial.write(readData());
+    address++;
+    if (address == goalAdr) break; //00:C000-01:0000
+  }
+  if (i != 0)Serial.write(buf, i);
+}
 void loop() {
   while (Serial.available() == 0);  //wait command
   byte cmd = Serial.read();
@@ -294,25 +335,8 @@ void loop() {
   switch (cmd) {
     case 'R':
     case 'r':
-      { //Read cart
-        while (Serial.available() < 6);
-
-        byte isLoROM = (cmd == 'r');
-        unsigned long address = Serial.read();
-        address |= ((unsigned long)Serial.read() << 8);
-        address |= ((unsigned long)Serial.read() << 16);
-
-        unsigned long datasize = Serial.read();
-        datasize |= ((unsigned long)Serial.read() << 8);
-        datasize |= ((unsigned long)Serial.read() << 16);
-
-        unsigned long int goalAdr = address + datasize;
-        while (address < goalAdr) {
-          setAddress(address, isLoROM);
-          Serial.write(readData());
-          address++;
-        }
-      } break;
+      readRom((cmd == 'r'));
+      break;
 
     case 'c':
       { //set control bus(OE WD RST CS)
@@ -325,10 +349,9 @@ void loop() {
       { //Set address
         while (Serial.available() < 3)  ;
         byte isLoROM = (cmd == 'a');
-        unsigned long address = Serial.read();
-        address += ((unsigned long)Serial.read() << 8);
-        address += ((unsigned long)Serial.read() << 8 * 2);
-        setAddress(address, isLoROM);
+        word address = Serial_readWord();
+        byte bank = Serial.read();
+        setAddress(bank, address, isLoROM);
       } break;
 
     case 'W':
@@ -361,7 +384,6 @@ void loop() {
 
     case 'b':
       { //Set boudrate
-        //  Serial.print("\r\n!");
         while (Serial.available() < 4);
 
         unsigned long new_boudrate = Serial.read()
@@ -369,29 +391,9 @@ void loop() {
                                      | (unsigned long)Serial.read() << 16
                                      | (unsigned long)Serial.read() << 24;
 
-        /*  Serial.print((unsigned char)((new_boudrate >> 24) & 0xff), HEX);
-          Serial.print((unsigned char)((new_boudrate >> 16) & 0xff), HEX);
-          Serial.print((unsigned char)((new_boudrate >>  8) & 0xff), HEX);
-          Serial.print((unsigned char)((new_boudrate      ) & 0xff), HEX);
-          Serial.print("\r\n");
-          Serial.print(new_boudrate, HEX);*/
         Serial.end();
         Serial.begin(new_boudrate);
-     
-        /* char test = 0;
-          while (1) {
-           if (test & 1) setAddress(0xFFFFFF, false);
-           else setAddress(0x000000, false);
-           Serial.print(test, HEX);
-           Serial.print(" : ");
-           Serial.print((char)((new_boudrate >> 24) & 0xff), HEX);
-           Serial.print((char)((new_boudrate >> 16) & 0xff), HEX);
-           Serial.print((char)((new_boudrate >> 8) & 0xff), HEX);
-           Serial.print((char)((new_boudrate    ) & 0xff), HEX);
-           Serial.print("  \r");
-           test++;
-           delay(500);
-          }*/
+
         break;
       }
   }

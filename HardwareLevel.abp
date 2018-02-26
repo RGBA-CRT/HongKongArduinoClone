@@ -137,7 +137,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	WriteFile(hSerial,cmd,7,VarPtr(dwReadByte),ByVal NULL)
 
 	dwReadByte=0
-	Const HKAC_HW_RETRY = 10000
+	Const HKAC_HW_RETRY = 5000
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
 
@@ -147,7 +147,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
 			retry++
-			if retry Mod 10 Then Sleep(1)
+			if retry Mod 100 Then Sleep(1)
 '			if retry Mod 50 Then Sleep(5)
 			Continue
 		End If
@@ -161,6 +161,9 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		'if dwReadByte=0 Then debug
 	Loop
 	'DBM(Str$(retry))
+
+	printf(ex"%03X:%X/%X bytes recived %d\n",address,ReadByte,size,retry)
+'	Dump(data,size)
 	ReadROM=ReadByte
 EndFunction
 
