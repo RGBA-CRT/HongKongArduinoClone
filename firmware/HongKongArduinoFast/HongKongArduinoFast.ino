@@ -94,15 +94,17 @@ Si5351 clockgen;
 #define WE  18
 #define RST  19
 
-#define Disable74HC245() PORTB |= 0b00000100
-#define Enable74HC245()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
-//#define Enable74HC245()  digitalWrite(GD, LOW)
+#define Disable74HC245_out() PORTB |= 0b00000100
+#define Enable74HC245_out()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
+//#define Enable74HC245_out()  digitalWrite(GD, LOW)
+
+#define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //現在のアドレスの状態
 byte lastadr[3];
 
 //データピンの方向設定
-inline void setDataDir(int DATADIR)
+inline void setDataDir(byte DATADIR)
 {
   if (DATADIR == INPUT) {
     DDRD &= 0b00000011;
@@ -123,7 +125,7 @@ inline void setData(byte b)
 }
 
 //アドレスバスを構成する74HC377へ値をセット
-inline void outCh(int ch, byte b)
+inline void outCh(byte ch, byte b)
 {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
   PORTB &= ~0b00001000 << ch;
@@ -168,29 +170,90 @@ inline void setAddress(byte bank, word address, byte isLoROM)
   }
 }
 
-inline unsigned char readData()
+inline byte readData()
 {
   setDataDir(INPUT);
 
   //PWM対応ポートの場合ただPORTBをいじってもダメらしい
-  Enable74HC245();
+  Enable74HC245_out();
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
   // digitalWrite(GD, HIGH);
-  Disable74HC245();
+  Disable74HC245_out();
   setDataDir(OUTPUT);
 
   return b;
 }
 
 
+inline void readRom(byte isLoROM) {
+  while (Serial.available() < 5);
+  word address = Serial_readWord();
+  byte bank = Serial.read();
+
+  word datasize = Serial_readWord();
+  // Serial.read();  //互換性のためだけ
+
+  word goalAdr = address + datasize;
+  while (1) {
+    setAddress(bank, address, isLoROM);
+    Serial.write(readData());
+    address++;
+    if (address == goalAdr) break; //00:C000-01:0000
+  }
+
+}
+
 #define CART_WRITE_ENABLE()   PORTC &= 0b11101111
 #define CART_WRITE_DISABLE()  PORTC |= 0b00010000
 
+#define BUFFER_LEN 16
+byte buf[BUFFER_LEN];
+void writeSRAM(int isLoROM = false) {
+  //コマンド受信
+  while (Serial.available() < 5);
+  word address = Serial_readWord();
+  byte bank = Serial.read();
+  word datasize =  Serial_readWord();
+
+  CART_WRITE_DISABLE();
+  digitalWrite(DIR, HIGH); // Arduino => [A_Bus_IN]-[B_Bus_OUT] => SFC
+  Enable74HC245_out();
+  setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
+
+  word goalAdr = address + datasize;
+  byte bufpos = BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
+  while (1) {
+    //シリアル受信
+    if (bufpos >= BUFFER_LEN) {
+      byte i = 0;
+      while (i < BUFFER_LEN) {
+        while (Serial.available() < 1);
+        buf[i] = Serial.read();
+        i++;
+      }
+      bufpos = 0;
+    }
+    setAddress(bank, address, isLoROM);
+    setData(buf[bufpos]);
+
+    CART_WRITE_ENABLE();
+    address++; bufpos++;
+    if (address == goalAdr) break;
+    CART_WRITE_DISABLE();
+
+  }
+
+  CART_WRITE_DISABLE();
+  Disable74HC245_out();
+  digitalWrite(DIR, LOW); //Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
+
+}
+
 //ttps://github.com/sanni/cartreader/blob/master/Cart_Reader/SNES.ino
 //要修正
-void writeSRAM(int isLoROM = false) {
+void writeSRAM_old(int isLoROM = false) {
   while (Serial.available() < 7)
     delay(1);
 
@@ -217,24 +280,24 @@ void writeSRAM(int isLoROM = false) {
   byte data;
   unsigned long goalAdr = address + datasize;
   while (address < goalAdr) {
-    while (Serial.available() < 1);
+    while (Serial.available() == 0 );
     data = Serial.read();
 
     //アドレス出力によりデータバス出力停止
     CART_WRITE_DISABLE();
-    Disable74HC245();
+    Disable74HC245_out();
     setAddress(bank, address, isLoROM);
 
     //ENABLEの時間をなるべく長くしておく
     CART_WRITE_ENABLE();
     setData(data);
 
-    Enable74HC245();
+    Enable74HC245_out();
     address++;
   }
 
   CART_WRITE_DISABLE();
-  Disable74HC245();
+  Disable74HC245_out();
   digitalWrite(DIR, LOW); //Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
 
 }
@@ -301,25 +364,6 @@ void setup()
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
-#define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
-
-inline void readRom(byte isLoROM) {
-  while (Serial.available() < 5);
-  word address = Serial_readWord();
-  byte bank = Serial.read();
-
-  word datasize = Serial_readWord();
- // Serial.read();  //互換性のためだけ
-
-  word goalAdr = address + datasize;
-  while (1) {
-    setAddress(bank, address, isLoROM);
-    Serial.write(readData());
-    address++;
-    if (address == goalAdr) break; //00:C000-01:0000
-  }
-
-}
 
 void loop() {
   while (Serial.available() == 0);  //wait command

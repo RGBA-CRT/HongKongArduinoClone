@@ -6,14 +6,17 @@ Const ProgramName = "HongKongArduinoClone"
 Const VerStr = "0.7"	'hirom sram + bstest + 
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
-Const FIRMWARE_ID="HKAF"
-Const FIRMWARE_VERSION=&H31
 
 Const DEFAULT_BAUDRATE = 500000*2
 Const DEFAULT_CONTINUE = 20
 Const DEFAULT_DUMP_SIZE = &H004000
 Const DEFAULT_QDD_BUFSIZE = 1024*512
+
+'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
+Const HKAC_WRITE_BUFFER_LEN = 16
+Const FIRMWARE_ID="HKAF"
+Const FIRMWARE_VERSION=&H31
 
 Dim INIFILE_PATH AS BytePtr
 

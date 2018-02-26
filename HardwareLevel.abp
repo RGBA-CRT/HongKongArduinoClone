@@ -186,21 +186,21 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 	cmd[4] = (size >>   0) AS Byte
 	cmd[5] = (size >>   8) AS Byte
-	cmd[6] = (size >>  16) AS Byte
+'	cmd[6] = (size >>  16) AS Byte
 
-	WriteFile(hSerial,cmd,7,VarPtr(dwWD),ByVal NULL)
+	WriteFile(hSerial,cmd,6,VarPtr(dwWD),ByVal NULL)
 	Sleep(10)
 
 	WriteCount=0
 
 	'1バイトずつ送信(100バイトずつウェイト置いた方がいいかも)
 	Do
-		WriteFile(hSerial, data+WriteCount , 1 ,VarPtr(dwWD),ByVal NULL)
+		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
 		WriteCount+=dwWD
 		if WriteCount => size Then exitdo
-		if (WriteCount Mod 32) =0 Then Sleep(5)
-		if (WriteCount Mod 128) =0 Then Sleep(10)
+'		if (WriteCount Mod 32) =0 Then Sleep(5)
+'		if (WriteCount Mod 128) =0 Then Sleep(10)
 		if dwWD=0 Then debug
 	Loop
 	
