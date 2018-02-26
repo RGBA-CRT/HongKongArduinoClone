@@ -132,9 +132,9 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 
 	cmd[4] = (size >>   0) AS Byte
 	cmd[5] = (size >>   8) AS Byte
-	cmd[6] = (size >>  16) AS Byte
+'	cmd[6] = (size >>  16) AS Byte
 
-	WriteFile(hSerial,cmd,7,VarPtr(dwReadByte),ByVal NULL)
+	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
 
 	dwReadByte=0
 	Const HKAC_HW_RETRY = 5000

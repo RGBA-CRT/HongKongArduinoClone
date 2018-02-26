@@ -8,6 +8,7 @@
     2017/2/15 [HKAF0]ファームチェック導入
     2018/2/26 [HKAF1]動的ボーレート
     2018/2/26 bankを超える吸出しは不可に(62Kb/s)
+    2018/2/27 バッファリングを導入してみたが逆効果だった（40KB/s)
 */
 
 //config
@@ -16,7 +17,6 @@
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
 #define FIRMWARE_VERSION '1'
-#define BUFFER_LEN 128
 
 //クロック回路有効/無効
 #define _ENABLE_CIC
@@ -140,7 +140,7 @@ inline void outCh(int ch, byte b)
 }
 
 //アドレスバスを設定
-inline void setAddress(byte bank, word address, int isLoROM)
+inline void setAddress(byte bank, word address, byte isLoROM)
 {
   if (isLoROM) {
     //address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
@@ -304,30 +304,23 @@ void setup()
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 inline void readRom(byte isLoROM) {
-  byte buf[BUFFER_LEN];
-  while (Serial.available() < 6);
+  while (Serial.available() < 5);
   word address = Serial_readWord();
   byte bank = Serial.read();
 
   word datasize = Serial_readWord();
-  Serial.read();  //互換性のためだけ
+ // Serial.read();  //互換性のためだけ
 
   word goalAdr = address + datasize;
-  word i = 0;
   while (1) {
     setAddress(bank, address, isLoROM);
- /*   buf[i] = readData();
-    address++; i++;
-    if (i >= BUFFER_LEN) {
-      Serial.write(buf, i);
-      i = 0;
-    }*/
     Serial.write(readData());
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
-  if (i != 0)Serial.write(buf, i);
+
 }
+
 void loop() {
   while (Serial.available() == 0);  //wait command
   byte cmd = Serial.read();
