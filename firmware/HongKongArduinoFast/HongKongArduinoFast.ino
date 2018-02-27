@@ -8,7 +8,9 @@
     2017/2/15 [HKAF0]ファームチェック導入
     2018/2/26 [HKAF1]動的ボーレート
     2018/2/26 bankを超える吸出しは不可に(62Kb/s)
-    2018/2/27 バッファリングを導入してみたが逆効果だった（40KB/s)
+    2018/2/27 Readにバッファリングを導入してみたが逆効果だった（40KB/s)
+    2018/2/27 SranWriteバッファリングを導入
+    2018/2/27 Serial.writeを自前で行うようにした(82KB/s)
 */
 
 //config
@@ -186,6 +188,11 @@ inline byte readData()
   return b;
 }
 
+inline void sendSerial(byte data) {
+  while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
+  UDR0 = data;
+}
+
 
 inline void readRom(byte isLoROM) {
   while (Serial.available() < 5);
@@ -198,7 +205,7 @@ inline void readRom(byte isLoROM) {
   word goalAdr = address + datasize;
   while (1) {
     setAddress(bank, address, isLoROM);
-    Serial.write(readData());
+    sendSerial(readData());
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -209,7 +216,9 @@ inline void readRom(byte isLoROM) {
 #define CART_WRITE_DISABLE()  PORTC |= 0b00010000
 
 #define BUFFER_LEN 16
+#define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
+
 void writeSRAM(int isLoROM = false) {
   //コマンド受信
   while (Serial.available() < 5);
@@ -218,89 +227,48 @@ void writeSRAM(int isLoROM = false) {
   word datasize =  Serial_readWord();
 
   CART_WRITE_DISABLE();
-  digitalWrite(DIR, HIGH); // Arduino => [A_Bus_IN]-[B_Bus_OUT] => SFC
+  digitalWrite(DIR, HIGH);  // [DBus]SNES => Arduino
   Enable74HC245_out();
   setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
 
   word goalAdr = address + datasize;
-  byte bufpos = BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
+  byte bufpos = RX_BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
+
   while (1) {
-    //シリアル受信
-    if (bufpos >= BUFFER_LEN) {
+
+    //データ受信
+    if (bufpos >= RX_BUFFER_LEN) {
       byte i = 0;
-      while (i < BUFFER_LEN) {
+      while (i < RX_BUFFER_LEN) {
         while (Serial.available() < 1);
         buf[i] = Serial.read();
         i++;
       }
       bufpos = 0;
     }
+
+    //アドレス/データバスセット
     setAddress(bank, address, isLoROM);
     setData(buf[bufpos]);
 
+    //書き込み
     CART_WRITE_ENABLE();
+
+    //時間稼ぎ
     address++; bufpos++;
     if (address == goalAdr) break;
+
+    //書き込み終了
     CART_WRITE_DISABLE();
 
   }
 
   CART_WRITE_DISABLE();
   Disable74HC245_out();
-  digitalWrite(DIR, LOW); //Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
+  digitalWrite(DIR, LOW); // [DBus]SNES <= Arduino
 
 }
 
-//ttps://github.com/sanni/cartreader/blob/master/Cart_Reader/SNES.ino
-//要修正
-void writeSRAM_old(int isLoROM = false) {
-  while (Serial.available() < 7)
-    delay(1);
-
-  word address = Serial.read();
-  address += ((unsigned long)Serial.read() << 8);
-  byte bank = Serial.read();
-
-  unsigned long datasize = Serial.read();
-  datasize += ((unsigned long)Serial.read() << 8);
-  datasize += ((unsigned long)Serial.read() << 8 * 2);
-
-  /*
-    1.74HC245を無効にしてアドレスバスをセットする(OUTPUT)
-    2.それぞれのチャンネルの有効/無効はoutChがやってくれる->74HC377無効
-    3.74HC245を有効にしてデータ方向をSFC側へ書き込むようにする
-    4.書き込む値を受信してデータバスにセット
-    5.goto 1
-  */
-
-  CART_WRITE_DISABLE();
-  setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
-  digitalWrite(DIR, HIGH); // Arduino => [A_Bus_IN]-[B_Bus_OUT] => SFC
-
-  byte data;
-  unsigned long goalAdr = address + datasize;
-  while (address < goalAdr) {
-    while (Serial.available() == 0 );
-    data = Serial.read();
-
-    //アドレス出力によりデータバス出力停止
-    CART_WRITE_DISABLE();
-    Disable74HC245_out();
-    setAddress(bank, address, isLoROM);
-
-    //ENABLEの時間をなるべく長くしておく
-    CART_WRITE_ENABLE();
-    setData(data);
-
-    Enable74HC245_out();
-    address++;
-  }
-
-  CART_WRITE_DISABLE();
-  Disable74HC245_out();
-  digitalWrite(DIR, LOW); //Arduino <= [A_Bus_OUT]-[B_Bus_IN] <= SFC
-
-}
 
 inline void setCtrlBus(byte b) {
   digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);

@@ -673,6 +673,7 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
 		endif
 	endif
+	info.ROMSize=1024*1024*4
 EndSub
 
 
