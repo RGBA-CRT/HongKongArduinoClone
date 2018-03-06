@@ -978,9 +978,11 @@ End Sub
 
 
 Sub MainWnd_CommandButton12_Click()
-'	Sleep(1000)
-
-	CheckFirmware(hCOM,TRUE)
+	Dim cmd[5] AS Byte,dwAB AS DWord
+	cmd[0]=Asc("S")
+	WriteFile(hCOM,cmd,1,VarPtr(dwAB),ByVal NULL)
+	Sleep(100)
+	FlushCom(hCOM)
 
 End Sub
 
@@ -992,4 +994,16 @@ End Sub
 Sub MainWnd_CommandButton16_Click()
 	ChangeBaudrate(hCOM,1000000)
 
+End Sub
+
+Sub MainWnd_CommandButton13_Click()
+
+	Dim info As SFC_CART_INFO
+	Dim path As BytePtr
+
+	GetDumpConfig(info)
+	info.ROMSize=1024*1024*4
+	info.ROMType=SFC_MAP_HiROM
+	debug
+	DumpFullROM(VarPtr(info),"npdump.sfc")
 End Sub

@@ -40,6 +40,8 @@ Const CheckBox6=1036
 Const CommandButton9=1037
 Const CommandButton10=1038
 Const CommandButton11=1039
+Const CommandButton12=1040
+Const CommandButton13=1041
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -139,6 +141,10 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,423,289,8,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Button12",&H50000000,191,206,26,21,hWnd,CommandButton12 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton12),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Button12",&H50000000,220,206,26,21,hWnd,CommandButton13 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton13),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -223,6 +229,16 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							MainWnd_CommandButton11_Click()
+					End Select
+				Case CommandButton12
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton12_Click()
+					End Select
+				Case CommandButton13
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							MainWnd_CommandButton13_Click()
 					End Select
 			End Select
 		Case Else

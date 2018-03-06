@@ -25,10 +25,10 @@
 
 /*
   Reference :
-    'r' or 'R' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
+    'r' or 'R' 引数はアドレス(3バイト)とデーターサイズ(2バイト)で、
                指定したアドレスからデーターサイズ分を送信
 
-    'w' or 'W' の引数はアドレス(3バイト)とデーターサイズ(3バイト)で、
+    'w' or 'W' 引数はアドレス(3バイト)とデーターサイズ(2バイト)で、
                アドレスをインクリメントしながら書き込んでいく
 
     'a' or 'A' の引数はアドレス(３バイト)　アドレスバスを操作
@@ -54,6 +54,8 @@
   　・Si5351あり、SuperCICあり -> OK
   　・カートリッジをつないだまま初期化すると、ACK待ちでフリーズ
 */
+
+//データバスはOut, BusBufferはIn方向がデフォルトなので、違うように設定したら戻すこと
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -88,7 +90,7 @@ Si5351 clockgen;
 #define G1  12
 #define G2  13
 
-//コントロールピン
+//コントロールピン PORTC
 #define DIR  14
 #define CK  15
 #define OE  16
@@ -96,14 +98,56 @@ Si5351 clockgen;
 #define WE  18
 #define RST  19
 
-#define Disable74HC245_out() PORTB |= 0b00000100
-#define Enable74HC245_out()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
-//#define Enable74HC245_out()  digitalWrite(GD, LOW)
+
+//bus buffer direction
+#define BB_DIR_OUTPUT() PORTC |= 0x01 // DIR=HIGH
+#define BB_DIR_INPUT() PORTC &= 0xfe  // DIR=LOW
+
+//bus buffer OutputControl
+#define BB_OUT_DISABLE() PORTB |= 0b00000100
+#define BB_OUT_ENABLE()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
+
+// cart /WE control
+#define CART_WRITE_ENABLE()   PORTC &= 0b11101111
+#define CART_WRITE_DISABLE()  PORTC |= 0b00010000
+
+// cart /OE control
+#define CART_OUTPUT_ENABLE()   PORTC &= 0b11111011
+#define CART_OUTPUT_DISABLE()  PORTC |= 0b00000100
+
 
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
+//バッファ
+#define BUFFER_LEN 16
+#define RX_BUFFER_LEN BUFFER_LEN
+byte buf[BUFFER_LEN];
+
 //現在のアドレスの状態
 byte lastadr[3];
+
+//-----------------
+// serial comm
+//-----------------
+
+inline void sendSerial(byte data) {
+  while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
+  UDR0 = data;
+}
+
+// recive to buffer
+inline void serial_receive(byte length) {
+  byte i = 0;
+  while (i < length) {
+    while (Serial.available() < 1);
+    buf[i] = Serial.read();
+    i++;
+  }
+}
+
+//--------------
+//   ic level
+//--------------
 
 //データピンの方向設定
 inline void setDataDir(byte DATADIR)
@@ -126,8 +170,8 @@ inline void setData(byte b)
   PORTB |= b >> 6;
 }
 
-//アドレスバスを構成する74HC377へ値をセット
-inline void outCh(byte ch, byte b)
+//アドレスバスを構成するFlip-Flopへ値をセット
+inline void setFF(byte ch, byte b)
 {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
   PORTB &= ~0b00001000 << ch;
@@ -143,6 +187,28 @@ inline void outCh(byte ch, byte b)
   PORTB |= 0b00001000 << ch;
 }
 
+
+void setDatadir_cart(byte DATADIR) {
+  if (DATADIR == INPUT) {
+    BB_DIR_INPUT(); //busbuffer dir
+  }
+  else {
+    BB_DIR_OUTPUT();
+  }
+
+  //busbuffer OE
+  BB_OUT_ENABLE();
+
+  //arduino dbus dir
+  setDataDir(DATADIR);
+}
+
+
+
+//--------------
+// snes level
+//--------------
+
 //アドレスバスを設定
 inline void setAddress(byte bank, word address, byte isLoROM)
 {
@@ -153,54 +219,48 @@ inline void setAddress(byte bank, word address, byte isLoROM)
     //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
   }
 
+  BB_OUT_DISABLE();
+
   //変更のないFlipFlopはいじらない
   byte spritAdr = address;
   if (lastadr[0] != spritAdr) {
-    outCh(0, spritAdr);
+    setFF(0, spritAdr);
     lastadr[0] = spritAdr;
   }
 
   spritAdr = address >> 8;
   if (lastadr[1] != spritAdr) {
-    outCh(1, spritAdr);
+    setFF(1, spritAdr);
     lastadr[1] = spritAdr;
   }
 
   if (lastadr[2] != bank) {
-    outCh(2, bank);
+    setFF(2, bank);
     lastadr[2] = bank;
   }
 }
 
 inline byte readData()
 {
+  CART_OUTPUT_ENABLE();
   setDataDir(INPUT);
-
-  //PWM対応ポートの場合ただPORTBをいじってもダメらしい
-  Enable74HC245_out();
+  BB_OUT_ENABLE();
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
-  // digitalWrite(GD, HIGH);
-  Disable74HC245_out();
+  BB_OUT_DISABLE();
   setDataDir(OUTPUT);
+  CART_OUTPUT_DISABLE();
 
   return b;
 }
 
-inline void sendSerial(byte data) {
-  while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
-  UDR0 = data;
-}
-
-
-inline void readRom(byte isLoROM) {
+inline void readCart(byte isLoROM) {
   while (Serial.available() < 5);
   word address = Serial_readWord();
   byte bank = Serial.read();
 
   word datasize = Serial_readWord();
-  // Serial.read();  //互換性のためだけ
 
   word goalAdr = address + datasize;
   while (1) {
@@ -212,14 +272,7 @@ inline void readRom(byte isLoROM) {
 
 }
 
-#define CART_WRITE_ENABLE()   PORTC &= 0b11101111
-#define CART_WRITE_DISABLE()  PORTC |= 0b00010000
-
-#define BUFFER_LEN 16
-#define RX_BUFFER_LEN BUFFER_LEN
-byte buf[BUFFER_LEN];
-
-void writeSRAM(int isLoROM = false) {
+void writeCart(int isLoROM = false) {
   //コマンド受信
   while (Serial.available() < 5);
   word address = Serial_readWord();
@@ -227,23 +280,15 @@ void writeSRAM(int isLoROM = false) {
   word datasize =  Serial_readWord();
 
   CART_WRITE_DISABLE();
-  digitalWrite(DIR, HIGH);  // [DBus]SNES => Arduino
-  Enable74HC245_out();
-  setDataDir(OUTPUT); //アドレスセットもデーターセットも出力
+  BB_DIR_OUTPUT();
 
   word goalAdr = address + datasize;
   byte bufpos = RX_BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
 
   while (1) {
-
     //データ受信
     if (bufpos >= RX_BUFFER_LEN) {
-      byte i = 0;
-      while (i < RX_BUFFER_LEN) {
-        while (Serial.available() < 1);
-        buf[i] = Serial.read();
-        i++;
-      }
+      serial_receive(RX_BUFFER_LEN);
       bufpos = 0;
     }
 
@@ -252,6 +297,7 @@ void writeSRAM(int isLoROM = false) {
     setData(buf[bufpos]);
 
     //書き込み
+    BB_OUT_ENABLE();
     CART_WRITE_ENABLE();
 
     //時間稼ぎ
@@ -260,15 +306,15 @@ void writeSRAM(int isLoROM = false) {
 
     //書き込み終了
     CART_WRITE_DISABLE();
+    BB_OUT_DISABLE();
 
   }
 
   CART_WRITE_DISABLE();
-  Disable74HC245_out();
-  digitalWrite(DIR, LOW); // [DBus]SNES <= Arduino
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
 
 }
-
 
 inline void setCtrlBus(byte b) {
   digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
@@ -325,13 +371,60 @@ void setup()
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
   setDataDir(OUTPUT);
-  outCh(0, 0x00); lastadr[0] = 0;
-  outCh(1, 0x00); lastadr[1] = 0;
-  outCh(2, 0x00); lastadr[2] = 0;
+  BB_OUT_DISABLE();
+  setFF(0, 0x00); lastadr[0] = 0;
+  setFF(1, 0x00); lastadr[1] = 0;
+  setFF(2, 0x00); lastadr[2] = 0;
 
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
+// /REを制御して読み込む
+byte readbyte_cart(byte bank, word address) {
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_OUTPUT_ENABLE();
+
+  setAddress(bank, address, false);
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  byte ret = readData();
+
+  CART_OUTPUT_DISABLE();
+  return ret;
+}
+
+//　/WRとかをちゃんと制御して書き込む
+void writebyte_cart(byte bank, word address, byte data) {
+  setAddress(bank, address, false);        setData(data);
+
+  BB_DIR_OUTPUT();
+  BB_OUT_ENABLE();
+  CART_OUTPUT_DISABLE();
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_ENABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_DISABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
+  //CART_OUTPUT_ENABLE();
+}
+
+//flash config
+#define FLASH_COMMAND_LENGTH 3
+byte flash_bank;
+word flash_address[FLASH_COMMAND_LENGTH]; // = {0xAAAA,0x5555,0xAAAA}
+byte flash_cmd[FLASH_COMMAND_LENGTH];     // = {0xAA  ,0x55,  [cmd] }
+// flash_cmdの最後のバイトは適宜コマンドに置き換え
 
 void loop() {
   while (Serial.available() == 0);  //wait command
@@ -340,7 +433,7 @@ void loop() {
   switch (cmd) {
     case 'R':
     case 'r':
-      readRom((cmd == 'r'));
+      readCart((cmd == 'r'));
       break;
 
     case 'c':
@@ -363,7 +456,7 @@ void loop() {
     case 'w':
       { //Write cart
         byte isLoROM = (cmd == 'w');
-        writeSRAM(isLoROM);
+        writeCart(isLoROM);
       } break;
 
     case 'v':
@@ -395,13 +488,73 @@ void loop() {
                                      | (unsigned long)Serial.read() << 8
                                      | (unsigned long)Serial.read() << 16
                                      | (unsigned long)Serial.read() << 24;
-
         Serial.end();
         Serial.begin(new_boudrate);
+        //このあと、ファームチェックで値が正常に帰ってくることを確認してから
+        //各種コマンドを投げてください
 
-        break;
-      }
+      } break;
+
+    case 'S':
+      { // setup SF memory
+
+        digitalWrite(OE, HIGH);
+        digitalWrite(CS, LOW);
+        digitalWrite(WE, HIGH);
+        digitalWrite(RST, HIGH);
+
+        writebyte_cart(0x00, 0x2400, 0x09);
+        byte status = readbyte_cart(0x00, 0x2400);
+        writebyte_cart(0x00, 0x2401, 0x28);
+        writebyte_cart(0x00, 0x2401, 0x84);
+        writebyte_cart(0x00, 0x2400, 0x06);
+        writebyte_cart(0x00, 0x2400, 0x39);
+
+        writebyte_cart(0x00, 0x2400, 0x05);
+        if ( readbyte_cart(0x00, 0x2400) == 0x2A)
+          Serial.print("OK");
+        else
+          Serial.print("NG");
+        Serial.write(readbyte_cart(0x00, 0x2400));
+      } break;
+
+    case 't':
+      { // set register(1byte write)
+        while (Serial.available() < 4);
+        byte bank = Serial.read();
+        word address = Serial_readWord();
+        byte data = Serial.read();
+
+        writebyte_cart(bank, address, data);
+
+      } break;
+
+    case 'F':
+      { // flash config
+        while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
+        flash_bank = Serial.read();
+        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+          flash_address[i] = Serial_readWord();
+          flash_cmd[i] = Serial.read();
+        }
+      } break;
+
+    case 'f':
+      { // flash command
+        while (Serial.available() < 1);
+        flash_cmd[FLASH_COMMAND_LENGTH] = Serial.read();
+        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+          writebyte_cart(flash_bank,flash_address[i],flash_cmd[i]);
+        }
+      } break;
+
   }
+  //setup flash command
+  //flash command
+  //wakeup SFmemory
+  //
+
+
 }
 
 

@@ -53,4 +53,6 @@ WINDOW:MainWnd
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,430,289,8,16,"",&H50000000,&H00000000,1
     ITEM      = CommandButton11,423,289,8,16,"",&H50000000,&H00000000,1
+    ITEM      = CommandButton12,191,206,26,21,"Button12",&H50000000,&H00000000,1
+    ITEM      = CommandButton13,220,206,26,21,"Button12",&H50000000,&H00000000,1
 END

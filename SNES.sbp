@@ -266,6 +266,8 @@ Function CalcChkSum(data As BytePtr,length As DWord) As DWord
 	Loop
 End Function
 
+'NP   01 CPU_CLOCK. 02 EXPAND, 59 PA1が結線
+'SA-1 01 CPU_CLOCK, 33 REFRESHが結線
 
 /*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
     Ch4に3を設定。SRAMのOEとディスエーブル、CEをイネーブルにする。= CE:0 RST:1 OE:1
@@ -330,43 +332,64 @@ Sub WriteSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	
 	Else
 		'SA-1 (sanni氏のcartreaderを参考)
+		'http://forum.arduino.cc/index.php?topic=158974.210
+
 		DBM("SA-1 Write BW-RAM (動作不能)")
-		Dim cmd[512] As Byte
+
+		Dim cmd[1512] As Byte
 		Dim block As Long,lastBlock As DWord,curByte As DWord,i As Long
 
+		
+		DBM("address = "+Hex$(info->SRAMAddress))
 		lastBlock=(info->SRAMSize/&H2000) AS DWord
 		DBM("blocks = "+Hex$(lastBlock))
 
 		SetCPU_Clock(hFile,TRUE)
 	
-		SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
-
 		for block=0 To lastBlock-1
-			cmd[0]=block As Byte
-			cmd[1]=block As Byte
-			WriteROM(hFile,cmd,0,&H2224,2,FALSE)	'MAP SRAM to 0x6000~0x7FFF
+			SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
+
+			cmd[0]=&H20
+			WriteROM(hFile,cmd,0,&H2200,1,FALSE)	'SRAM WRITE ENABLE
+			cmd[0]=&H00
+			WriteROM(hFile,cmd,0,&H2200,1,FALSE)	'SRAM WRITE ENABLE
+			cmd[0]=0 As Byte
+			cmd[1]=0 As Byte
+			WriteROM(hFile,cmd,0,&H2225,2,FALSE)	'MAP SRAM to 0x6000~0x7FFF
 			cmd[0]=&H80
 			cmd[1]=&H80
-			WriteROM(hFile,cmd,0,&H2226,2,FALSE)	'SRAM WRITE ENABLE
+			WriteROM(hFile,cmd,0,&H2227,2,FALSE)	'SRAM WRITE ENABLE
+		'	cmd[0]=&Hff
+		'	WriteROM(hFile,cmd,0,&H2228,1,FALSE)	'SRAM WRITE ENABLE
 			DBM("Writeing block"+Str$(block))
-			FillMemory(cmd,512,(block+lastBlock) As Byte)
+
+		/*	Dim ladr AS DWord,j AS DWord
+			for j=0 to 15
+				for i=0 to 15
+					ladr=i*&H1000+&H0000+j*&H100000
+					FillMemory(cmd,512,(i+(j<<4)) As Byte)
+					WriteROM(hFile,cmd,0,ladr,512,FALSE)
+					DBM(Hex$(ladr)+":+"+Hex$(cmd[0]))
+				Next i
+					if GetKeyState(VK_ESCAPE) And &H80 Then Exitfor
+			Next j*/
 
 			for curByte=0 To &H7FFF Step 512
 				if curByte < &H6000 Then
-				'	WriteROM(hFile,cmd,0,curByte,512,FALSE)
+					WriteROM(hFile,cmd,0,curByte,512,FALSE)
 				Else
 					WriteROM(hFile,buf+curByte-&H6000+block*&H2000,0,curByte,512,FALSE)
 					DBM(Hex$(curByte-&H6000+block*&H2000)+" / "+Hex$(curByte))
-				End If
-				Sleep(10)
+				End If*/
+				Sleep(100)
 
 			Next curByte
 
 			Sleep(1000)
-			Exitfor
+		'	Exitfor
 		Next block
 		cmd[0]=0
-		WriteROM(hFile,cmd,0,&H2227,1,FALSE)	'SRAM DISABLE
+		WriteROM(hFile,cmd,0,&H2226,1,FALSE)	'SRAM DISABLE
 
 		SetCPU_Clock(hFile,FALSE)
 
@@ -497,7 +520,7 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 		Case SFC_MAP_HiROM
 			info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
 
-		Case SRAM_ADDRESS_SA1
+		Case SFC_MAP_SA1
 			info->SRAMAddress=SRAM_ADDRESS_SA1
 
 		Case Else
@@ -555,38 +578,6 @@ Sub SDD1_PrintBanks(hCOM As HANDLE)
 End Sub
 
 
-'SPC7110のバンクをセットアップ(要CPUクロック,ないと不安定な動作)
-'D0=#0, E0=#1, F0=#2, MROM num:0-3
-/*
-	基本：
-	・SPC7110はROMが物理的に2つあり、それぞれプログラム用とデータ用になっている
-	・プログラムROMは天外魔境ZEROで4Mあるためバンク切り替えが必要
-	・$4831-$4833に値を書くと$D0:0000-$FF:0000にマップされる
-	・$C0:0000-CF:FFFFはプログラムROM
-	・$4830はSRAMのコントロール(0x80でEnable)
-	・詳しいことはfullsnesへ
-
-	解析メモ：（※個人の感想です）
-	・何故か$4831-$4833にただ値を書いてもバンク切り替えが起こらない
-	 ->なぜかバンク0固定になる
-	 ->$4834に4以上の値を書くと値が反映された
-	 ->D0にバンク3をセットしても意図したバンクにならないことがわかった(F0ならOKだった)(なぜかプログラムROMがマップされた)
-	 ->どうやら$4834以上の値をバンクコントローラレジスタ$4831-$4833に書き込むと全バンク巻き込んでバンク0になる模様
-	 ->4ビットのレジスタで最大0x07まで
-
-	まとめ：
-	・たぶん$4834はデータROMの最大バンク数を記述
-	・$4834の値以下の値を$4831-$4833に書き込むことができる
-	 ->存在しないバンク番号を書き込むとプログラムROMがマップされる
-	 ->$4834の値を超えると$4831-$4833の全部を巻き込んでデータROMのバンク0ににされる
-	・以上より$4834には0x03を書き込むのがベスト
-
-	追記：
-	・SNESバンク D0 はバンク0以外を指定するとプログラムROMになる模様
-	　 ->5MB目を吸い出すときはSNESバンクF0を使おう
-	・データROMのバンク3を読み出すときには1-3バンク指定し、$4834には03を書き込むことで正常ダンプ成功
-
-*/
 
 Const SNES_SPC7110_VBANKS_COUNT = 3
 Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2

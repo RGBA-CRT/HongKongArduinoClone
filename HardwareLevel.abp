@@ -134,10 +134,12 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	cmd[5] = (size >>   8) AS Byte
 '	cmd[6] = (size >>  16) AS Byte
 
+	if size>&HFFFF Then debug
+
 	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
 
 	dwReadByte=0
-	Const HKAC_HW_RETRY = 5000
+	Const HKAC_HW_RETRY = 500
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
 
@@ -291,8 +293,9 @@ Sub FlushCom(hSerial AS HANDLE)
 	'受信バッファを全部取り出す
 	tmp=calloc(cs.cbInQue)
 	LoadFile(hSerial,tmp,cs.cbInQue)
-	Print "ゴミ："
+	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
 	Dump(tmp,cs.cbInQue)
+	printf(ex"%d bytes\n",cs.cbInQue)
 
 	FlushFileBuffers(hSerial)
 
