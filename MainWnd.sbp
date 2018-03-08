@@ -231,7 +231,7 @@ Sub MainWnd_CommandButton5_Click()
 		
 		'変更後の正常なデータ通信を確立
 		DBM("changeing baudrate...")
-		if CheckFirmware(hCOM,TRUE)=FALSE Then 
+		if CheckFirmware(hCOM,FALSE)=FALSE Then 
 			DBM("invailde baudrate")
 			goto *HKAF_CON_ERR
 		End If
@@ -979,7 +979,7 @@ End Sub
 
 Sub MainWnd_CommandButton12_Click()
 	Dim cmd[5] AS Byte,dwAB AS DWord
-	cmd[0]=Asc("S")
+	cmd[0]=Asc("i")
 	WriteFile(hCOM,cmd,1,VarPtr(dwAB),ByVal NULL)
 	Sleep(100)
 	FlushCom(hCOM)
@@ -1006,4 +1006,23 @@ Sub MainWnd_CommandButton13_Click()
 	info.ROMType=SFC_MAP_HiROM
 	debug
 	DumpFullROM(VarPtr(info),"npdump.sfc")
+End Sub
+
+Sub MainWnd_CommandButton14_Click()
+	SFM_open()
+End Sub
+
+Dim MW_bMove AS BOOL
+Sub MainWnd_Move(x As Integer, y As Integer)
+	if MW_bMove=TRUE Then ExitSub
+	if hSFMem<>NULL then
+		Dim rect aS RECT
+		GetWindowRect(hMainWnd,rect)
+		rect.right=rect.right+10
+		'面白い挙動するので残しておく
+		'SetWindowPos(hSFMem,NULL,rect.top,rect.right,0,0,SWP_NOSIZE or SWP_SHOWWINDOW)
+		MW_bMove=TRUE
+		SetWindowPos(hSFMem,NULL,rect.right,rect.top,0,0,SWP_NOSIZE or SWP_NOZORDER or SWP_NOOWNERZORDER or SWP_NOACTIVATE)
+		MW_bMove=FALSE
+	Endif
 End Sub

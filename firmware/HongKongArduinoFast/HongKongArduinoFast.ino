@@ -18,7 +18,7 @@
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '1'
+#define FIRMWARE_VERSION '2'
 
 //クロック回路有効/無効
 #define _ENABLE_CIC
@@ -510,7 +510,7 @@ void loop() {
         writebyte_cart(0x00, 0x2400, 0x06);
         writebyte_cart(0x00, 0x2400, 0x39);
 
-        writebyte_cart(0x00, 0x2400, 0x05);
+     //   writebyte_cart(0x00, 0x2400, 0x05);
         if ( readbyte_cart(0x00, 0x2400) == 0x2A)
           Serial.print("OK");
         else
@@ -544,8 +544,29 @@ void loop() {
         while (Serial.available() < 1);
         flash_cmd[FLASH_COMMAND_LENGTH] = Serial.read();
         for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-          writebyte_cart(flash_bank,flash_address[i],flash_cmd[i]);
+          writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
         }
+      } break;
+
+    case 'i':
+      { // print infomation
+        Serial.write(FIRMWARE_ID);
+        Serial.write((char)FIRMWARE_VERSION);
+#ifdef _ENABLE_CIC
+        Serial.print("-CIC");
+#endif
+        Serial.print("\nABus:");
+        Serial.print(lastadr[2], HEX);
+        Serial.print(lastadr[1], HEX);
+        Serial.print(lastadr[0], HEX);
+        Serial.print("\nFash:\n");
+        Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
+        Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
+        Serial.print(flash_bank, HEX);        Serial.print(flash_address[2], HEX);        Serial.print("\n");
+        for (byte i = 0; i < 20; i++) {
+          Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
+        }  Serial.print("\n");
+
       } break;
 
   }

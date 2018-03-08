@@ -301,3 +301,17 @@ Sub FlushCom(hSerial AS HANDLE)
 
 End Sub
 
+
+Sub setRegister(bank AS Byte,address AS Word,val AS Byte)
+	Dim cmd[5] AS Byte,dwAB AS DWord,retry AS BOOL
+
+	cmd[0]=Asc("t")
+	cmd[1] = bank
+	cmd[2] = (address >>  0) AS Byte
+	cmd[3] = (address >>  8) AS Byte
+
+	cmd[4] = val
+
+	WriteFile(hCOM,cmd,5,VarPtr(dwAB),ByVal NULL)
+End Sub
+

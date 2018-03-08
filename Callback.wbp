@@ -40,18 +40,22 @@ Const CheckBox6=1036
 Const CommandButton9=1037
 Const CommandButton10=1038
 Const CommandButton11=1039
-Const CommandButton12=1040
-Const CommandButton13=1041
+Const CommandButton14=1040
+Const ListBox1=1041
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
 hFont_MainWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN")
+Dim hSFMem As HWND
+Dim hFont_SFMemWnd As HFONT
+hFont_SFMemWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN")
 Dim h3DFaceBrush As HBRUSH
 h3DFaceBrush=CreateSolidBrush(GetSysColor(COLOR_3DFACE))
 
 
 Sub HongKongArduinoClone_DestroyObjects()
 	DeleteObject(hFont_MainWnd)
+	DeleteObject(hFont_SFMemWnd)
 	DeleteObject(h3DFaceBrush)
 End Sub
 
@@ -141,10 +145,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,423,289,8,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Button12",&H50000000,191,206,26,21,hWnd,CommandButton12 As HMENU,GetModuleHandle(0),0)
-			SendMessage(GetDlgItem(hWnd,CommandButton12),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Button12",&H50000000,220,206,26,21,hWnd,CommandButton13 As HMENU,GetModuleHandle(0),0)
-			SendMessage(GetDlgItem(hWnd,CommandButton13),WM_SETFONT,hFont_MainWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","SFM",&H50000000,202,206,34,21,hWnd,CommandButton14 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton14),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
 			MainWnd_KeyUp(wParam As Long,lParam As Long)
@@ -158,6 +160,8 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			MainWnd_MButtonDblClick(wParam As Long,LOWORD(lParam),HIWORD(lParam))
 		Case WM_DROPFILES
 			MainWnd_DropFiles(wParam As HDROP)
+		Case WM_MOVE
+			MainWnd_Move(LOWORD(lParam),HIWORD(lParam))
 		Case WM_COMMAND
 			Select Case LOWORD(wParam)
 				Case CommandButton5
@@ -230,15 +234,10 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case BN_CLICKED
 							MainWnd_CommandButton11_Click()
 					End Select
-				Case CommandButton12
+				Case CommandButton14
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
-							MainWnd_CommandButton12_Click()
-					End Select
-				Case CommandButton13
-					Select Case HIWORD(wParam)
-						Case BN_CLICKED
-							MainWnd_CommandButton13_Click()
+							MainWnd_CommandButton14_Click()
 					End Select
 			End Select
 		Case Else
@@ -246,6 +245,72 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			Exit Function
 	End Select
 	EventCall_MainWnd=0
+End Function
+
+Function EventCall_SFMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
+	Select Case message
+		Case WM_MOVE
+			SFMemWnd_Move(LOWORD(lParam),HIWORD(lParam))
+		Case WM_INITDIALOG
+			hSFMem=hWnd
+			CreateWindowEx(&H00000200,"LISTBOX","",&H50200001,15,40,205,150,hWnd,ListBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,ListBox1),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Game List",&H50000007,7,24,220,172,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,GroupBox1),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Ditect SFM2",&H50000000,11,205,88,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton1),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Dump Game",&H50000000,41,233,88,21,hWnd,CommandButton2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton2),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Switch Game",&H50000000,106,205,88,21,hWnd,CommandButton3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton3),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Write Imgage",&H58000000,138,233,88,21,hWnd,CommandButton4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton4),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","Select and press [Switch] or [Dump]",&H50000000,8,4,223,12,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","ST",&H40000000,198,205,28,21,hWnd,CommandButton5 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton5),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
+		Case WM_DESTROY
+		Case WM_CLOSE
+			Dim cancel=0 As Integer
+			If cancel=0 Then DestroyWindow(hWnd)
+		Case WM_COMMAND
+			Select Case LOWORD(wParam)
+				Case ListBox1
+					Select Case HIWORD(wParam)
+						Case LBN_SELCHANGE
+							SFMemWnd_ListBox1_SelChange()
+					End Select
+				Case CommandButton1
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							SFMemWnd_CommandButton1_Click()
+					End Select
+				Case CommandButton3
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							SFMemWnd_CommandButton3_Click()
+					End Select
+				Case CommandButton4
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							SFMemWnd_CommandButton4_Click()
+					End Select
+				Case CommandButton5
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							SFMemWnd_CommandButton5_Click()
+					End Select
+				Case CommandButton2
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							SFMemWnd_CommandButton2_Click()
+					End Select
+			End Select
+		Case Else
+			EventCall_SFMemWnd=DefWindowProc(hWnd,message,wParam,lParam)
+			Exit Function
+	End Select
+	EventCall_SFMemWnd=0
 End Function
 
 Function DefaultCallProc(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
@@ -275,4 +340,11 @@ Sub EndDialog(hWnd As HWND, lResult As Long)
 End Sub
 
 Function CreateDialog(hOwnerWnd As HWND, TemplateName As LPSTR) As HWND
+	If lstrcmp(TemplateName,"SFMemWnd")=0 Then
+		hSFMem=CreateWindowEx(&H00000080,"NORMALDLG","SFMem",&H10c80000,-2147483648,-2147483648,240,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
+		CreateDialog=hSFMem
+		SetWindowLong(hSFMem,GWL_WNDPROC,AddressOf(SFMemProc) As LONG_PTR)
+		SendMessage(hSFMem,WM_INITDIALOG,0,0)
+		SendMessage(hSFMem,WM_SETICON,ICON_SMALL,LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_ICON1)) As LPARAM)
+	End If
 End Function

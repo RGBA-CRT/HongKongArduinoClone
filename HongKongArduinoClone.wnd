@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 475,285
-    CAPTION   = "HongKongArduinoClone v0.7"
+    CAPTION   = "HongKongArduinoClone v0.8"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000010
     ID        = 0
@@ -53,6 +53,29 @@ WINDOW:MainWnd
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,430,289,8,16,"",&H50000000,&H00000000,1
     ITEM      = CommandButton11,423,289,8,16,"",&H50000000,&H00000000,1
-    ITEM      = CommandButton12,191,206,26,21,"Button12",&H50000000,&H00000000,1
-    ITEM      = CommandButton13,220,206,26,21,"Button12",&H50000000,&H00000000,1
+    ITEM      = CommandButton14,202,206,34,21,"SFM",&H50000000,&H00000000,1
+END
+WINDOW:SFMemWnd
+    HANDLE    = hSFMem
+    POINT     = -2147483648,-2147483648
+    SIZE      = 240,285
+    CAPTION   = "SFMem"
+    STYLE     = &H10c80000
+    EXSTYLE   = &H00000080
+    ID        = 0
+    BGCOLOR   = 15
+    FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
+    ICONID    = IDI_ICON1
+    CLASS     = "NORMAL"
+    CALLBACK  = SFMemProc
+    TYPE      = 3
+    FILEPATH  = SFMemWnd.sbp
+    ITEM      = ListBox1,15,40,205,150,"",&H50200001,&H00000200,8
+    ITEM      = GroupBox1,7,24,220,172,"Game List",&H50000007,&H00000000,5
+    ITEM      = CommandButton1,11,205,88,21,"Ditect SFM2",&H50000000,&H00000000,1
+    ITEM      = CommandButton2,41,233,88,21,"Dump Game",&H50000000,&H00000000,1
+    ITEM      = CommandButton3,106,205,88,21,"Switch Game",&H50000000,&H00000000,1
+    ITEM      = CommandButton4,138,233,88,21,"Write Imgage",&H58000000,&H00000000,1
+    ITEM      = Static1,8,4,223,12,"Select and press [Switch] or [Dump]",&H50000000,&H00000000,11
+    ITEM      = CommandButton5,198,205,28,21,"ST",&H40000000,&H00000000,1
 END

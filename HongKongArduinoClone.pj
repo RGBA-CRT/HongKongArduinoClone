@@ -8,7 +8,7 @@
 
 #PLATFORM=32
 
-#USEWINDOW=1
+#USEWINDOW=2
 
 #OPTION=&H00010000
 
@@ -20,7 +20,9 @@
 
 #SOURCE
 HongKongArduinoClone.abp
-MainWnd.sbp
 HardwareLevel.abp
 SNES.sbp
 LicenceList.abp
+SFMemWnd.sbp
+MainWnd.sbp
+SFM.abp
