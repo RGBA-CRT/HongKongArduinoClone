@@ -145,7 +145,7 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,423,289,8,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","SFM",&H50000000,202,206,34,21,hWnd,CommandButton14 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","SFM",&H40000000,202,206,34,21,hWnd,CommandButton14 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton14),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
@@ -219,11 +219,6 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case BN_CLICKED
 							MainWnd_CommandButton10_Click()
 					End Select
-				Case MAPPING
-					Select Case HIWORD(wParam)
-						Case CBN_EDITCHANGE
-							MainWnd_MAPPING_EditChange()
-					End Select
 				Case CheckBox6
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
@@ -239,6 +234,13 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 						Case BN_CLICKED
 							MainWnd_CommandButton14_Click()
 					End Select
+				Case MAPPING
+					Select Case HIWORD(wParam)
+						Case CBN_EDITCHANGE
+							MainWnd_MAPPING_EditChange()
+						Case CBN_SELCHANGE
+							MainWnd_MAPPING_SelChange()
+					End Select
 			End Select
 		Case Else
 			EventCall_MainWnd=DefWindowProc(hWnd,message,wParam,lParam)
@@ -251,6 +253,8 @@ Function EventCall_SFMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 	Select Case message
 		Case WM_MOVE
 			SFMemWnd_Move(LOWORD(lParam),HIWORD(lParam))
+		Case WM_DESTROY
+			SFMemWnd_Destroy()
 		Case WM_INITDIALOG
 			hSFMem=hWnd
 			CreateWindowEx(&H00000200,"LISTBOX","",&H50200001,15,40,205,150,hWnd,ListBox1 As HMENU,GetModuleHandle(0),0)
@@ -269,7 +273,6 @@ Function EventCall_SFMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","ST",&H40000000,198,205,28,21,hWnd,CommandButton5 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton5),WM_SETFONT,hFont_SFMemWnd As WPARAM,0)
-		Case WM_DESTROY
 		Case WM_CLOSE
 			Dim cancel=0 As Integer
 			If cancel=0 Then DestroyWindow(hWnd)

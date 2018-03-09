@@ -3,8 +3,8 @@
  SNES Cartridge Dumper with Arduino UNO
 
 ## 概要 / about
-このプログラムは、たにやま氏開発の"こーどねーむ「ホンコン」 with Arduino"に手を加えて高速化・SRAMの吸出しなどの機能を加えたものです。Windows専用です。  
-This project is mods of "Codename Hong kong with Arduino". It is SNES cartridge dumper. Original has been developed by Taniyama. This project adds high speed damping, SRAM read/write and other. Only works on windows NT and later.
+このプログラムは、たにやま氏開発の"こーどねーむ「ホンコン」 with Arduino"に手を加えて高速化・SRAMの吸出しなどの機能を加えたものです。Windows用です。Wineでも動作します。  
+This project is mods of "Codename Hong kong with Arduino". It is SNES cartridge dumper. Original has been developed by Taniyama. This project adds high speed damping, SRAM read/write and other. Only works on windows NT or wine.
   
 こーどねーむ「ホンコン」 with Arduino  
 <http://hongkongarduino.web.fc2.com/>
@@ -40,7 +40,7 @@ This project is mods of "Codename Hong kong with Arduino". It is SNES cartridge 
 
 ## 特殊カートリッジについて / Special carts
 対応状況は以下の通りです。
- * [NG] SFメモリカセット
+ * [OK] SFメモリカセット
  * [OK] 特殊LoROM (ダビスタ96)
  * [NG] 8Mメモリパック
  * [OK] S-DD1
@@ -52,8 +52,8 @@ This project is mods of "Codename Hong kong with Arduino". It is SNES cartridge 
  
 SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。  
 Dump from SA-1 and SPC7110 needs following circuits.  
-![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1.png "回路図")   
-![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/SA1SS.png "SS")  　　　  　
+![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
+![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1SS.png "SS")  　　　  　
 
 ## 履歴 / History
 	[2016/03/23]ver 0.0 - 初回リリース
@@ -63,4 +63,5 @@ Dump from SA-1 and SPC7110 needs following circuits.
 	[2017/09/19]ver 0.5 - SPC7110に対応
 	[2017/12/24]ver 0.6 - ダビスタ96(特殊LoROM)に対応, HiROM 256Kbit SRAMに対応
 	[2018/02/10]ver 0.62- UIを微修正。D&DでROMヘッダを表示するようにした。
-	[2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 82KB/s)
+	[2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 96KB/s)
+	[2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正

@@ -53,7 +53,7 @@ WINDOW:MainWnd
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,430,289,8,16,"",&H50000000,&H00000000,1
     ITEM      = CommandButton11,423,289,8,16,"",&H50000000,&H00000000,1
-    ITEM      = CommandButton14,202,206,34,21,"SFM",&H50000000,&H00000000,1
+    ITEM      = CommandButton14,202,206,34,21,"SFM",&H40000000,&H00000000,1
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem

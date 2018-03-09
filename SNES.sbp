@@ -16,7 +16,7 @@ Const SRAM_ADDRESS_SA1 = &H400000
 Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60
 
 
-Const SFC_MAP_TYPE_NUM = 7
+Const SFC_MAP_TYPE_NUM = 8
 Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
 	SFC_MAP_LoROM = 0
 	SFC_MAP_HiROM = 1
@@ -24,7 +24,9 @@ Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
 	SFC_MAP_SA1	= 3
 	SFC_MAP_ExHiROM = 5
 	SFC_MAP_SPC7110 = &H0A
-	SFC_MAP_SpLoROM = &HF0	'ダビスタ用で、ヘッダからはわからない
+	'ここから特殊処理をしないと判定できないマッパ
+	SFC_MAP_SpLoROM = &HF0 '衛星対応カートリッジでかつLoROMで3MBのもの
+	SFC_MAP_SF_MENU = &HF1 'SFメモリカートリッジ
 End Enum
 
 'スーファミヘッダから取得した情報
@@ -32,8 +34,8 @@ End Enum
 '生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
 	Title[21] As Byte
-	MapMode As Byte
-	ROMType As Byte
+	MapMode As Byte		'FAST+HIROMなど
+	ROMType As Byte		'MapModeの下位4ビット
 	CartType As Byte
 	ROMSize As DWord
 	SRAMSize As DWord
@@ -45,6 +47,7 @@ Type SFC_CART_INFO
 	Mad As Byte
 	hasExtraHeader As BOOL
 	isBSX  AS BOOL
+	diableChecksum As BOOL
 	MakerCode AS Word
 	MakerName AS BytePtr
 	GameCode[4] AS Byte
@@ -76,7 +79,8 @@ End Type
 Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE As DWord
-	Dim DumpAddress As DWord, offset As DWord, ret As DWord, CheckSum=0 As DWord,
+	Dim DumpAddress As DWord, offset As DWord, ret As DWord
+	Dim CheckSum=0 As DWord,bufChecksum AS DWord
 	Dim bBankChanged=FALSE As BOOL	'8MBitBank
 
 	Dim buf As BytePtr,nowSize As DWord,Size As DWord,bRomType As Byte
@@ -84,7 +88,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Dim lt As DWord,time As DWord
 
 	'アドレス系準備
-	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM Then
+	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM or info->ROMType=SFC_MAP_SF_MENU Then
 		bRomType=TRUE
 		DumpAddress=0
 		offset=0
@@ -148,17 +152,21 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 			Continue
 		endif
 
-		'出力＆チェックサム計算
+		'ファイルへ出力
 		OutFile(hout,buf,DUMP_BUFFER_SIZE)
-		CheckSum+=CalcChkSum(buf,DUMP_BUFFER_SIZE)
 
-		'[チェックサム]3MBの時はラスト8Mbitを再加算する
+		'バッファのチェックサム計算
+		bufChecksum=CalcChkSum(buf,DUMP_BUFFER_SIZE)
+
+		'3MBの時はラスト8Mbitを再加算
 		if DumpAddress>=1024*1024*2 Then
 			if info->ROMSize=1024*1024*3 Then
-
-				CheckSum+=CalcChkSum(buf,DUMP_BUFFER_SIZE)
+				bufChecksum+=bufChecksum
 			End If
 		End If
+		
+		'チェックサム加算
+		CheckSum+=bufChecksum
 
 		'次のアドレスを計算
 		DumpAddress+=DUMP_BUFFER_SIZE
@@ -217,9 +225,13 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		DBM(ex"Checksum OK")
 		DBM(ex"Successful!!!")
 	Else
-		DBM(ex"Checksum Error!!!")
-		MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
-			ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
+		if info->diableChecksum Then
+			DBM("Dumping may be OK...")
+		Else
+			DBM(ex"Checksum Error!!!")
+			MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
+				ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
+		End If
 	Endif
 	
 
@@ -532,20 +544,44 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	info->CheckSum1 = data->Checksum1
 	info->CheckSum2 = data->Checksum2
 
-	'SpecialLoROMはLoROMの衛星対応カートリッジ
+	'SpecialLoROMはLoROMの衛星対応カートリッジで3MB目を吸うときにバンク切り替えが必要
 	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
-	'ここではダビスタ96とサウンドノベルツクールがヒットするはず
+	'ここではダビスタ96とサウンドノベルツクールとBSXがヒットするはず。
+	'BSXは1MBなのでバンク切り替え必要なし
 	If info->GameCode[0]=Asc("Z")  And info->GameCode[3]=Asc("J") Then 
 		info->isBSX=TRUE
 		if info->ROMType = SFC_MAP_LoROM Then
-			info->ROMType=SFC_MAP_SpLoROM
-			info->ROMSize=1024*1024*3
+			if info->ROMSize>1024*1024*2 Then
+				info->ROMType=SFC_MAP_SpLoROM
+				info->ROMSize=1024*1024*3
+			End If
 		End If
 	End If
 
+	'タイトルがMENU PROGRAMならSFM確定
+	if lstrcmp("MENU PROGRAM",info->Title)=0 Then
+		info->ROMType=SFC_MAP_SF_MENU
+		info->diableChecksum=TRUE
+	End If
 
 EndSub
 
+Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
+	Dim i AS Long
+	For i=0 To 19
+		if header->GameTitle[i] < &H20 Then 
+			if NOT(i>4 And header->GameTitle[i]=0) Then	Goto *ISH_ERR
+		End If
+	Next i
+	'サイズチェック
+	if header->RomSize > &H0D Then Goto *ISH_ERR	'Over 64Mbit
+'	if header->SramSize > &H07 Then Goto *ISH_ERR	'Over 128Kbit (BS-XだとSRAMSizeがデタラメなので廃止)
+	isSnesHeader=TRUE
+	ExitFunction
+
+*ISH_ERR
+	isSnesHeader=FALSE
+End Function
 
 
 'SDD1のバンクをセットアップ

@@ -344,7 +344,7 @@ void setup()
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
   setupCloclGen();
-  delay(100);
+  //delay(100);
   DISABLE_I2C();
 #endif
 

@@ -71,6 +71,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"ExHiROM" As Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SPC7110 HiROM" As Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"Special LoROM" As Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SF MEMORY MX15001" As Long)
 	
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 As BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
@@ -550,15 +551,9 @@ Sub MainWnd_CommandButton1_Click()
 	DBM( "Get Cartridge Infomation")
 
 	'ヘッダを読み出し＆ダイアログに情報を表示
-	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
-	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
-		lstrcpy(cartInfo.Title,"[ERR]通信エラー")
-		SetCartInfo(VarPtr(cartInfo))
-		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
-		DisconnectDevice()
-		ExitSub
-	End If
-	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(cartInfo))
+	getCartInfo(cartInfo)
+
+	'ダイアログに表示
 	SetCartInfo(VarPtr(cartInfo))
 	if cartInfo.ROMType=SFC_MAP_HiROM Then 
 		SetCheckBox(MWnd(CheckBox1),TRUE)
@@ -638,20 +633,31 @@ End Sub
 
 '吸出し設定をROMとGUIから読み出し
 Sub GetDumpConfig(ByRef info As SFC_CART_INFO)
-	'ROMからヘッダロード
-	Dim buf[SFC_SPEC_HEADER_SIZE+5] As Byte
-	ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
-	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))
+	getCartInfo(info)
 
-	'GUIの設定を反映
-	GetDlgOption(info)
+	GetDlgOption(info)	'infoにGUIの設定を反映
 
 	SetCartInfo(VarPtr(info))
 EndSub
 
-Sub GetDlgOption(ByRef info As SFC_CART_INFO) 
-	'LoROM/HiROMの選択とMAD1のチェック取得
 
+Sub getCartInfo(ByRef info As SFC_CART_INFO)
+	'カートリッジからヘッダをロード
+	Dim buf[SFC_SPEC_HEADER_SIZE+5] As Byte
+	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
+	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
+	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
+	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
+		lstrcpy(info.Title,"[ERR]通信エラー")
+		SetCartInfo(VarPtr(info))
+		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
+		DisconnectDevice()
+		ExitSub
+	End If
+	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))
+End Sub
+
+Function getSelectedMapMode() AS Byte
 	Dim mapperTable[SFC_MAP_TYPE_NUM]=[ _
 		SFC_MAP_LoROM, _
 		SFC_MAP_HiROM, _
@@ -659,11 +665,19 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 		SFC_MAP_SA1, _
 		SFC_MAP_ExHiROM, _
 		SFC_MAP_SPC7110, _
-		SFC_MAP_SpLoROM _
+		SFC_MAP_SpLoROM, _
+		SFC_MAP_SF_MENU _
 	] As Byte, idx As Long
 
 	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE_NUM
-	info.ROMType=mapperTable[idx]
+	getSelectedMapMode=mapperTable[idx]
+
+End Function
+
+Sub GetDlgOption(ByRef info As SFC_CART_INFO) 
+	'LoROM/HiROMの選択とMAD1のチェック取得
+
+	info.ROMType=getSelectedMapMode() As Byte
 	info.MapMode = (info.MapMode And &HF0) or info.ROMType
 
 	info.Mad=GetCheckBox(MWnd(CheckBox1))
@@ -680,15 +694,12 @@ EndSub
 
 'MapMode (20 SrowRom LoROMのやつ）のGUI用関数
 Function MapModeToComboboxIndex(mapMode As Byte) As Long
-	Dim mapTable[SFC_MAP_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0] As Byte
+	Dim mapTable[SFC_MAP_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0, &HF1] As Byte
 	Dim romMap As Byte
 	Dim i As Long
-'debug
-'	if mapMode=&HF0 Then	'SpecialLoROM とかのヘッダから判断したmapModeじゃない場合にはこっちで
-		romMap=mapMode
-'	Else	
-'		romMap=(mapMode And &H0F)
-'	Endif
+
+	romMap=mapMode
+
 	For i=0 To SFC_MAP_TYPE_NUM
 		if mapTable[i]=romMap Then 
 			MapModeToComboboxIndex=i
@@ -734,6 +745,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 
 	SetWindowText(MWnd(ROMTITLE),info->Title)
 	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->ROMType),0)
+	MainWnd_MAPPING_SelChange()
 
 	DBMN("Chips : ")
 	lstrcpy(CartChip,"ROM")
@@ -860,9 +872,6 @@ Function SetCheckBox(Ctrl As HWND,bValue As BOOL) As Byte
 	SendMessage(Ctrl,BM_SETCHECK,bValue,bValue)
 endfunction
 
-Sub MainWnd_MAPPING_EditChange()
-
-End Sub
 
 Sub MainWnd_CheckBox6_Click()
 
@@ -951,22 +960,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	
 End Sub
 
-Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
-	Dim i AS Long
-	For i=0 To 19
-		if header->GameTitle[i] < &H20 Then 
-			if NOT(i>4 And header->GameTitle[i]=0) Then	Goto *ISH_ERR
-		End If
-	Next i
-	'サイズチェック
-	if header->RomSize > &H0D Then Goto *ISH_ERR	'Over 64Mbit
-'	if header->SramSize > &H07 Then Goto *ISH_ERR	'Over 128Kbit (BS-XだとSRAMSizeがデタラメなので廃止)
-	isSnesHeader=TRUE
-	ExitFunction
 
-*ISH_ERR
-	isSnesHeader=FALSE
-End Function
 
 'これやるとOSとデバイス間の通信も切れる
 Sub ResetArduino(hCOM AS HANDLE)
@@ -1025,4 +1019,16 @@ Sub MainWnd_Move(x As Integer, y As Integer)
 		SetWindowPos(hSFMem,NULL,rect.right,rect.top,0,0,SWP_NOSIZE or SWP_NOZORDER or SWP_NOOWNERZORDER or SWP_NOACTIVATE)
 		MW_bMove=FALSE
 	Endif
+End Sub
+
+Sub MainWnd_MAPPING_EditChange()
+
+End Sub
+
+Sub MainWnd_MAPPING_SelChange()
+	if getSelectedMapMode()=SFC_MAP_SF_MENU Then
+		ShowWindow(MWnd(CommandButton14),SW_SHOW)
+	Else
+		ShowWindow(MWnd(CommandButton14),SW_HIDE)
+	End If
 End Sub
