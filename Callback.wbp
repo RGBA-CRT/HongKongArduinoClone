@@ -42,6 +42,7 @@ Const CommandButton10=1038
 Const CommandButton11=1039
 Const CommandButton14=1040
 Const ListBox1=1041
+Const BSM_CT=1042
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -49,6 +50,9 @@ hFont_MainWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN")
 Dim hSFMem As HWND
 Dim hFont_SFMemWnd As HFONT
 hFont_SFMemWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN")
+Dim hBSMem As HWND
+Dim hFont_BSMemWnd As HFONT
+hFont_BSMemWnd=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN")
 Dim h3DFaceBrush As HBRUSH
 h3DFaceBrush=CreateSolidBrush(GetSysColor(COLOR_3DFACE))
 
@@ -56,6 +60,7 @@ h3DFaceBrush=CreateSolidBrush(GetSysColor(COLOR_3DFACE))
 Sub HongKongArduinoClone_DestroyObjects()
 	DeleteObject(hFont_MainWnd)
 	DeleteObject(hFont_SFMemWnd)
+	DeleteObject(hFont_BSMemWnd)
 	DeleteObject(h3DFaceBrush)
 End Sub
 
@@ -145,7 +150,7 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 			SendMessage(GetDlgItem(hWnd,CommandButton10),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"BUTTON","",&H50000000,423,289,8,16,hWnd,CommandButton11 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton11),WM_SETFONT,hFont_MainWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","SFM",&H40000000,202,206,34,21,hWnd,CommandButton14 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","SFM",&H50000000,202,206,34,21,hWnd,CommandButton14 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton14),WM_SETFONT,hFont_MainWnd As WPARAM,0)
 			MainWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_KEYUP
@@ -316,6 +321,43 @@ Function EventCall_SFMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 	EventCall_SFMemWnd=0
 End Function
 
+Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
+	Select Case message
+		Case WM_MOVE
+			BSMemWnd_Move(LOWORD(lParam),HIWORD(lParam))
+		Case WM_INITDIALOG
+			hBSMem=hWnd
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,16,43,167,167,hWnd,BSM_CT As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,BSM_CT),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","‚Â‚­‚è‚©‚¯",&H50000000,61,126,55,12,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Dump 8M Mempack",&H50000000,40,223,122,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","BS-X Memory Pack Manager",&H50000000,9,6,153,12,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static3),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Cart Type",&H50000007,8,25,182,47,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,GroupBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			BSMemWnd_Create(ByVal (lParam As VoidPtr))
+		Case WM_DESTROY
+			BSMemWnd_Destroy()
+		Case WM_CLOSE
+			Dim cancel=0 As Integer
+			If cancel=0 Then DestroyWindow(hWnd)
+		Case WM_COMMAND
+			Select Case LOWORD(wParam)
+				Case CommandButton1
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							BSMemWnd_CommandButton1_Click()
+					End Select
+			End Select
+		Case Else
+			EventCall_BSMemWnd=DefWindowProc(hWnd,message,wParam,lParam)
+			Exit Function
+	End Select
+	EventCall_BSMemWnd=0
+End Function
+
 Function DefaultCallProc(hWnd As HWND, message As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
 	DefaultCallProc=DefWindowProc(hWnd,message,wParam,lParam)
 End Function
@@ -349,5 +391,11 @@ Function CreateDialog(hOwnerWnd As HWND, TemplateName As LPSTR) As HWND
 		SetWindowLong(hSFMem,GWL_WNDPROC,AddressOf(SFMemProc) As LONG_PTR)
 		SendMessage(hSFMem,WM_INITDIALOG,0,0)
 		SendMessage(hSFMem,WM_SETICON,ICON_SMALL,LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_ICON1)) As LPARAM)
+	End If
+	If lstrcmp(TemplateName,"BSMemWnd")=0 Then
+		hBSMem=CreateWindowEx(&H00000080,"NORMALDLG","BSX Mempack Manager",&H10c80000,-1,-1,202,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
+		CreateDialog=hBSMem
+		SetWindowLong(hBSMem,GWL_WNDPROC,AddressOf(BSMemProc) As LONG_PTR)
+		SendMessage(hBSMem,WM_INITDIALOG,0,0)
 	End If
 End Function

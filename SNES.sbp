@@ -13,8 +13,10 @@ Const SRAM_ADDRESS_HiROM_MAD 	= &H306000'&HA06000
 Const SRAM_ADDRESS_SA1 = &H400000
 
 'LoROMモードにおけるBSMCの位置Cn:8000h
-Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60
-
+Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
+Const BSX_MEMPACK_ADR_HiROM = &HE00000 
+Const BSX_MEMPACK_ADR_SA1   = &HC00000 
+Const BSX_MEMPACK_ADR_BIOS  = &HC00000 
 
 Const SFC_MAP_TYPE_NUM = 8
 Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
@@ -33,24 +35,26 @@ End Enum
 '後の都合のいい処理がしてある。
 '生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
-	Title[21] As Byte
-	MapMode As Byte		'FAST+HIROMなど
-	ROMType As Byte		'MapModeの下位4ビット
-	CartType As Byte
-	ROMSize As DWord
-	SRAMSize As DWord
-	SRAMAddress As DWord
-	Country As Byte
-	Version As Byte
-	CheckSum1 As Word
-	CheckSum2 As Word
-	Mad As Byte
-	hasExtraHeader As BOOL
-	isBSX  AS BOOL
-	diableChecksum As BOOL
-	MakerCode AS Word
-	MakerName AS BytePtr
-	GameCode[4] AS Byte
+	Title[21] As Byte		'ゲームタイトル
+	MapMode As Byte			'FAST+HIROMなど
+	ROMType As Byte			'MapModeの下位4ビット
+	CartType As Byte		'ROM+SRAM+SFXみたいなの
+	ROMSize As DWord		'intのromサイズ
+	SRAMSize As DWord		'intのSRAMサイズ
+	SRAMAddress As DWord	'SRAMがマップされているアドレス
+	Country As Byte			'国コード
+	Version As Byte			'ROMバージョン
+	CheckSum1 As Word		'チェックサム
+	CheckSum2 As Word		'チェックサムのNOT
+	Mad As Byte				'MAD-1かどうか（現在未使用）
+	hasExtraHeader As BOOL	'拡張ヘッダ（FFB0h-FFBFh)があるかどうか
+	isBSX  AS BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
+	diableChecksum As BOOL	'MENU PROGRAMとかBSMC等のチェックサムが無効なものに使う
+	isLoROM AS BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTrueになる
+	MakerCode AS Word		'メーカーコード
+	MakerName AS BytePtr	'メーカーコードから出した文字列
+	GameCode[4] AS Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
+	AddrOffset AS DWord		'ROMの開始アドレス
 	rawHeader As SFC_CART_HEADER
 EndType
 
@@ -88,15 +92,8 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Dim lt As DWord,time As DWord
 
 	'アドレス系準備
-	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM or info->ROMType=SFC_MAP_SF_MENU Then
-		bRomType=TRUE
-		DumpAddress=0
-		offset=0
-	Else
-		bRomType=FALSE
-		DumpAddress=HiROM_START_ADR
-		offset=HiROM_START_ADR
-	Endif
+	offset=info->AddrOffset	'固定
+	DumpAddress=offset	'インクリメントしていく
 	Size=info->ROMSize
 	SendControl(hCOM,DEFAULT_CTRLBUS)
 
@@ -143,7 +140,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		if GetKeyState(VK_ESCAPE) And &H80 Then DBM(ex"\r\nCancelled by user."):Goto *EXIT_DUMP
 
 		'吸出し＆データチェック
-		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,bRomType)
+		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,info->isLoROM)
 		if ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
 		if ret<>DUMP_BUFFER_SIZE Then 
 			DBM(ex"\r\n["+Str$(C)+ex"]Warning!")
@@ -538,6 +535,15 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	Else
 		info->SRAMSize=0
 	End If
+
+	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM or info->ROMType=SFC_MAP_SF_MENU Then
+		info->AddrOffset=0
+		info->isLoROM=TRUE
+	Else
+		info->AddrOffset=HiROM_START_ADR
+		info->isLoROM=FALSE
+	End If
+
 
 	info->Country = data->CountryID
 	info->Version = data->Version

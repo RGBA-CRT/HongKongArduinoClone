@@ -1,0 +1,250 @@
+'-----------------------------------------------------------------------------
+'  イベント プロシージャ
+'-----------------------------------------------------------------------------
+' このファイルには、ウィンドウ [SFMem] に関するイベントをコーディングします。
+' ウィンドウ ハンドル: hSFMem
+
+' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
+
+
+'-----------------------------------------------------------------------------
+' ウィンドウメッセージを処理するためのコールバック関数
+
+Function SFMemProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
+
+	' イベントプロシージャの呼び出しを行います。
+	SFMemProc=EventCall_SFMemWnd(hWnd,dwMsg,wParam,lParam)
+End Function
+
+
+'-----------------------------------------------------------------------------
+' ここから下は、イベントプロシージャを記述するための領域になります。
+Sub SFM_open()
+	if hSFMem=NULL Then CreateDialog(hMainWnd,"SFMemWnd")
+	MainWnd_Move(0,0)
+	SFMW_bMove=FALSE
+End Sub
+
+Dim SFMW_bMove AS BOOL
+Sub SFMemWnd_Move(x As Integer, y As Integer)
+	if SFMW_bMove=TRUE Then ExitSub
+	
+	Dim sfrect aS RECT
+	GetWindowRect(hSFMem,sfrect)
+	Dim mwrect aS RECT, mw_width AS Long
+	GetWindowRect(hMainWnd,mwrect)
+	Dim wndframe_x AS Long
+	wndframe_x = GetSystemMetrics(SM_CXSIZEFRAME)*2
+
+	SFMW_bMove=TRUE
+	mw_width=mwrect.right-mwrect.left
+	SetWindowPos(hMainWnd,NULL,sfrect.left-mw_width-wndframe_x,sfrect.top,0,0,SWP_NOSIZE or SWP_NOACTIVATE)
+	SFMW_bMove=FALSE
+End Sub
+
+	
+Sub SFMemWnd_ListBox1_SelChange()
+	if SendMessage(SFMWnd(ListBox1), LB_GETCURSEL,0,0)=0 Then
+		EnableWindow(SFMWnd(CommandButton3),FALSE)
+	Else
+		EnableWindow(SFMWnd(CommandButton3),TRUE)
+	End If
+End Sub
+
+Function SFMWnd(child AS HWND) AS HWND
+	SFMWnd=GetDlgItem(hSFMem,child)
+End Function
+
+Sub SFMemWnd_CommandButton1_Click()
+	SetWindowText(SFMWnd(GroupBox1),"Game List [ usb ]")
+	SendMessage(SFMWnd(ListBox1),LB_RESETCONTENT,0,0)
+	if NP_wakeup()=FALSE Then
+		DBM("failed NP-Wakeup")
+		
+		SendMessage(SFMWnd(ListBox1),LB_ADDSTRING,0,"(not nintendo power)")
+		ExitSub
+	Endif
+	SendMessage(SFMWnd(ListBox1),LB_ADDSTRING,0,"[-]Full Dump")
+
+	setRegister(&H00,&H2400,&H04)
+'	viewNPHeader()
+	MainWnd_CommandButton1_Click()
+	viewNPStatus()
+
+	
+	Const NP_MAX_BANKS = 7
+	Dim dir[NP_MAX_BANKS] AS NP_DIRECTORY
+
+	dim i AS Long
+	for i=0 To NP_MAX_BANKS
+		ReadROM(hCOM,VarPtr(dir[i]),0,&HC00000+&H60000+i*&H2000,sizeof(NP_DIRECTORY),FALSE)
+		dir[i].dummy[0]=0
+		if dir[i].index<>&HFF Then
+			SendMessage(SFMWnd(ListBox1),LB_ADDSTRING,0,sprintfStr(ex"[%d]%s - %s",dir[i].index,dir[i].titleString,dir[i].writer))
+		Endif
+	Next i
+
+	SetWindowText(SFMWnd(GroupBox1),"Game List [ usb ]")
+	DBM("Nintendo Power is Active")
+	SetWindowText(MWnd(ROMTITLE),"[PLEASE SELECT GAME]")
+	EnableWindow(SFMWnd(CommandButton3),FALSE)
+
+End Sub
+
+Function getNPStatus(ByRef info AS NP_STATUS_INFO) AS BOOL
+	Dim reg aS NP_STATUS_REG
+	NP_command(&H09)
+	getNPStatus= ReadROM(hCOM,VarPtr(reg),0,&H2400,sizeof(NP_STATUS_REG),FALSE)
+	Dump(VarPtr(reg),sizeof(NP_STATUS_REG))
+	NP_Status_RegToInfo(reg,info)
+End Function
+
+Sub viewNPStatus()(_info AS *NP_STATUS_INFO)
+	Dim info AS NP_STATUS_INFO
+
+	if _info=NULL Then
+		getNPStatus(info)
+	Else	
+		memcpy(VarPtr(info),_info,sizeof(NP_STATUS_INFO))
+	End If
+	
+	if info.isNP=FALSE Then
+		DBM("[Error]NP not working")
+		ExitSub
+	End If
+
+	Dim romMapStr AS BytePtr,sramMapStr As BytePtr
+	Select Case info.romMap
+		Case NP_ROM_MAP_LoROM
+			romMapStr="LoROM"
+		Case NP_ROM_MAP_HiROM
+			romMapStr="HiROM"
+		Case NP_ROM_MAP_HiROM_MENU
+			romMapStr="HiROM:MENU"
+		Case NP_ROM_MAP_HiROM_ALL
+			romMapStr="HiROM:ALL"
+		Case Else
+			romMapStr="(unknown)"
+	End Select
+
+	Select Case info.sramMap
+		Case NP_SRAM_MAP_LoROM
+			sramMapStr="LoROM"
+		Case NP_SRAM_MAP_HiROM
+			sramMapStr="HiROM"
+		Case NP_SRAM_MAP_NoSRAM
+			sramMapStr="NoSRAM"
+		Case NP_SRAM_MAP_HiROM_ALL
+			sramMapStr="HiROM:ALL"
+		Case Else
+			sramMapStr="HiROM:MENU"
+	End Select
+	DBM("Nintendo Power Status")
+	DBM(sprintfStr(ex"currentSlot: %d\r\nromSize    : %dKB\r\nsramSize   : %dKB\r\nromMap     : %s\r\nsramMap    : %s\r\n",_
+		info.slot,info.romSize/1024,info.sramSize/1024,romMapStr,sramMapStr))
+End Sub
+
+Sub viewNPHeader()
+	Dim buf[SFC_SPEC_HEADER_SIZE+2] As Byte,cartInfo As SFC_CART_INFO
+
+	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
+	if ReadROM(hCOM,buf, 0, &HC07fb0, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
+		DBM("connection err")
+		ExitSub
+	End If
+	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(cartInfo))
+	SetCartInfo(VarPtr(cartInfo))
+End Sub
+
+Sub SFMemWnd_CommandButton3_Click()
+	Dim idx AS Long
+	idx=SendMessage(SFMWnd(ListBox1), LB_GETCURSEL,0,0)
+	if idx>0 Then
+		NP_changeSlot(idx-1)
+	Elseif idx=0 Then
+		setRegister(&H00,&H2400,&H04)
+	End If
+
+	Sleep(100)
+	MainWnd_CommandButton1_Click()
+	viewNPStatus()
+
+End Sub
+
+Sub SFMemWnd_CommandButton4_Click()
+	Dim buf[5] aS Byte
+	setRegister(&H00,&H2400,&H09)
+	ReadROM(hCOM,buf,0,&H2400,1,FALSE)
+	if buf[0]<>&H2A Then DBM("NOT_NP"+Hex$(buf[0]))
+	setRegister(&H00,&H2401,&H28)
+	setRegister(&H00,&H2401,&H84)
+	setRegister(&H00,&H2400,&H06)
+	setRegister(&H00,&H2400,&H39)
+	setRegister(&H00,&H2400,&H80)
+End Sub
+
+Sub SFMemWnd_CommandButton5_Click()
+
+	viewNPStatus()
+
+End Sub
+
+Sub SFMemWnd_CommandButton2_Click()
+	Dim idx AS Long
+	idx=SendMessage(SFMWnd(ListBox1), LB_GETCURSEL,0,0)
+
+	if idx<0 Then
+		DBM("Please select Game.")
+		ExitSub
+	elseif idx>0 Then
+		NP_changeSlot(idx-1)
+	Elseif idx=0 Then
+		setRegister(&H00,&H2400,&H04)
+	End If
+
+	Dim info AS NP_STATUS_INFO
+	getNPStatus(info)
+	viewNPStatus(VarPtr(info))
+
+	Dim cartInfo As SFC_CART_INFO
+	Dim path As BytePtr
+
+	getCartInfo(cartInfo)
+	if idx=0 Then
+		info.romSize = 1024*1024*4
+		info.romMap  = NP_ROM_MAP_HiROM
+		Const NPDUMP_GAME_TITLE="SFMemory"
+		memcpy(cartInfo.Title,NPDUMP_GAME_TITLE,lstrlen(NPDUMP_GAME_TITLE)+1)
+		cartInfo.diableChecksum=TRUE
+	End If
+
+	cartInfo.ROMSize=info.romSize
+	if cartInfo.ROMType<>SFC_MAP_SF_MENU Then
+		if info.romMap=NP_ROM_MAP_LoROM then
+			cartInfo.ROMType=SFC_MAP_LoROM
+		else
+			cartInfo.ROMType=SFC_MAP_HiROM
+		End if
+	End If
+	SetCartInfo(VarPtr(cartInfo))
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0","sfc",cartInfo.Title)
+	if path=0 Then ExitSub
+#else
+	path="npdump.sfc"
+#endif
+
+	DumpFullROM(VarPtr(cartInfo),path)
+
+#ifndef _DEBUG
+	free(path)
+#endif
+
+
+End Sub
+
+Sub SFMemWnd_Destroy()
+	hSFMem=NULL
+End Sub

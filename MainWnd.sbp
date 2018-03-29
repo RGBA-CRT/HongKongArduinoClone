@@ -561,6 +561,28 @@ Sub MainWnd_CommandButton1_Click()
 		SetCheckBox(MWnd(CheckBox1),FALSE)
 	End If
 
+	if cartInfo.isBSX Then
+		BSM_open()
+		PumpMessage()
+
+		Dim idx AS Long
+		if cartInfo.CartType=&HE5 Then
+			idx=BSM_SLOT_BIOS
+		Elseif cartInfo.ROMType=SFC_MAP_LoROM or cartInfo.ROMType=SFC_MAP_SpLoROM then
+			idx=BSM_SLOT_SpLoROM
+		Elseif cartInfo.ROMType=BSM_SLOT_HiROM then
+			idx=BSM_SLOT_HiROM
+		Elseif cartInfo.ROMType=SFC_MAP_SA1 then
+			idx=BSM_SLOT_SA1
+		Else
+			DBM("[!!!]Warning: unknown BS-X slot")
+		End If
+	'	debug
+		SendMessage(BSMWnd(BSM_CT),CB_SETCURSEL,idx,0)
+	Else
+		BSM_close()
+	End If
+
 	'アクセスランプをLow
 	SetAddress(hCOM,&H000000,FALSE)
 End Sub
@@ -885,7 +907,7 @@ Sub RomCommand(Adr As DWord,val As DWord)
 End Sub
 
 Sub MainWnd_CommandButton11_Click()
-	Dim buf[20+512] As Byte
+/*	Dim buf[20+512] As Byte
 	RomCommand(BSX_MEMPACK_ADR_LoROM,&H38)
 	RomCommand(BSX_MEMPACK_ADR_LoROM,&HD0)
 	RomCommand(BSX_MEMPACK_ADR_LoROM,&H71)
@@ -911,6 +933,8 @@ Sub MainWnd_CommandButton11_Click()
 	DBM(buf+30)
 
 	DBM(buf)
+*/
+	BSM_open()
 
 End Sub
 
@@ -1009,17 +1033,27 @@ End Sub
 Dim MW_bMove AS BOOL
 Sub MainWnd_Move(x As Integer, y As Integer)
 	if MW_bMove=TRUE Then ExitSub
+
 	if hSFMem<>NULL then
-		Dim rect aS RECT
-		GetWindowRect(hMainWnd,rect)
-		rect.right=rect.right+10
-		'面白い挙動するので残しておく
-		'SetWindowPos(hSFMem,NULL,rect.top,rect.right,0,0,SWP_NOSIZE or SWP_SHOWWINDOW)
-		MW_bMove=TRUE
-		SetWindowPos(hSFMem,NULL,rect.right,rect.top,0,0,SWP_NOSIZE or SWP_NOZORDER or SWP_NOOWNERZORDER or SWP_NOACTIVATE)
-		MW_bMove=FALSE
+		MoveChildWindow(hMainWnd,hSFMem)
 	Endif
+	if hBSMem<>NULL Then
+		MoveChildWindow(hMainWnd,hBSMem)
+	End If
 End Sub
+
+Sub MoveChildWindow(owner AS HWND,child AS HWND)
+	Dim rect aS RECT
+	GetWindowRect(owner,rect)
+	rect.right=rect.right+GetSystemMetrics(SM_CXSIZEFRAME)*2'10
+	'面白い挙動するので残しておく
+	'SetWindowPos(hSFMem,NULL,rect.top,rect.right,0,0,SWP_NOSIZE or SWP_SHOWWINDOW)
+
+	MW_bMove=TRUE
+	SetWindowPos(child,NULL,rect.right,rect.top,0,0,SWP_NOSIZE or SWP_NOZORDER or SWP_NOOWNERZORDER or SWP_NOACTIVATE)
+	MW_bMove=FALSE
+End Sub
+
 
 Sub MainWnd_MAPPING_EditChange()
 

@@ -53,7 +53,7 @@ WINDOW:MainWnd
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,430,289,8,16,"",&H50000000,&H00000000,1
     ITEM      = CommandButton11,423,289,8,16,"",&H50000000,&H00000000,1
-    ITEM      = CommandButton14,202,206,34,21,"SFM",&H40000000,&H00000000,1
+    ITEM      = CommandButton14,202,206,34,21,"SFM",&H50000000,&H00000000,1
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem
@@ -78,4 +78,24 @@ WINDOW:SFMemWnd
     ITEM      = CommandButton4,138,233,88,21,"Write Imgage",&H58000000,&H00000000,1
     ITEM      = Static1,8,4,223,12,"Select and press [Switch] or [Dump]",&H50000000,&H00000000,11
     ITEM      = CommandButton5,198,205,28,21,"ST",&H40000000,&H00000000,1
+END
+WINDOW:BSMemWnd
+    HANDLE    = hBSMem
+    POINT     = -1,-1
+    SIZE      = 202,285
+    CAPTION   = "BSX Mempack Manager"
+    STYLE     = &H10c80000
+    EXSTYLE   = &H00000080
+    ID        = 0
+    BGCOLOR   = 15
+    FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
+    CLASS     = "NORMAL"
+    CALLBACK  = BSMemProc
+    TYPE      = 3
+    FILEPATH  = BSMem.sbp
+    ITEM      = BSM_CT,16,43,167,167,"",&H50200402,&H00000000,3
+    ITEM      = Static1,61,126,55,12,"‚Â‚­‚è‚©‚¯",&H50000000,&H00000000,11
+    ITEM      = CommandButton1,40,223,122,21,"Dump 8M Mempack",&H50000000,&H00000000,1
+    ITEM      = Static3,9,6,153,12,"BS-X Memory Pack Manager",&H50000000,&H00000000,11
+    ITEM      = GroupBox1,8,25,182,47,"Cart Type",&H50000007,&H00000000,5
 END

@@ -1,0 +1,82 @@
+'Docments
+'http://problemkaputt.de/fullsnes.txt
+
+'---------------------------
+'  SPC7110 Memory controll
+'---------------------------
+'SPC7110のバンクをセットアップ(要CPUクロック,ないと不安定な動作)
+'D0=#0, E0=#1, F0=#2, MROM num:0-3
+/*
+	基本：
+	・SPC7110はROMが物理的に2つあり、それぞれプログラム用とデータ用になっている
+	・プログラムROMは天外魔境ZEROで4Mあるためバンク切り替えが必要
+	・$4831-$4833に値を書くと$D0:0000-$FF:0000にマップされる
+	・$C0:0000-CF:FFFFはプログラムROM
+	・$4830はSRAMのコントロール(0x80でEnable)
+	・詳しいことはfullsnesへ
+
+	解析メモ：（※個人の感想です）
+	・何故か$4831-$4833にただ値を書いてもバンク切り替えが起こらない
+	 ->なぜかバンク0固定になる
+	 ->$4834に4以上の値を書くと値が反映された
+	 ->D0にバンク3をセットしても意図したバンクにならないことがわかった(F0ならOKだった)(なぜかプログラムROMがマップされた)
+	 ->どうやら$4834以上の値をバンクコントローラレジスタ$4831-$4833に書き込むと全バンク巻き込んでバンク0になる模様
+	 ->4ビットのレジスタで最大0x07まで
+
+	まとめ：
+	・たぶん$4834はデータROMの最大バンク数を記述
+	・$4834の値以下の値を$4831-$4833に書き込むことができる
+	 ->存在しないバンク番号を書き込むとプログラムROMがマップされる
+	 ->$4834の値を超えると$4831-$4833の全部を巻き込んでデータROMのバンク0ににされる
+	・以上より$4834には0x03を書き込むのがベスト
+
+	追記：
+	・SNESバンク D0 はバンク0以外を指定するとプログラムROMになる模様
+	　 ->5MB目を吸い出すときはSNESバンクF0を使おう
+	・データROMのバンク3を読み出すときには1-3バンク指定し、$4834には03を書き込むことで正常ダンプ成功
+
+*/
+
+
+'-----------------------
+'   SF MEMORY - fullsnes
+'-----------------------
+SFメモリ接続方法
+　1.クロック回路接続
+　2.Connectする
+　3.SFメモリカセットを挿す
+　4.MENU PROGRAMが出れば成功
+
+Nintendo Power Commands
+
+'起動シーケンス - 未起動だと2400h付近が0x7d
+  if [002400h]<>7Dh then skip unlocking   ;else locking would be re-enabled
+  [002400h]=09h       ;\
+  dummy=[002400h]     ;
+  [002401h]=28h       ; wakeup sequence (needed before sending other commands,
+  [002401h]=84h       ; and also enables reading from port 2400h..2407h)
+  [002400h]=06h       ;
+  [002400h]=39h       ;/
+
+起動後、002400hへの書き込みで使えるコマンド：
+After wakeup, single-byte commands can be written to [002400h]:
+  [002400h]=00h   RESET and map GAME14 ? (issues /RESET pulse)
+  [002400h]=02h   Set STATUS.bit2=1 (/WP=HIGH, release Write protect)
+  [002400h]=03h   Set STATUS.bit2=0 (/WP=LOW, force Write protect)
+  [002400h]=04h   HIROM:ALL  (map whole FLASH in HiROM mode)
+  [002400h]=05h   HIROM:MENU (map MENU in HiROM mode instead normal LoROM mode)
+  [002400h]=20h    Set STATUS.bit3=0 (discovered by skaman) (default)
+  [002400h]=21h    Set STATUS.bit3=1 (discovered by skaman) (disable ROM read?)
+  [002400h]=44h    no effect (once caused crash with green rectangle)
+  [002400h]=80h..8Fh  ;-Issue /RESET to SNES and map GAME 0..15
+  [002400h]=FFh    sometimes maps GAME14 or GAME15? (unreliable)
+
+  [002400h]=09h set mapping info to 2400h-2407h 
+  				おそらく2400h-2407hにマッピング情報を表示するコマンド
+
+  1バイトコマンドを送った後にも割と0x7dになっているので、コマンド毎に起動シーケンスする必要があると思う。
+  sanni cartreaderでも、コマンド毎に0x7dなら再起動するようになっている。
+  なのでマッピング情報をとるには
+  wakeupNP()
+  NP_command(0x09)
+  という感じにしている。

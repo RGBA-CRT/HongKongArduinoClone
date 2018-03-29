@@ -275,6 +275,7 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 				DBM("cancel")
 				CheckFirmware=FALSE
 			Else
+				FlushCom(hSerial)
 				Goto *SEND_VER_CHECK
 			End If
 		End If
