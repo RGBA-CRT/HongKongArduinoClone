@@ -14,7 +14,7 @@
 #include "SFMemWnd.sbp"
 #include "MainWnd.sbp"
 #include "SFM.abp"
-#include "BSMem.sbp"
+#include "BSMemWnd.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

@@ -43,6 +43,8 @@ Const CommandButton11=1039
 Const CommandButton14=1040
 Const ListBox1=1041
 Const BSM_CT=1042
+Const BSM_MT=1043
+Const GroupBox2=1044
 
 Dim hMainWnd As HWND
 Dim hFont_MainWnd As HFONT
@@ -329,14 +331,28 @@ Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 			hBSMem=hWnd
 			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,16,43,167,167,hWnd,BSM_CT As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,BSM_CT),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"STATIC","‚Â‚­‚è‚©‚¯",&H50000000,61,126,55,12,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"STATIC","‚Â‚­‚è‚©‚¯",&H50000000,19,124,55,12,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Dump 8M Mempack",&H50000000,40,223,122,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Dump",&H50000000,68,225,60,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
 			CreateWindowEx(&H00000000,"STATIC","BS-X Memory Pack Manager",&H50000000,9,6,153,12,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static3),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Cart Type",&H50000007,8,25,182,47,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Slot Type",&H50000007,8,25,182,47,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,GroupBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,15,93,167,167,hWnd,BSM_MT As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,BSM_MT),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Mempack Type",&H50000007,7,75,182,73,hWnd,GroupBox2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,GroupBox2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"EDIT","1024",&H50000002,87,120,70,19,hWnd,EditBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,EditBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"STATIC","KB",&H50000002,164,124,14,12,hWnd,Static2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Write",&H58000000,131,225,55,21,hWnd,CommandButton2 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000000,"BUTTON","Detect",&H58000000,8,225,55,21,hWnd,CommandButton3 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,CommandButton3),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00020000,"STATIC","Text4",&H50000000,8,161,177,53,hWnd,Static4 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,Static4),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
 			BSMemWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_DESTROY
 			BSMemWnd_Destroy()
@@ -349,6 +365,11 @@ Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							BSMemWnd_CommandButton1_Click()
+					End Select
+				Case BSM_MT
+					Select Case HIWORD(wParam)
+						Case CBN_SELCHANGE
+							BSMemWnd_BSM_MT_SelChange()
 					End Select
 			End Select
 		Case Else
@@ -393,7 +414,7 @@ Function CreateDialog(hOwnerWnd As HWND, TemplateName As LPSTR) As HWND
 		SendMessage(hSFMem,WM_SETICON,ICON_SMALL,LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_ICON1)) As LPARAM)
 	End If
 	If lstrcmp(TemplateName,"BSMemWnd")=0 Then
-		hBSMem=CreateWindowEx(&H00000080,"NORMALDLG","BSX Mempack Manager",&H10c80000,-1,-1,202,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
+		hBSMem=CreateWindowEx(&H00000080,"NORMALDLG","BSX Mempack Manager",&H10c80000,-2147483648,-2147483648,202,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
 		CreateDialog=hBSMem
 		SetWindowLong(hBSMem,GWL_WNDPROC,AddressOf(BSMemProc) As LONG_PTR)
 		SendMessage(hBSMem,WM_INITDIALOG,0,0)
