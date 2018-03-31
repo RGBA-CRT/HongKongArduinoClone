@@ -1,0 +1,256 @@
+'-----------------------------------------------------------------------------
+'  イベント プロシージャ
+'-----------------------------------------------------------------------------
+' このファイルには、ウィンドウ [BSMem] に関するイベントをコーディングします。
+' ウィンドウ ハンドル: hBSMem
+
+' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
+
+
+'-----------------------------------------------------------------------------
+' ウィンドウメッセージを処理するためのコールバック関数
+
+Function BSMemProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
+
+	' イベントプロシージャの呼び出しを行います。
+	BSMemProc=EventCall_BSMemWnd(hWnd,dwMsg,wParam,lParam)
+End Function
+
+
+'-----------------------------------------------------------------------------
+' ここから下は、イベントプロシージャを記述するための領域になります。
+Sub BSM_open()
+	if hBSMem=NULL Then CreateDialog(hMainWnd,"BSMemWnd")
+	MainWnd_Move(0,0)
+	BSMW_bMove=FALSE
+End Sub
+
+Sub BSM_close()
+	if hBSMem=NULL Then ExitSub
+	SendMessage(hBSMem,WM_CLOSE,0,0)
+End Sub
+
+Dim BSMW_bMove AS BOOL
+Sub BSMemWnd_Move(x As Integer, y As Integer)
+	if BSMW_bMove=TRUE Then ExitSub
+	
+	Dim sfrect aS RECT
+	GetWindowRect(hBSMem,sfrect)
+	Dim mwrect aS RECT, mw_width AS Long
+	GetWindowRect(hMainWnd,mwrect)
+	Dim wndframe_x AS Long
+	wndframe_x = GetSystemMetrics(SM_CXSIZEFRAME)*2
+
+	BSMW_bMove=TRUE
+	mw_width=mwrect.right-mwrect.left
+	SetWindowPos(hMainWnd,NULL,sfrect.left-mw_width-wndframe_x,sfrect.top,0,0,SWP_NOSIZE or SWP_NOACTIVATE)
+	BSMW_bMove=FALSE
+End Sub
+	
+Sub BSMemWnd_ListBox1_SelChange()
+	if headerList[0]=NULL Then ExitSub
+
+	Dim idx As Long
+	idx=SendMessage(BSMWnd(ListBox1),LB_GETCURSEL,0,0)
+	if idx<0 or idx>BSM_SLOT_MAX then ExitSub
+
+	Dim str AS BytePtr
+	DBM("BSM File #"+Str$(idx))
+	str=BSM_printInfo(headerList[idx])
+	DBM(str)
+End Sub
+
+Function BSMWnd(child AS HWND) AS HWND
+	BSMWnd=GetDlgItem(hBSMem,child)
+End Function
+
+
+Sub BSMem_Activate(state As Integer, minimized As Integer)
+
+End Sub
+
+Enum BSM_SLOT_TYPE
+	BSM_SLOT_BIOS =0 
+	BSM_SLOT_SA1
+	BSM_SLOT_HiROM
+	BSM_SLOT_SpLoROM
+	BSM_SLOT_TYPE_NUM
+End Enum
+Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
+	"BS-X BIOS",
+	"SA-1  (バス釣り, G-NEXT)",
+	"HiROM (鮫亀, 天牌, かなでーる など)",
+	"LoROM (ダビスタ96, サウンド, RPGツクール など)",
+	0
+] AS BytePtr 
+
+Enum BSM_PACK_TYPE
+	BSM_8M_TYPE1 =0
+	BSM_8M_TYPE2
+	BSM_8M_TYPE3
+	BSM_8M_TYPE4
+	BSM_GNEXT
+	BSM_SAMEGAME
+	BSM_PACK_TYPE_NUM
+End Enum
+Dim packNameTable[BSM_PACK_TYPE_NUM] = [
+	"8Mメモリパック TYPE 1",
+	"8Mメモリパック TYPE 2",
+	"8Mメモリパック TYPE 3",
+	"8Mメモリパック TYPE 4",
+	"GNEXT ユニット＆マップコレクション",
+	"鮫亀キャラカセット",
+	0
+] AS BytePtr 
+
+Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
+	Dim i=0 As Long
+	while slotNameTable[i]<>0
+		SendMessage(BSMWnd(BSM_CT),CB_ADDSTRING,0,slotNameTable[i])
+		i++
+	Wend
+	SendMessage(BSMWnd(BSM_CT),CB_SETCURSEL,0,0)
+
+	i=0
+	while packNameTable[i]<>0
+		SendMessage(BSMWnd(BSM_MT),CB_ADDSTRING,0,packNameTable[i])
+		i++
+	Wend
+	SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,0,0)
+
+	BSM_listupFiles()
+End Sub
+
+Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
+		Dim idx As Long
+	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
+	if idx=-1 Then DBM("Cartridge type not selected."):exitsub
+
+	DBM(sprintfStr("%s Selected.",slotNameTable[idx]))
+
+
+	With virtualHeader				
+		lstrcpy(.Title,"BSX Mempack")
+		.diableChecksum=TRUE
+		.ROMSize=1024*1024
+		.ROMType=SFC_MAP_HiROM
+
+		Select Case idx
+			Case BSM_SLOT_BIOS
+				.AddrOffset=BSX_MEMPACK_ADR_BIOS
+				.isLoROM=FALSE
+	
+			Case BSM_SLOT_SA1
+				ErrMes(hBSMem,"未対応です。","SA-1",0)
+				ExitSub
+
+			Case BSM_SLOT_HiROM
+				.AddrOffset=BSX_MEMPACK_ADR_HiROM
+				.isLoROM=FALSE
+
+			Case BSM_SLOT_SpLoROM
+				.AddrOffset=BSX_MEMPACK_ADR_LoROM
+				.isLoROM=TRUE
+		End Select
+	End With
+End Sub
+
+Sub BSMemWnd_CommandButton1_Click()
+	'ダイアログの設定から仮想SFCヘッダを生成してダンプ
+	Dim virtualHeader As SFC_CART_INFO
+	BSM_genVirtualSnesHeader(virtualHeader)
+
+
+	Dim path AS BytePtr
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0","bs",virtualHeader.Title)
+	if path=0 Then ExitSub
+#else
+	path="bsdump.bs"
+#endif
+
+	DumpFullROM(VarPtr(virtualHeader),path)
+	
+#ifndef _DEBUG
+	free(path)
+#endif
+
+'	.diableChecksum=TRUE
+Endsub
+
+	
+Sub BSMemWnd_Destroy()
+ 	hBSMem=NULL
+End Sub
+
+Sub BSMemWnd_BSM_MT_SelChange()
+	if SendMessage(BSMWnd(BSM_MT),CB_GETCURSEL,0,0) > BSM_8M_TYPE4 Then
+		SetWindowText(BSMWnd(EditBox1),"512")
+	Else
+		SetWindowText(BSMWnd(EditBox1),"1024")
+	End If
+End Sub
+
+
+
+Sub BSMemWnd_CommandButton3_Click()
+	Dim virtualHeader As SFC_CART_INFO
+	BSM_genVirtualSnesHeader(virtualHeader)
+
+	if BSM_genHeaderList(TRUE,hCOM,virtualHeader.AddrOffset,virtualHeader.isLoROM)=FALSE Then
+		DBM(ex"Memory Pack not working...\r\n")	
+		SendMessage(BSMWnd(ListBox1),LB_RESETCONTENT,0,0)
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Memory Pack is Empty)")
+		ExitSub
+	End If
+	BSM_listupFiles()
+	DBM(ex"Memory Pack Found!!!!!!\r\n")
+
+End Sub
+
+
+
+Sub BSMemWnd_DropFiles(hDrop As HDROP)
+	Dim buf[MAX_PATH] As Byte
+	Dim i as long
+
+	Do
+		If DragQueryFile(hDrop,i,buf,MAX_PATH)=0 Then Exit Do
+		i++
+	Loop
+	DragFinish(hDrop)	
+
+	if BSM_genHeaderList(FALSE,buf,0,FALSE)=FALSE Then
+		DBM("This is not BS Memory Image File.")
+		ExitSub
+	End If
+
+	BSM_listupFiles()
+
+End Sub
+
+Sub BSM_listupFiles()
+	SendMessage(BSMWnd(ListBox1),LB_RESETCONTENT,0,0)
+
+	if headerList[0]=NULL Then
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Connect Memory Pack  ")
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"   and press [Detect] button")
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"     or D&D BSMImageFile here )")
+		ExitSub
+	End If
+
+	Dim str AS StringClass,title[16] AS Byte
+	Dim i=0 As Long
+	while headerList[i]<>0
+		memcpy(title,headerList[i]->raw.title,16)
+		str.set("")
+		str.sprintf("#%d %s %d/%d",i,title,headerList[i]->raw.month >> 4,headerList[i]->raw.day >> 3)
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,str.ptr)
+		i++
+	Wend
+
+End Sub
+Sub BSMemWnd_BSM_CT_EditChange()
+
+End Sub

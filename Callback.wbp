@@ -329,38 +329,43 @@ Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 			BSMemWnd_Move(LOWORD(lParam),HIWORD(lParam))
 		Case WM_INITDIALOG
 			hBSMem=hWnd
-			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,16,43,167,167,hWnd,BSM_CT As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,16,36,167,167,hWnd,BSM_CT As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,BSM_CT),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"STATIC","‚Â‚­‚è‚©‚¯",&H50000000,19,124,55,12,hWnd,Static1 As HMENU,GetModuleHandle(0),0)
-			SendMessage(GetDlgItem(hWnd,Static1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Dump",&H50000000,68,225,60,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Dump",&H50000000,67,234,60,21,hWnd,CommandButton1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"STATIC","BS-X Memory Pack Manager",&H50000000,9,6,153,12,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"STATIC","BS-X Memory Pack Manager",&H50000000,9,4,153,12,hWnd,Static3 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static3),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Slot Type",&H50000007,8,25,182,47,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Slot Type",&H50000007,8,20,182,42,hWnd,GroupBox1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,GroupBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,15,93,167,167,hWnd,BSM_MT As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"COMBOBOX","",&H50200402,15,82,167,167,hWnd,BSM_MT As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,BSM_MT),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Mempack Type",&H50000007,7,75,182,73,hWnd,GroupBox2 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Mempack Type",&H50000007,7,67,182,42,hWnd,GroupBox2 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,GroupBox2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000200,"EDIT","1024",&H50000002,87,120,70,19,hWnd,EditBox1 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000200,"EDIT","1024",&H40000002,250,241,70,19,hWnd,EditBox1 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,EditBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"STATIC","KB",&H50000002,164,124,14,12,hWnd,Static2 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"STATIC","KB",&H40000002,327,248,14,12,hWnd,Static2 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,Static2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Write",&H58000000,131,225,55,21,hWnd,CommandButton2 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Write",&H58000000,133,234,55,21,hWnd,CommandButton2 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton2),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00000000,"BUTTON","Detect",&H58000000,8,225,55,21,hWnd,CommandButton3 As HMENU,GetModuleHandle(0),0)
+			CreateWindowEx(&H00000000,"BUTTON","Detect",&H50000000,7,234,55,21,hWnd,CommandButton3 As HMENU,GetModuleHandle(0),0)
 			SendMessage(GetDlgItem(hWnd,CommandButton3),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
-			CreateWindowEx(&H00020000,"STATIC","Text4",&H50000000,8,161,177,53,hWnd,Static4 As HMENU,GetModuleHandle(0),0)
-			SendMessage(GetDlgItem(hWnd,Static4),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
+			CreateWindowEx(&H00000200,"LISTBOX","",&H50200001,7,116,182,112,hWnd,ListBox1 As HMENU,GetModuleHandle(0),0)
+			SendMessage(GetDlgItem(hWnd,ListBox1),WM_SETFONT,hFont_BSMemWnd As WPARAM,0)
 			BSMemWnd_Create(ByVal (lParam As VoidPtr))
 		Case WM_DESTROY
 			BSMemWnd_Destroy()
+		Case WM_DROPFILES
+			BSMemWnd_DropFiles(wParam As HDROP)
 		Case WM_CLOSE
 			Dim cancel=0 As Integer
 			If cancel=0 Then DestroyWindow(hWnd)
 		Case WM_COMMAND
 			Select Case LOWORD(wParam)
+				Case ListBox1
+					Select Case HIWORD(wParam)
+						Case LBN_SELCHANGE
+							BSMemWnd_ListBox1_SelChange()
+					End Select
 				Case CommandButton1
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
@@ -370,6 +375,16 @@ Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 					Select Case HIWORD(wParam)
 						Case CBN_SELCHANGE
 							BSMemWnd_BSM_MT_SelChange()
+					End Select
+				Case CommandButton3
+					Select Case HIWORD(wParam)
+						Case BN_CLICKED
+							BSMemWnd_CommandButton3_Click()
+					End Select
+				Case BSM_CT
+					Select Case HIWORD(wParam)
+						Case CBN_EDITCHANGE
+							BSMemWnd_BSM_CT_EditChange()
 					End Select
 			End Select
 		Case Else
@@ -414,7 +429,7 @@ Function CreateDialog(hOwnerWnd As HWND, TemplateName As LPSTR) As HWND
 		SendMessage(hSFMem,WM_SETICON,ICON_SMALL,LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_ICON1)) As LPARAM)
 	End If
 	If lstrcmp(TemplateName,"BSMemWnd")=0 Then
-		hBSMem=CreateWindowEx(&H00000080,"NORMALDLG","BSX Mempack Manager",&H10c80000,-2147483648,-2147483648,202,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
+		hBSMem=CreateWindowEx(&H00000090,"NORMALDLG","BSX Mempack Manager",&H10c80000,-2147483648,-2147483648,202,285,hOwnerWnd,0 As HMENU,GetModuleHandle(0),0)
 		CreateDialog=hBSMem
 		SetWindowLong(hBSMem,GWL_WNDPROC,AddressOf(BSMemProc) As LONG_PTR)
 		SendMessage(hBSMem,WM_INITDIALOG,0,0)

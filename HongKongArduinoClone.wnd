@@ -85,7 +85,7 @@ WINDOW:BSMemWnd
     SIZE      = 202,285
     CAPTION   = "BSX Mempack Manager"
     STYLE     = &H10c80000
-    EXSTYLE   = &H00000080
+    EXSTYLE   = &H00000090
     ID        = 0
     BGCOLOR   = 15
     FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
@@ -93,16 +93,15 @@ WINDOW:BSMemWnd
     CALLBACK  = BSMemProc
     TYPE      = 3
     FILEPATH  = BSMemWnd.sbp
-    ITEM      = BSM_CT,16,43,167,167,"",&H50200402,&H00000000,3
-    ITEM      = Static1,19,124,55,12,"‚Â‚­‚è‚©‚¯",&H50000000,&H00000000,11
-    ITEM      = CommandButton1,68,225,60,21,"Dump",&H50000000,&H00000000,1
-    ITEM      = Static3,9,6,153,12,"BS-X Memory Pack Manager",&H50000000,&H00000000,11
-    ITEM      = GroupBox1,8,25,182,47,"Slot Type",&H50000007,&H00000000,5
-    ITEM      = BSM_MT,15,93,167,167,"",&H50200402,&H00000000,3
-    ITEM      = GroupBox2,7,75,182,73,"Mempack Type",&H50000007,&H00000000,5
-    ITEM      = EditBox1,87,120,70,19,"1024",&H50000002,&H00000200,4
-    ITEM      = Static2,164,124,14,12,"KB",&H50000002,&H00000000,11
-    ITEM      = CommandButton2,131,225,55,21,"Write",&H58000000,&H00000000,1
-    ITEM      = CommandButton3,8,225,55,21,"Detect",&H58000000,&H00000000,1
-    ITEM      = Static4,8,161,177,53,"Text4",&H50000000,&H00020000,11
+    ITEM      = BSM_CT,16,36,167,167,"",&H50200402,&H00000000,3
+    ITEM      = CommandButton1,67,234,60,21,"Dump",&H50000000,&H00000000,1
+    ITEM      = Static3,9,4,153,12,"BS-X Memory Pack Manager",&H50000000,&H00000000,11
+    ITEM      = GroupBox1,8,20,182,42,"Slot Type",&H50000007,&H00000000,5
+    ITEM      = BSM_MT,15,82,167,167,"",&H50200402,&H00000000,3
+    ITEM      = GroupBox2,7,67,182,42,"Mempack Type",&H50000007,&H00000000,5
+    ITEM      = EditBox1,250,241,70,19,"1024",&H40000002,&H00000200,4
+    ITEM      = Static2,327,248,14,12,"KB",&H40000002,&H00000000,11
+    ITEM      = CommandButton2,133,234,55,21,"Write",&H58000000,&H00000000,1
+    ITEM      = CommandButton3,7,234,55,21,"Detect",&H50000000,&H00000000,1
+    ITEM      = ListBox1,7,116,182,112,"",&H50200001,&H00000200,8
 END
