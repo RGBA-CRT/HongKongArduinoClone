@@ -67,7 +67,7 @@ Sub SFMemWnd_CommandButton1_Click()
 	Endif
 	SendMessage(SFMWnd(ListBox1),LB_ADDSTRING,0,"[-]Full Dump")
 
-	setRegister(&H00,&H2400,&H04)
+	SetCartRegister(&H00,&H2400,&H04)
 '	viewNPHeader()
 	MainWnd_CommandButton1_Click()
 	viewNPStatus()
@@ -163,7 +163,7 @@ Sub SFMemWnd_CommandButton3_Click()
 	if idx>0 Then
 		NP_changeSlot(idx-1)
 	Elseif idx=0 Then
-		setRegister(&H00,&H2400,&H04)
+		SetCartRegister(&H00,&H2400,&H04)
 	End If
 
 	Sleep(100)
@@ -174,14 +174,14 @@ End Sub
 
 Sub SFMemWnd_CommandButton4_Click()
 	Dim buf[5] aS Byte
-	setRegister(&H00,&H2400,&H09)
+	SetCartRegister(&H00,&H2400,&H09)
 	ReadROM(hCOM,buf,0,&H2400,1,FALSE)
 	if buf[0]<>&H2A Then DBM("NOT_NP"+Hex$(buf[0]))
-	setRegister(&H00,&H2401,&H28)
-	setRegister(&H00,&H2401,&H84)
-	setRegister(&H00,&H2400,&H06)
-	setRegister(&H00,&H2400,&H39)
-	setRegister(&H00,&H2400,&H80)
+	SetCartRegister(&H00,&H2401,&H28)
+	SetCartRegister(&H00,&H2401,&H84)
+	SetCartRegister(&H00,&H2400,&H06)
+	SetCartRegister(&H00,&H2400,&H39)
+	SetCartRegister(&H00,&H2400,&H80)
 End Sub
 
 Sub SFMemWnd_CommandButton5_Click()
@@ -200,7 +200,7 @@ Sub SFMemWnd_CommandButton2_Click()
 	elseif idx>0 Then
 		NP_changeSlot(idx-1)
 	Elseif idx=0 Then
-		setRegister(&H00,&H2400,&H04)
+		SetCartRegister(&H00,&H2400,&H04)
 	End If
 
 	Dim info AS NP_STATUS_INFO

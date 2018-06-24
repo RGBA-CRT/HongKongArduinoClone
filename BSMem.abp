@@ -27,7 +27,70 @@ Type BSM_FILE_INFO
 	offset AS DWord
 End Type
 
+Enum BSM_SLOT_TYPE
+	BSM_SLOT_BIOS =0 
+	BSM_SLOT_SA1
+	BSM_SLOT_HiROM
+	BSM_SLOT_SpLoROM
+	BSM_SLOT_TYPE_NUM
+End Enum
 
+'LoROMモードにおけるBSMCの位置Cn:8000h
+Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
+Const BSX_MEMPACK_ADR_HiROM = &HE00000 
+Const BSX_MEMPACK_ADR_SA1   = &HC00000 
+Const BSX_MEMPACK_ADR_BIOS  = &HC00000 
+
+Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
+	"BS-X BIOS",
+	"SA-1  (ﾊﾞｽ釣 ｶﾞﾝﾀﾞﾑ)[未実装]",
+	"HiROM (鮫亀 天牌 奏)",
+	"LoROM (ﾀﾞﾋﾞｽﾀ96 ﾉﾍﾞﾙ ﾂｸｰﾙ)",
+	0
+] AS BytePtr 
+
+Enum BSM_PACK_TYPE
+	BSM_8M_TYPE1 =0
+	BSM_8M_TYPE2
+	BSM_8M_TYPE3
+	BSM_8M_TYPE4
+	BSM_GNEXT
+	BSM_SAMEGAME
+	BSM_PACK_TYPE_NUM
+End Enum
+
+Dim packNameTable[BSM_PACK_TYPE_NUM] = [
+	"8Mメモリパック TYPE 1",
+	"8Mメモリパック TYPE 2",
+	"8Mメモリパック TYPE 3",
+	"8Mメモリパック TYPE 4",
+	"GNEXT ユニット＆マップコレクション",
+	"鮫亀キャラカセット",
+	0
+] AS BytePtr 
+
+Dim BSX_MEMPACK_ADR_TABLE[BSM_PACK_TYPE_NUM] = [ 
+	BSX_MEMPACK_ADR_BIOS,
+	BSX_MEMPACK_ADR_SA1,
+	BSX_MEMPACK_ADR_HiROM,
+	BSX_MEMPACK_ADR_LoROM
+] AS DWord
+
+Function BSM_GetMempackAdress(slotTypeIdx AS DWord) AS DWord
+	if slotTypeIdx < BSM_SLOT_TYPE_NUM Then
+		BSM_GetMempackAdress=BSX_MEMPACK_ADR_TABLE[slotTypeIdx]
+	Else
+		BSM_GetMempackAdress=0
+	End If
+End Function
+
+Function BSM_isLoROM(slotTypeIdx AS DWord) AS BOOL
+	if slotTypeIdx < BSM_SLOT_TYPE_NUM And slotTypeIdx=BSM_SLOT_SpLoROM Then
+		BSM_isLoROM=TRUE
+	Else
+		BSM_isLoROM=FALSE
+	End If
+End Function
 
 Const BSM_SLOT_MAX = 8
 Const BSM_CAP_MAX = 1024*1024
@@ -154,7 +217,7 @@ Function BSM_printInfo(header As *BSM_FILE_HEADER)  AS BytePtr
 	if (header->limit And &H8000) Then
 		status.sprintf("left %d ",countBits(header->limit And &H7FFF))
 	Else
-		status.cat("left ∞")
+		status.cat("no limit")
 	End If
 	if header->dummy33<>&H33 or header->limit=&H8000 Then
 		status.cat("[deleted]")
@@ -166,9 +229,9 @@ Function BSM_printInfo(header As *BSM_FILE_HEADER)  AS BytePtr
 	Dim flagStr AS StringClass
 	flagStr.cat("  Sound Link : ")
 	if header->exeFlags And &H10 Then
-		flagStr.cat(ex"YES (RSV ON)\r\n")
-	Else
 		flagStr.cat(ex"NO (RSV OFF)\r\n")
+	Else
+		flagStr.cat(ex"YES (RSV ON)\r\n")
 	End If
 
 	flagStr.cat("  Execution Area : ")
@@ -186,7 +249,7 @@ Function BSM_printInfo(header As *BSM_FILE_HEADER)  AS BytePtr
 	End If
 
 
-	str.sprintf(ex"name   : %s\r\ndate   : %d月%d日\r\nusage  : %d blocks (%d KB)\r\nstatus : %s\r\nmapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
+	str.sprintf(ex"Name   : %s\r\nDate   : %d月%d日\r\nUsage  : %d blocks (%d KB)\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
 		title,_ 
 		header->month >> 4,header->day >> 3,_
 		blocks,blocks*128,_

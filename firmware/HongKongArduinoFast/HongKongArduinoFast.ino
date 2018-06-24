@@ -130,7 +130,7 @@ byte lastadr[3];
 // serial comm
 //-----------------
 
-inline void sendSerial(byte data) {
+inline void serial_send(byte data) {
   while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
   UDR0 = data;
 }
@@ -265,7 +265,8 @@ inline void readCart(byte isLoROM) {
   word goalAdr = address + datasize;
   while (1) {
     setAddress(bank, address, isLoROM);
-    sendSerial(readData());
+    serial_send(readData());
+    //serial_send(readbyte_cart(bank,address));
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -510,7 +511,7 @@ void loop() {
         writebyte_cart(0x00, 0x2400, 0x06);
         writebyte_cart(0x00, 0x2400, 0x39);
 
-     //   writebyte_cart(0x00, 0x2400, 0x05);
+        //   writebyte_cart(0x00, 0x2400, 0x05);
         if ( readbyte_cart(0x00, 0x2400) == 0x2A)
           Serial.print("OK");
         else
@@ -531,6 +532,7 @@ void loop() {
 
     case 'F':
       { // flash config
+        // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
         while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
         flash_bank = Serial.read();
         for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {

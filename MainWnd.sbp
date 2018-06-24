@@ -561,9 +561,9 @@ Sub MainWnd_CommandButton1_Click()
 		SetCheckBox(MWnd(CheckBox1),FALSE)
 	End If
 
+	'BSスロットがあればBSMWndを出す
 	if cartInfo.isBSX Then
 		BSM_open()
-		PumpMessage()
 
 		Dim idx AS Long
 		if cartInfo.CartType=&HE5 Then
@@ -579,6 +579,7 @@ Sub MainWnd_CommandButton1_Click()
 		End If
 	'	debug
 		SendMessage(BSMWnd(BSM_CT),CB_SETCURSEL,idx,0)
+		PumpMessage()
 	Else
 		BSM_close()
 	End If
@@ -1054,10 +1055,6 @@ Sub MoveChildWindow(owner AS HWND,child AS HWND)
 	MW_bMove=FALSE
 End Sub
 
-
-Sub MainWnd_MAPPING_EditChange()
-
-End Sub
 
 Sub MainWnd_MAPPING_SelChange()
 	if getSelectedMapMode()=SFC_MAP_SF_MENU Then

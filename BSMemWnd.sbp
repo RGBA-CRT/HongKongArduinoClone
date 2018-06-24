@@ -53,12 +53,16 @@ Sub BSMemWnd_ListBox1_SelChange()
 
 	Dim idx As Long
 	idx=SendMessage(BSMWnd(ListBox1),LB_GETCURSEL,0,0)
-	if idx<0 or idx>BSM_SLOT_MAX then ExitSub
+	if idx<0 or idx>BSM_SLOT_MAX+1 then ExitSub
 
 	Dim str AS BytePtr
-	DBM("BSM File #"+Str$(idx))
-	str=BSM_printInfo(headerList[idx])
-	DBM(str)
+	if headerList[idx]<>NULL Then
+		DBM("BSM File #"+Str$(idx))
+		str=BSM_printInfo(headerList[idx])
+		DBM(str)
+	Else
+		DBM("BSMem Full Dump")
+	End If
 End Sub
 
 Function BSMWnd(child AS HWND) AS HWND
@@ -70,39 +74,6 @@ Sub BSMem_Activate(state As Integer, minimized As Integer)
 
 End Sub
 
-Enum BSM_SLOT_TYPE
-	BSM_SLOT_BIOS =0 
-	BSM_SLOT_SA1
-	BSM_SLOT_HiROM
-	BSM_SLOT_SpLoROM
-	BSM_SLOT_TYPE_NUM
-End Enum
-Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
-	"BS-X BIOS",
-	"SA-1  (バス釣り, G-NEXT)",
-	"HiROM (鮫亀, 天牌, かなでーる など)",
-	"LoROM (ダビスタ96, サウンド, RPGツクール など)",
-	0
-] AS BytePtr 
-
-Enum BSM_PACK_TYPE
-	BSM_8M_TYPE1 =0
-	BSM_8M_TYPE2
-	BSM_8M_TYPE3
-	BSM_8M_TYPE4
-	BSM_GNEXT
-	BSM_SAMEGAME
-	BSM_PACK_TYPE_NUM
-End Enum
-Dim packNameTable[BSM_PACK_TYPE_NUM] = [
-	"8Mメモリパック TYPE 1",
-	"8Mメモリパック TYPE 2",
-	"8Mメモリパック TYPE 3",
-	"8Mメモリパック TYPE 4",
-	"GNEXT ユニット＆マップコレクション",
-	"鮫亀キャラカセット",
-	0
-] AS BytePtr 
 
 Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	Dim i=0 As Long
@@ -119,11 +90,15 @@ Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	Wend
 	SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,0,0)
 
-	BSM_listupFiles()
+	'BSMの中身を一覧表示する。
+	'CREATE時点ではスロットタイプがMainWndから送られてきていないのでメッセージ送るだけ
+'	BSM_listupFiles()
+'	BSMemWnd_CommandButton3_Click()
+	PostMessage(BSMWnd(CommandButton3),BM_CLICK,0,0)
 End Sub
 
 Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
-		Dim idx As Long
+	Dim idx As Long
 	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
 	if idx=-1 Then DBM("Cartridge type not selected."):exitsub
 
@@ -135,7 +110,7 @@ Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
 		.diableChecksum=TRUE
 		.ROMSize=1024*1024
 		.ROMType=SFC_MAP_HiROM
-
+/*
 		Select Case idx
 			Case BSM_SLOT_BIOS
 				.AddrOffset=BSX_MEMPACK_ADR_BIOS
@@ -152,7 +127,9 @@ Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
 			Case BSM_SLOT_SpLoROM
 				.AddrOffset=BSX_MEMPACK_ADR_LoROM
 				.isLoROM=TRUE
-		End Select
+		End Select*/
+		.AddrOffset=BSM_GetMempackAdress(idx)
+		.isLoROM=BSM_isLoROM(idx)
 	End With
 End Sub
 
@@ -207,9 +184,39 @@ Sub BSMemWnd_CommandButton3_Click()
 	BSM_listupFiles()
 	DBM(ex"Memory Pack Found!!!!!!\r\n")
 
+	Dim idx AS DWord,cmdBank AS Byte,isLoROM AS BOOL
+	Dim info[32] AS Byte
+	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
+	cmdBank=BSM_GetMempackAdress(idx)>>16
+	isLoROM=BSM_isLoROM(idx)
+
+	DBM("Bank:"+Hex$(cmdBank)+" isLoROM:"+Str$(isLoROM))
+
+	'request chip info part1
+	SetCartRegister(cmdBank,&H0000,&H38)	
+	SetCartRegister(cmdBank,&H0000,&HD0)
+	'WAIT(コマンドにオーバーヘッドあるから大丈夫)
+	
+	ReadROM(hCOM,info,0,(cmdBank<<16)+2,1,isLoROM)
+
+	'enter status mode
+	SetCartRegister(cmdBank,&H0000,&H71)	
+	'WAIT
+
+	ReadROM(hCOM,info,0,(cmdBank<<16)+&H00FF00,16,isLoROM)
+	Dump(info,16)
+
+	'request chip info part2
+	SetCartRegister(cmdBank,&H0000,&H72)
+	SetCartRegister(cmdBank,&H0000,&H75)
+
+	ReadROM(hCOM,info,0,(cmdBank<<16)+&H00FF00,16,isLoROM)
+	Dump(info,16)
+
+	'exit status mode
+	SetCartRegister(cmdBank,&H0000,&HFF)
+'*/
 End Sub
-
-
 
 Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Dim buf[MAX_PATH] As Byte
@@ -234,9 +241,7 @@ Sub BSM_listupFiles()
 	SendMessage(BSMWnd(ListBox1),LB_RESETCONTENT,0,0)
 
 	if headerList[0]=NULL Then
-		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Connect Memory Pack  ")
-		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"   and press [Detect] button")
-		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"     or D&D BSMImageFile here )")
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Press detect button)")
 		ExitSub
 	End If
 
@@ -250,7 +255,6 @@ Sub BSM_listupFiles()
 		i++
 	Wend
 
-End Sub
-Sub BSMemWnd_BSM_CT_EditChange()
+'	SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"[Full Dump]")
 
 End Sub

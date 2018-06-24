@@ -67,6 +67,7 @@ Wend
 
 file.close()
 Input "[PRESS ENTER KEY]",headerList[BSM_SLOT_MAX]
+debug
 end
 
 

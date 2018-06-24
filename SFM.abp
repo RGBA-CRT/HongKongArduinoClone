@@ -88,7 +88,7 @@ EndFunction
 
 Sub NP_command(_cmd AS Byte) 
 	NP_wakeup() 
-	setRegister(&H00,&H2400,_cmd)
+	SetCartRegister(&H00,&H2400,_cmd)
 End Sub
 
 

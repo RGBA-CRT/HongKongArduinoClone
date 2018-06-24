@@ -243,8 +243,6 @@ Function EventCall_MainWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lPa
 					End Select
 				Case MAPPING
 					Select Case HIWORD(wParam)
-						Case CBN_EDITCHANGE
-							MainWnd_MAPPING_EditChange()
 						Case CBN_SELCHANGE
 							MainWnd_MAPPING_SelChange()
 					End Select
@@ -380,11 +378,6 @@ Function EventCall_BSMemWnd(hWnd As HWND, message As DWord, wParam As WPARAM, lP
 					Select Case HIWORD(wParam)
 						Case BN_CLICKED
 							BSMemWnd_CommandButton3_Click()
-					End Select
-				Case BSM_CT
-					Select Case HIWORD(wParam)
-						Case CBN_EDITCHANGE
-							BSMemWnd_BSM_CT_EditChange()
 					End Select
 			End Select
 		Case Else
