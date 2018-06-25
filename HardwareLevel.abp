@@ -303,10 +303,14 @@ Sub FlushCom(hSerial AS HANDLE)
 End Sub
 
 
-Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)
+Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)(isLoROM AS BOOL)
 	Dim cmd[5] AS Byte,dwAB AS DWord,retry AS BOOL
 
-	cmd[0]=Asc("t")
+	if isLoROM Then
+		cmd[0]=Asc("t")
+	Else
+		cmd[0]=Asc("T")
+	End If
 	cmd[1] = bank
 	cmd[2] = (address >>  0) AS Byte
 	cmd[3] = (address >>  8) AS Byte

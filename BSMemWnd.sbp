@@ -192,29 +192,36 @@ Sub BSMemWnd_CommandButton3_Click()
 
 	DBM("Bank:"+Hex$(cmdBank)+" isLoROM:"+Str$(isLoROM))
 
+	if idx=BSM_SLOT_BIOS Then
+		'Disable BS-X MCC Write Protects
+		SetCartRegister(&H0C,&H5000,&H80,FALSE)	
+		SetCartRegister(&H0D,&H5000,&H80,FALSE)	
+		SetCartRegister(&H0E,&H5000,&H80,FALSE)	
+	End If
+
 	'request chip info part1
-	SetCartRegister(cmdBank,&H0000,&H38)	
-	SetCartRegister(cmdBank,&H0000,&HD0)
+	SetCartRegister(cmdBank,&H0000,&H38,isLoROM)	
+	SetCartRegister(cmdBank,&H0000,&HD0,isLoROM)
 	'WAIT(コマンドにオーバーヘッドあるから大丈夫)
 	
 	ReadROM(hCOM,info,0,(cmdBank<<16)+2,1,isLoROM)
 
 	'enter status mode
-	SetCartRegister(cmdBank,&H0000,&H71)	
+	SetCartRegister(cmdBank,&H0000,&H71,isLoROM)	
 	'WAIT
 
 	ReadROM(hCOM,info,0,(cmdBank<<16)+&H00FF00,16,isLoROM)
 	Dump(info,16)
 
 	'request chip info part2
-	SetCartRegister(cmdBank,&H0000,&H72)
-	SetCartRegister(cmdBank,&H0000,&H75)
+	SetCartRegister(cmdBank,&H0000,&H72,isLoROM)
+	SetCartRegister(cmdBank,&H0000,&H75,isLoROM)
 
 	ReadROM(hCOM,info,0,(cmdBank<<16)+&H00FF00,16,isLoROM)
 	Dump(info,16)
 
 	'exit status mode
-	SetCartRegister(cmdBank,&H0000,&HFF)
+	SetCartRegister(cmdBank,&H0000,&HFF,isLoROM)
 '*/
 End Sub
 

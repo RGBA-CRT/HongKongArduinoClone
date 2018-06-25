@@ -18,7 +18,7 @@
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '2'
+#define FIRMWARE_VERSION '3'
 
 //クロック回路有効/無効
 #define _ENABLE_CIC
@@ -208,15 +208,12 @@ void setDatadir_cart(byte DATADIR) {
 //--------------
 // snes level
 //--------------
-
+#define LO_TO_REAL_ADDRESS(bank,address) {bank = (bank << 1) | (address >> 15);  address |= 0x8000;}
 //アドレスバスを設定
 inline void setAddress(byte bank, word address, byte isLoROM)
 {
   if (isLoROM) {
-    //address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
-    bank = (bank << 1) | (address >> 15);
-    address |= 0x8000;
-    //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
+    LO_TO_REAL_ADDRESS(bank, address);
   }
 
   BB_OUT_DISABLE();
@@ -266,7 +263,6 @@ inline void readCart(byte isLoROM) {
   while (1) {
     setAddress(bank, address, isLoROM);
     serial_send(readData());
-    //serial_send(readbyte_cart(bank,address));
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -350,9 +346,9 @@ void setup()
 #endif
 
   //コントロールピンをすべてOUTPUTに
-  for (int i = GD; i <= RST; i++) {
+  for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
-  }
+
 
   digitalWrite(GD, LOW);  //GD(PORTB 02) PWM DISABLE
   digitalWrite(GD, HIGH); // Disable
@@ -495,7 +491,7 @@ void loop() {
         //各種コマンドを投げてください
 
       } break;
-
+      
     case 'S':
       { // setup SF memory
 
@@ -519,12 +515,18 @@ void loop() {
         Serial.write(readbyte_cart(0x00, 0x2400));
       } break;
 
+    case 'T':
     case 't':
       { // set register(1byte write)
         while (Serial.available() < 4);
         byte bank = Serial.read();
         word address = Serial_readWord();
         byte data = Serial.read();
+
+        //lorom -> real address
+        if (cmd == 't') {
+          LO_TO_REAL_ADDRESS(bank, address);
+        }
 
         writebyte_cart(bank, address, data);
 
@@ -572,10 +574,6 @@ void loop() {
       } break;
 
   }
-  //setup flash command
-  //flash command
-  //wakeup SFmemory
-  //
 
 
 }
