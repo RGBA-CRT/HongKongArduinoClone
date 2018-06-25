@@ -6,8 +6,8 @@
 このプログラムは、たにやま氏開発の"こーどねーむ「ホンコン」 with Arduino"に手を加えて高速化・SRAMの吸出しなどの機能を加えたものです。Windows用です。Wineでも動作します。  
   
 This project is mods of "Codename Hong Kong with Arduino". It is SNES cartridge dumper. Original has been developed by Taniyama.   
-This project adds high-speed damping, SRAM read/write and other. Only works on Windows NT or wine.　　
-  
+This project supports high-speed dumping, SRAM read/write, BS-X Memory Pack and other. Only works on Windows NT or wine.　　
+
 こーどねーむ「ホンコン」 with Arduino / original page  
 <http://hongkongarduino.web.fc2.com/>
     
@@ -32,9 +32,9 @@ This project adds high-speed damping, SRAM read/write and other. Only works on W
 <http://rgbacrt.seesaa.net/article/435543541.html>
 
 ### 参考コード・資料 / Referenced documents
- *     [http://hongkongarduino.web.fc2.com/archive]  
- *     [https://github.com/sanni/cartreader/]  
- *     [http://problemkaputt.de/fullsnes.txt]  
+ * <http://hongkongarduino.web.fc2.com/archive>  
+ * <https://github.com/sanni/cartreader/> 
+ * <http://problemkaputt.de/fullsnes.txt>  
 
 ## ダウンロード / Download
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
