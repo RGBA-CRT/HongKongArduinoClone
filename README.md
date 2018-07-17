@@ -1,6 +1,7 @@
 # HongKongArduinoClone
+[![cc](https://licensebuttons.net/l/by-nc/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc/4.0/)  
 「こーどねーむホンコン with Arduino」用高速化ファーム＋クライアント  
- SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
+ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
 
 ## 概要 / about
 このプログラムは、たにやま氏開発の"こーどねーむ「ホンコン」 with Arduino"に手を加えて高速化・SRAMの吸出しなどの機能を加えたものです。Windows用です。Wineでも動作します。  
@@ -103,18 +104,6 @@ Ver0.8からSFメモリカセットの吸出しに対応しました。
  
 
 ## 履歴 / History
-<<<<<<< HEAD
-	[2016/03/23]ver 0.0 - 初回リリース
-	[2016/07/20]ver 0.1 - チェックサム判定機能追加
-	[2017/02/17]ver 0.3 - 最適化＆バグフィックス、ファーム判定機能追加
-	[2017/09/17]ver 0.4 - S-DD1に対応
-	[2017/09/19]ver 0.5 - SPC7110に対応
-	[2017/12/24]ver 0.6 - ダビスタ96(特殊LoROM)に対応, HiROM 256Kbit SRAMに対応
-	[2018/02/10]ver 0.62- UIを微修正。D&DでROMヘッダを表示するようにした。
-	[2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 96KB/s)
-	[2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正
-	[2018/07/18]ver 0.9 - BS-Xメモリーパックに対応。
-=======
     [2016/03/23]ver 0.0 - 初回リリース
     [2016/07/20]ver 0.1 - チェックサム判定機能追加
     [2017/02/17]ver 0.3 - 最適化＆バグフィックス、ファーム判定機能追加
@@ -124,5 +113,4 @@ Ver0.8からSFメモリカセットの吸出しに対応しました。
     [2018/02/10]ver 0.62- UIを微修正。D&DでROMヘッダを表示するようにした。
     [2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 96KB/s)
     [2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正
-    [2018/07/　]ver 0.9 - SA-1追加回路修正, サテラビューに対応
->>>>>>> BSM
+    [2018/07/18]ver 0.9 - SA-1追加回路修正, サテラビューに対応
