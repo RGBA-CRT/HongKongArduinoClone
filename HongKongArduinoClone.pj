@@ -8,7 +8,7 @@
 
 #PLATFORM=32
 
-#USEWINDOW=2
+#USEWINDOW=3
 
 #OPTION=&H00010000
 
@@ -26,3 +26,6 @@ LicenceList.abp
 SFMemWnd.sbp
 MainWnd.sbp
 SFM.abp
+BSMemWnd.sbp
+BSMem.abp
+sfc_doc.txt

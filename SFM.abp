@@ -1,0 +1,114 @@
+'SFMemory cart ŠÖ˜A
+
+Type Align(1) NP_STATUS_REG
+	magic AS Byte
+	status AS Byte
+	dummy As Word
+	size As Byte
+	sram_map AS Word
+	base As Byte
+End Type
+
+Type NP_STATUS_INFO
+	isNP AS BOOL
+	writeEnable AS BOOL
+	readEnbale AS BOOL
+	slot AS Byte
+	sramSize AS DWord
+	romSize AS DWord
+	romMap AS NP_ROM_MAP
+	sramMap AS NP_SRAM_MAP
+	sramBase AS DWord
+	romBase AS DWord
+End Type
+
+
+enum NP_ROM_MAP
+	NP_ROM_MAP_LoROM=0
+	NP_ROM_MAP_HiROM=1
+	NP_ROM_MAP_HiROM_MENU=2
+	NP_ROM_MAP_HiROM_ALL=3	
+End Enum
+
+enum NP_SRAM_MAP
+	NP_SRAM_MAP_LoROM = &H4A29
+	NP_SRAM_MAP_HiROM = &HA561
+	NP_SRAM_MAP_NoSRAM = &HAAAA
+	NP_SRAM_MAP_HiROM_ALL = &H7FD5
+	NP_SRAM_MAP_HiROM_MENU
+End Enum
+
+
+Sub NP_Status_RegToInfo(ByRef reg AS NP_STATUS_REG,ByRef info AS NP_STATUS_INFO)
+	if reg.magic=&H2A Then
+		info.isNP=TRUE
+	Else
+		info.isNP=FALSE
+	End If
+
+	info.writeEnable=reg.status And &H04
+	info.readEnbale=NOT(reg.status And &H08) And 1
+	info.slot=reg.status>>4
+	if (reg.size And 3) = 3 Then
+		info.sramSize=0
+	Else
+		info.sramSize=2*1024<<(2*(reg.size And 3) )
+	End If
+	info.romSize=512*1024*(((reg.size>>2) And &H07)+1)
+	SetDWord(VarPtr(info.romMap), (reg.size >> 6) )
+	SetWord(VarPtr(info.sramMap),reg.sram_map)
+	info.sramBase=reg.base And &H0F
+	info.romBase=reg.base>>4
+
+End Sub
+
+
+
+Function NP_wakeup() AS BOOL
+	Dim cmd[5] AS Byte,dwAB AS DWord,retry AS BOOL
+
+*HKAF_WNP
+	cmd[0]=Asc("S")
+	WriteFile(hCOM,cmd,1,VarPtr(dwAB),ByVal NULL)
+	Sleep(100)
+
+	ReadFile(hCOM,cmd,3,VarPtr(dwAB),ByVal NULL)
+	if cmd[2]=&H2A Then 
+		NP_wakeup=TRUE
+	Else
+		'ˆê‰ž2‰ñƒŠƒgƒ‰ƒC‚·‚é
+		if retry=FALSE Then 
+			retry=TRUE
+			Goto *HKAF_WNP
+		Endif
+	End If
+	Dump(cmd,3)
+EndFunction
+
+
+Sub NP_command(_cmd AS Byte) 
+	NP_wakeup() 
+	SetCartRegister(&H00,&H2400,_cmd)
+End Sub
+
+
+Function  NP_changeSlot(slot AS Long) As BOOL
+	NP_command((slot And &H0F) + &H80)
+End Function
+
+
+Type Align(1) NP_DIRECTORY
+	index AS Byte
+	romStart AS Byte '512k block
+	sramStart AS Byte  '2K block
+	romBanks AS Word
+	sramBanks AS Word
+	gameCode[11] AS Byte
+	titleString[43] AS Byte
+	titleBMP[383] AS Byte
+	date[9] AS Byte
+	time[7] AS Byte
+	writer[7] AS Byte
+	dummy[6] AS Byte
+End Type
+

@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 475,285
-    CAPTION   = "HongKongArduinoClone v0.8"
+    CAPTION   = "HongKongArduinoClone v0.9"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000010
     ID        = 0
@@ -39,21 +39,24 @@ WINDOW:MainWnd
     ITEM      = Static7,442,242,31,12,"---",&H50000000,&H00000000,11
     ITEM      = CheckBox1,256,226,59,13,"MAD-1",&H50000003,&H00000000,2
     ITEM      = ROMTITLE,79,74,157,21,"",&H50000800,&H00000200,4
-    ITEM      = CommandButton6,357,271,48,15,"read",&H50000000,&H00000000,1
+    ITEM      = CommandButton6,343,271,48,15,"read",&H50000000,&H00000000,1
     ITEM      = EditBox2,248,269,87,17,"0xE00000",&H50000000,&H00000200,4
-    ITEM      = CommandButton7,357,286,48,16,"Write",&H50000000,&H00000000,1
+    ITEM      = CommandButton7,343,286,48,16,"Write",&H50000000,&H00000000,1
     ITEM      = CheckBox2,10,276,41,15,"RST",&H50000003,&H00000000,2
     ITEM      = CheckBox3,55,276,37,15,"WE",&H50000003,&H00000000,2
     ITEM      = CheckBox4,98,276,37,15,"CE",&H50000003,&H00000000,2
     ITEM      = CheckBox5,140,276,37,15,"OE",&H50000003,&H00000000,2
     ITEM      = CommandButton8,186,273,46,21,"Å©ìKóp",&H50000000,&H00000000,1
-    ITEM      = EditBox3,306,286,31,17,"0x03",&H50000000,&H00000200,4
-    ITEM      = EditBox4,248,286,58,17,"0x004833",&H50000000,&H00000200,4
-    ITEM      = CheckBox6,417,277,44,15,"L/H",&H50000003,&H00000000,2
+    ITEM      = EditBox3,306,286,31,17,"0x04",&H50000000,&H00000200,4
+    ITEM      = EditBox4,248,286,58,17,"0x002220",&H50000000,&H00000200,4
+    ITEM      = CheckBox6,402,271,44,15,"L/H",&H50000003,&H00000000,2
     ITEM      = CommandButton9,437,289,32,16,"auto",&H50000000,&H00000000,1
     ITEM      = CommandButton10,430,289,8,16,"",&H50000000,&H00000000,1
-    ITEM      = CommandButton11,423,289,8,16,"",&H50000000,&H00000000,1
-    ITEM      = CommandButton14,202,206,34,21,"SFM",&H40000000,&H00000000,1
+    ITEM      = CommandButton11,405,289,8,16,"",&H50000000,&H00000000,1
+    ITEM      = CommandButton14,202,206,34,21,"SFM",&H50000000,&H00000000,1
+    ITEM      = CommandButton12,414,289,8,16,"",&H50000000,&H00000000,1
+    ITEM      = CommandButton13,422,289,8,16,"",&H50000000,&H00000000,1
+    ITEM      = CommandButton15,392,289,12,16,"",&H50000000,&H00000000,1
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem
@@ -78,4 +81,30 @@ WINDOW:SFMemWnd
     ITEM      = CommandButton4,138,233,88,21,"Write Imgage",&H58000000,&H00000000,1
     ITEM      = Static1,8,4,223,12,"Select and press [Switch] or [Dump]",&H50000000,&H00000000,11
     ITEM      = CommandButton5,198,205,28,21,"ST",&H40000000,&H00000000,1
+END
+WINDOW:BSMemWnd
+    HANDLE    = hBSMem
+    POINT     = -2147483648,-2147483648
+    SIZE      = 202,285
+    CAPTION   = "BSX Mempack Manager"
+    STYLE     = &H10c80000
+    EXSTYLE   = &H00000090
+    ID        = 0
+    BGCOLOR   = 15
+    FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"ÇlÇr ÇoÉSÉVÉbÉN"
+    CLASS     = "NORMAL"
+    CALLBACK  = BSMemProc
+    TYPE      = 3
+    FILEPATH  = BSMemWnd.sbp
+    ITEM      = BSM_CT,16,36,167,167,"",&H50200402,&H00000000,3
+    ITEM      = CommandButton1,67,234,60,21,"Dump",&H50000000,&H00000000,1
+    ITEM      = Static3,9,4,153,12,"BS-X Memory Pack Manager",&H50000000,&H00000000,11
+    ITEM      = GroupBox1,8,20,182,42,"Slot Type",&H50000007,&H00000000,5
+    ITEM      = BSM_MT,15,82,167,167,"",&H50200402,&H00000000,3
+    ITEM      = GroupBox2,7,67,182,42,"Mempack Type",&H50000007,&H00000000,5
+    ITEM      = EditBox1,250,241,70,19,"1024",&H40000002,&H00000200,4
+    ITEM      = Static2,327,248,14,12,"KB",&H40000002,&H00000000,11
+    ITEM      = CommandButton2,133,234,55,21,"Write",&H58000000,&H00000000,1
+    ITEM      = CommandButton3,7,234,55,21,"Detect",&H50000000,&H00000000,1
+    ITEM      = ListBox1,7,116,182,112,"",&H50200001,&H00000200,8
 END

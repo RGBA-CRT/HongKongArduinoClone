@@ -1,0 +1,286 @@
+Const BSM_FILE_HEADER_ADR_Lo = &H7fb0
+Const BSM_FILE_HEADER_ADR_Hi = &Hffb0
+
+Type Align(1) BSM_FILE_HEADER 
+	'ExtendHeader=02の時にそんざい　
+	maker AS Word
+	programType As DWord
+	dummy1[9] AS Byte
+	'--------------
+	title[15] AS Byte
+	blockAllocation AS DWord
+	limit AS Word
+	month AS Byte
+	day AS Byte
+	mapMode As Byte
+	exeFlags As Byte
+	dummy33 AS Byte
+	extendHeaderFlag As Byte
+	checksum1 AS Word
+	checksum2 aS Word
+EndType
+
+'互換あり
+Type BSM_FILE_INFO
+	raw AS BSM_FILE_HEADER
+	isLoROM AS BOOL
+	offset AS DWord
+End Type
+
+Enum BSM_SLOT_TYPE
+	BSM_SLOT_BIOS =0 
+	BSM_SLOT_SA1
+	BSM_SLOT_HiROM
+	BSM_SLOT_SpLoROM
+	BSM_SLOT_TYPE_NUM
+End Enum
+
+
+Type BSM_MEMPACK_INFO
+	MP AS Word
+	Flags AS Byte
+	DeviceInfo AS Byte
+End Type
+
+
+'LoROMモードにおけるBSMCの位置Cn:8000h
+Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
+Const BSX_MEMPACK_ADR_HiROM = &HE00000 
+Const BSX_MEMPACK_ADR_SA1   = &HC00000 
+Const BSX_MEMPACK_ADR_BIOS  = &HC00000 
+
+Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
+	"BS-X BIOS",
+	"SA-1  (ﾊﾞｽ釣 ｶﾞﾝﾀﾞﾑ)[非推奨]",
+	"HiROM (鮫亀 天牌 奏)",
+	"LoROM (ﾀﾞﾋﾞｽﾀ96 ﾉﾍﾞﾙ ﾂｸｰﾙ)",
+	0
+] AS BytePtr 
+
+Enum BSM_PACK_TYPE
+	BSM_8M_TYPE1 =0
+	BSM_8M_TYPE2
+	BSM_8M_TYPE3
+	BSM_8M_TYPE4
+	BSM_GNEXT
+	BSM_SAMEGAME
+	BSM_UNKNOWN
+	BSM_PACK_TYPE_NUM
+End Enum
+
+Dim packNameTable[BSM_PACK_TYPE_NUM] = [
+	"8Mメモリパック TYPE 1",
+	"8Mメモリパック TYPE 2",
+	"8Mメモリパック TYPE 3",
+	"8Mメモリパック TYPE 4",
+	"GNEXT ユニット＆マップコレクション",
+	"鮫亀キャラカセット",
+	"(不明)",
+	0
+] AS BytePtr 
+
+Dim BSX_MEMPACK_ADR_TABLE[BSM_PACK_TYPE_NUM] = [ 
+	BSX_MEMPACK_ADR_BIOS,
+	BSX_MEMPACK_ADR_SA1,
+	BSX_MEMPACK_ADR_HiROM,
+	BSX_MEMPACK_ADR_LoROM
+] AS DWord
+
+Function BSM_GetMempackAdress(slotTypeIdx AS DWord) AS DWord
+	if slotTypeIdx < BSM_SLOT_TYPE_NUM Then
+		BSM_GetMempackAdress=BSX_MEMPACK_ADR_TABLE[slotTypeIdx]
+	Else
+		BSM_GetMempackAdress=0
+	End If
+End Function
+
+Function BSM_isLoROM(slotTypeIdx AS DWord) AS BOOL
+	if slotTypeIdx < BSM_SLOT_TYPE_NUM And slotTypeIdx=BSM_SLOT_SpLoROM Then
+		BSM_isLoROM=TRUE
+	Else
+		BSM_isLoROM=FALSE
+	End If
+End Function
+
+Const BSM_SLOT_MAX = 8
+Const BSM_CAP_MAX = 1024*1024
+Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
+
+Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
+	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long
+	Dim file AS File
+	if isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
+
+	curAdr=baseAddress
+	while (curAdr-baseAddress) < BSM_CAP_MAX
+		if isSerial Then
+			tmp=BSM_getHeaderFromSerial(path_or_handle,curAdr,isLoROM)		
+		Else
+			tmp=BSM_getHeader(file.getHandle(),curAdr)
+		End If
+
+		if tmp=NULL Then
+			curAdr = curAdr + 128 * 1024 
+			continue
+		End If
+
+		if headerList[i]<> NULL Then free(headerList[i])
+		headerList[i]=tmp
+
+		i++
+		if i>BSM_SLOT_MAX then exit while
+
+		curAdr+=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
+	Wend
+
+	if isSerial=FALSE Then file.close()
+	
+	'terminate
+	headerList[i]=NULL
+
+	if i=0 Then
+		BSM_genHeaderList=FALSE
+	Else
+		BSM_genHeaderList=TRUE
+	End If
+End Function
+
+function BSM_getNextFileOffset(cur As *BSM_FILE_HEADER) AS DWord
+	BSM_getNextFileOffset=countBits(cur->blockAllocation And &H7FFF) * 128 * 1024
+End Function
+
+function BSM_getHeader(hFile AS HANDLE,baseAddress AS DWord) AS *BSM_FILE_INFO
+	Dim tmp AS BSM_FILE_INFO
+	Dim _file AS File, isLoROM=TRUE AS BOOL
+	_file.setHandle(hFile)
+
+	'check lorom
+	_file.setFilePtr(baseAddress+BSM_FILE_HEADER_ADR_Lo)
+	_file.read(VarPtr(tmp),sizeof(BSM_FILE_INFO))
+
+	if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+		'check hirom
+		_file.setFilePtr(baseAddress+BSM_FILE_HEADER_ADR_Hi)
+		_file.read(VarPtr(tmp),sizeof(BSM_FILE_INFO))
+		
+		'not bsm image
+		if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+			BSM_getHeader=NULL
+			ExitFunction
+		End If
+		
+		isLoROM=FALSE
+	End If
+
+	BSM_getHeader=malloc(sizeof(BSM_FILE_INFO))
+	memcpy(VarPtr(BSM_getHeader->raw),VarPtr(tmp),sizeof(BSM_FILE_INFO))
+	BSM_getHeader->offset=baseAddress
+	BSM_getHeader->isLoROM  = isLoROM
+	
+End Function
+
+'めんどくさいので複製
+function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,isLoROM AS BOOL) AS *BSM_FILE_INFO
+	Dim tmp AS BSM_FILE_INFO
+
+	'check lorom
+	ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Lo,sizeof(BSM_FILE_HEADER),isLoROM)
+
+	if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+		'check hirom
+		ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Hi,sizeof(BSM_FILE_HEADER),isLoROM)
+		
+		'not bsm image
+		if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+			BSM_getHeaderFromSerial=NULL
+			ExitFunction
+		End If
+		
+		isLoROM=FALSE
+	End If
+
+	BSM_getHeaderFromSerial=malloc(sizeof(BSM_FILE_INFO))
+	memcpy(VarPtr(BSM_getHeaderFromSerial->raw),VarPtr(tmp),sizeof(BSM_FILE_INFO))
+	BSM_getHeaderFromSerial->offset=baseAddress
+	BSM_getHeaderFromSerial->isLoROM  = isLoROM
+	
+End Function
+
+
+Function BSM_isHeader(header As *BSM_FILE_HEADER) AS BOOL
+	BSM_isHeader=FALSE
+	if header->checksum1 <> (NOT(header->checksum2) And &HFFFF) Then ExitFunction
+'	if (header->month And &H0F) <> 0 Then  ExitFunction	
+/*	if header->extendHeaderFlag<>01 Then
+		if isSameBin(ex"\0\0\0\0\0\0\0\0\0\0",header->dummy1,10)=FALSE Then	ExitFunction
+	End If*/
+	if (header->mapMode And &H0F) > 1 Then ExitFunction
+	BSM_isHeader=TRUE
+End Function
+
+Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
+	Dim str AS StringClass
+	Dim title[16] AS Byte, blocks AS Long, status As StringClass
+	Dim header AS *BSM_FILE_HEADER
+	header=_header AS *BSM_FILE_HEADER
+
+	memcpy(title,header->title,16)
+	blocks=countBits(header->blockAllocation)
+
+	'generatestatus string 
+	if (header->limit And &H8000) Then
+		status.sprintf("left %d ",countBits(header->limit And &H7FFF))
+	Else
+		status.cat("no limit")
+	End If
+	if header->dummy33<>&H33 or header->limit=&H8000 Then
+		status.cat("[deleted]")
+	Else
+'		status.cat("available ")
+	End If
+
+	'Flag
+	Dim flagStr AS StringClass
+	flagStr.cat("  Sound Link : ")
+	if header->exeFlags And &H10 Then
+		flagStr.cat(ex"NO (RSV OFF)\r\n")
+	Else
+		flagStr.cat(ex"YES (RSV ON)\r\n")
+	End If
+
+	flagStr.cat("  Execution Area : ")
+	if (header->exeFlags And &H60) >> 5 = 0 Then
+		flagStr.cat(ex"FLASH\r\n")
+	Else
+		flagStr.cat(ex"PSRAM\r\n")
+	End If
+
+	flagStr.cat("  St.GIGA Logo   : ")
+	if (header->exeFlags And &H80) Then
+		flagStr.cat(ex"Skip\r\n")
+	Else
+		flagStr.cat(ex"Display\r\n")
+	End If
+
+
+	str.sprintf(ex"Name   : %s\r\nDate   : %d月%d日\r\nUsage  : %d blocks (%d KB)\r\nOffset : %Xh\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
+		(title) As DWord,_ 
+		(header->month >> 4) As DWord , (header->day >> 3) As DWord , _
+		(blocks) As DWord , (blocks*128) As DWord , _
+		(_header->offset) As DWord , _
+		(status.ptr) As DWord , _
+		(GetRomSpeedString(header->mapMode)) As DWord , (GetRomMapString(header->mapMode)) As DWord , _
+		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
+	)
+
+
+'	printf(str.ptr)
+	str.copyToNewPtr(BSM_printInfo)
+End Function
+
+Function countBits(int As DWord) AS DWord
+	Dim i As Long
+	for i=0 To 31
+		if int And (1<<i) Then countBits++
+	Next i
+End Function

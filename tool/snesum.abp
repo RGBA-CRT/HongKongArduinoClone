@@ -1,0 +1,119 @@
+#console
+#include<RGBALib.sbp>
+
+Type SFC_CART_HEADER
+	GameTitle[20] AS Byte
+	ROMType As Byte
+	CartType AS Byte
+	RomSize AS Byte
+	SRAMSize AS Byte
+	Country AS Byte
+	Version AS Byte
+	CheckSum1 AS Word
+	CheckSum2 AS Word
+EndType
+
+Const SFC_SPEC_HEADER_ADDR_LoROM=&H7FC0
+Const SFC_SPEC_HEADER_ADDR_HiROM=&HFFC0
+
+
+Print "SNES CHECKSUM UPDATER v0.1  RGBA_CRT 2018"
+Print
+
+Dim snes AS File
+Dim arg AS CommandLine
+Dim path AS FilePath
+
+path.SetPath(arg.GetCmd(1))
+
+'path.SetPath("T:\DERBY STALLION 96.sfc")
+
+if snes.openFile(path.GetPath(),GENERIC_READ or GENERIC_WRITE)=FALSE Then 
+	Print "usage : snescrc noheader.sfc"
+	End
+Else if snes.length() < &HFFFF Then
+	Print "size error"
+	End
+End If
+
+
+Dim buf AS BytePtr
+buf=calloc(snes.length())
+snes.read(buf,snes.length())
+
+Dim header_adr AS DWord
+if isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_LoROM) Then
+	header_adr=SFC_SPEC_HEADER_ADDR_LoROM
+	Print "MAP:LoROM"
+Elseif isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_HiROM) Then
+	header_adr=SFC_SPEC_HEADER_ADDR_HiROM
+	Print "MAP:HiROM"
+Else
+	Print "not snes rom"
+	end
+End If
+
+
+Dim header AS *SFC_CART_HEADER,title[21] AS Byte
+header=buf+header_adr
+
+memcpy(title,header->GameTitle,20)
+printf(ex"Game title : %s\n",title)
+printf(ex"current checksum = [%04X,%04X]\n",header->CheckSum1,header->CheckSum2)
+
+header->CheckSum1=&HFFFF
+header->CheckSum2=&H0000
+
+Dim newcs AS Word
+newcs=CalcChkSum(buf,snes.length())
+if snes.length()=1024*1024*3 Then
+	newcs=newcs+CalcChkSum(buf+1024*1024*2,1024*1024)
+End If
+printf(ex"new checksum = [%04X,%04X]\n",NOT(newcs) And &HFFFF,newcs)
+
+Dim yn AS String
+Input "Apply? (y/n) ",yn
+if yn<>"y" Then End
+
+header->CheckSum1=NOT(newcs)
+header->CheckSum2=newcs
+
+
+snes.setFilePtr(0)
+if snes.write(buf,snes.length())=FALSE Then
+	Print "Write error"
+Else
+	Print "successful"
+End If
+
+snes.close()
+
+
+End
+
+Function CalcChkSum(data AS BytePtr,length AS DWord) AS DWord
+	Dim i AS DWord
+	CalcChkSum=0
+	Do
+		CalcChkSum += data[i]
+		if i => length-1 Then ExitDo
+		i++
+	Loop
+End Function
+
+Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
+	Dim i AS Long
+	For i=0 To 19
+		if header->GameTitle[i] < &H20 Then 
+			if NOT(i>4 And header->GameTitle[i]=0) Then	Goto *ISH_ERR
+		End If
+	Next i
+	'サイズチェック
+	if header->RomSize > &H0D Then Goto *ISH_ERR	'Over 64Mbit
+'	if header->SramSize > &H07 Then Goto *ISH_ERR	'Over 128Kbit (BS-XだとSRAMSizeがデタラメなので廃止)
+	isSnesHeader=TRUE
+	ExitFunction
+
+*ISH_ERR
+	isSnesHeader=FALSE
+End Function

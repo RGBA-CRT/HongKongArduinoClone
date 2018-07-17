@@ -18,9 +18,9 @@
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '2'
+#define FIRMWARE_VERSION '3'
 
-//クロック回路有効/無効
+//クロック回路有効
 #define _ENABLE_CIC
 
 /*
@@ -65,7 +65,8 @@
 #include <avr/io.h>
 
 //I2C通信状態を解除してA4,A5ピンを使用可能に
-#define DISABLE_I2C() (TWCR = 0)
+#define DISABLE_I2C() { TWCR = 0;}
+#define ENABLE_I2C() {TWCR = 0x45;}
 
 //クロックジェネレータ
 Si5351 clockgen;
@@ -90,7 +91,7 @@ Si5351 clockgen;
 #define G1  12
 #define G2  13
 
-//コントロールピン PORTC
+//[PORTC]コントロールピン
 #define DIR  14
 #define CK  15
 #define OE  16
@@ -130,7 +131,7 @@ byte lastadr[3];
 // serial comm
 //-----------------
 
-inline void sendSerial(byte data) {
+inline void serial_send(byte data) {
   while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
   UDR0 = data;
 }
@@ -208,15 +209,12 @@ void setDatadir_cart(byte DATADIR) {
 //--------------
 // snes level
 //--------------
-
+#define LO_TO_REAL_ADDRESS(bank,address) {bank = (bank << 1) | (address >> 15);  address |= 0x8000;}
 //アドレスバスを設定
 inline void setAddress(byte bank, word address, byte isLoROM)
 {
   if (isLoROM) {
-    //address = (address & 0xFF8000) << 1 | (address & 0x007FFF) | 0x8000 ;
-    bank = (bank << 1) | (address >> 15);
-    address |= 0x8000;
-    //address = address / 0x8000 * 2 * 0x8000 + address % 0x8000 + 0x8000;
+    LO_TO_REAL_ADDRESS(bank, address);
   }
 
   BB_OUT_DISABLE();
@@ -265,7 +263,7 @@ inline void readCart(byte isLoROM) {
   word goalAdr = address + datasize;
   while (1) {
     setAddress(bank, address, isLoROM);
-    sendSerial(readData());
+    serial_send(readData());
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -325,17 +323,26 @@ inline void setCtrlBus(byte b) {
 
 #ifdef _ENABLE_CIC
 //[Nintendo Cart Reader]より
-void setupCloclGen() {
+void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
   // Adafruit Clock Generator
+  ENABLE_I2C();
   clockgen.set_correction(0);
   clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0);
   clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
   clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
   clockgen.set_freq(2147727200ULL, SI5351_PLL_FIXED, SI5351_CLK0);
+  if (clk2_oc) {
+    //over clock for SA-1
+    clockgen.set_freq(650000000ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+  } else {
+    //normal clock for BS-X
+    clockgen.set_freq(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+  }
   clockgen.set_freq(307200000ULL, SI5351_PLL_FIXED, SI5351_CLK2);
-  clockgen.output_enable(SI5351_CLK0, 1);
-  clockgen.output_enable(SI5351_CLK1, 0);
-  clockgen.output_enable(SI5351_CLK2, 1);
+  clockgen.output_enable(SI5351_CLK0, clk1_en);
+  clockgen.output_enable(SI5351_CLK1, clk2_en);
+  clockgen.output_enable(SI5351_CLK2, clk3_en);
+  DISABLE_I2C();
 }
 #endif
 
@@ -343,15 +350,12 @@ void setup()
 {
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
-  setupCloclGen();
-  //delay(100);
-  DISABLE_I2C();
+  setupCloclGen(true, false, true, false);
 #endif
 
   //コントロールピンをすべてOUTPUTに
-  for (int i = GD; i <= RST; i++) {
+  for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
-  }
 
   digitalWrite(GD, LOW);  //GD(PORTB 02) PWM DISABLE
   digitalWrite(GD, HIGH); // Disable
@@ -471,11 +475,10 @@ void loop() {
         while (Serial.available() < 1);
         byte mode = Serial.read();
 #ifdef _ENABLE_CIC
-        if (mode == '1') {
-          clockgen.set_freq(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
-          clockgen.output_enable(SI5351_CLK1, 1);
+        if ((mode & 0xf0) == 0x30) {
+          setupCloclGen(mode & 0x01, mode & 0x02, mode & 0x04, mode & 0x08);
         } else {
-          clockgen.output_enable(SI5351_CLK1, 0);
+          setupCloclGen(true, false, true, false);
         }
 #endif
       } break;
@@ -510,7 +513,7 @@ void loop() {
         writebyte_cart(0x00, 0x2400, 0x06);
         writebyte_cart(0x00, 0x2400, 0x39);
 
-     //   writebyte_cart(0x00, 0x2400, 0x05);
+        //   writebyte_cart(0x00, 0x2400, 0x05);
         if ( readbyte_cart(0x00, 0x2400) == 0x2A)
           Serial.print("OK");
         else
@@ -518,6 +521,7 @@ void loop() {
         Serial.write(readbyte_cart(0x00, 0x2400));
       } break;
 
+    case 'T':
     case 't':
       { // set register(1byte write)
         while (Serial.available() < 4);
@@ -525,12 +529,25 @@ void loop() {
         word address = Serial_readWord();
         byte data = Serial.read();
 
+        //lorom -> real address
+        if (cmd == 't') {
+          LO_TO_REAL_ADDRESS(bank, address);
+        }
+
         writebyte_cart(bank, address, data);
 
       } break;
 
+    case 's':
+      { // set register(1byte write)
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+        writebyte_cart(0x00, 0x2220, 04);
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+      } break;
+
     case 'F':
       { // flash config
+        // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
         while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
         flash_bank = Serial.read();
         for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
@@ -570,10 +587,6 @@ void loop() {
       } break;
 
   }
-  //setup flash command
-  //flash command
-  //wakeup SFmemory
-  //
 
 
 }
