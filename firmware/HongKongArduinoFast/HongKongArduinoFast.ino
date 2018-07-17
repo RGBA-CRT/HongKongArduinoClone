@@ -2,15 +2,7 @@
    Original : たにやま 2016/2/14 [http://hongkongarduino.web.fc2.com/]
    Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
    Some codes are referenced to [https://github.com/sanni/cartreader/]
-   History:
-    2016/7/2  Add LastAdr(Max55KB/s)
-    2016/8/29 SnesCIC対応
-    2017/2/15 [HKAF0]ファームチェック導入
-    2018/2/26 [HKAF1]動的ボーレート
-    2018/2/26 bankを超える吸出しは不可に(62Kb/s)
-    2018/2/27 Readにバッファリングを導入してみたが逆効果だった（40KB/s)
-    2018/2/27 SranWriteバッファリングを導入
-    2018/2/27 Serial.writeを自前で行うようにした(82KB/s)
+   Docs : https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
 
 //config
@@ -22,40 +14,6 @@
 
 //クロック回路有効
 #define _ENABLE_CIC
-
-/*
-  Reference :
-    'r' or 'R' 引数はアドレス(3バイト)とデーターサイズ(2バイト)で、
-               指定したアドレスからデーターサイズ分を送信
-
-    'w' or 'W' 引数はアドレス(3バイト)とデーターサイズ(2バイト)で、
-               アドレスをインクリメントしながら書き込んでいく
-
-    'a' or 'A' の引数はアドレス(３バイト)　アドレスバスを操作
-
-    'c'　引数はフラグ（１バイト）で、/CE /OE /WE RESET等を操作
-    'v'  引数なし。バージョンを返します。FIRMWARE_ID+FIRMWARE_VERSIONの形式
-    'g'  クロック関連　引数は'0'か'1'
-    'b'　ボーレートを変更 引数は32ビットリトルエンディアン
-*/
-/*
-  接続方法：
-  　1.INITIAL_BAUDRATE[bps]で通信開始
-    2.'v'コマンドを送る, 正常にFIRMWARE_IDが返ってくるまでリトライ
-    3.'b'コマンドでボーレートを1000000bpsとかにする。
-    4.手順2と同じく'v'コマンドで応答が来るまで待つ。
-      この時に応答がなければそのボーレートは使用不可
-*/
-/* ENABLLE_CICモードの場合
-  　・Si5351なし起動 ：
-    何かつながっていると(LEDとか)、ACK待ちでフリーズ
-    開放状態だとOK
-  　・Si5351あり、SuperCICなし -> SuperFXの場合不安定？
-  　・Si5351あり、SuperCICあり -> OK
-  　・カートリッジをつないだまま初期化すると、ACK待ちでフリーズ
-*/
-
-//データバスはOut, BusBufferはIn方向がデフォルトなので、違うように設定したら戻すこと
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -188,14 +146,11 @@ inline void setFF(byte ch, byte b)
   PORTB |= 0b00001000 << ch;
 }
 
-
 void setDatadir_cart(byte DATADIR) {
-  if (DATADIR == INPUT) {
+  if (DATADIR == INPUT)
     BB_DIR_INPUT(); //busbuffer dir
-  }
-  else {
+  else
     BB_DIR_OUTPUT();
-  }
 
   //busbuffer OE
   BB_OUT_ENABLE();
@@ -321,6 +276,47 @@ inline void setCtrlBus(byte b) {
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
+// /REを制御して読み込む
+byte readbyte_cart(byte bank, word address) {
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_OUTPUT_ENABLE();
+
+  setAddress(bank, address, false);
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  byte ret = readData();
+
+  CART_OUTPUT_DISABLE();
+  return ret;
+}
+
+//　/WRとかをちゃんと制御して書き込む
+void writebyte_cart(byte bank, word address, byte data) {
+  setAddress(bank, address, false);        setData(data);
+
+  BB_DIR_OUTPUT();
+  BB_OUT_ENABLE();
+  CART_OUTPUT_DISABLE();
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_ENABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_DISABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
+  //CART_OUTPUT_ENABLE();
+}
+
+
 #ifdef _ENABLE_CIC
 //[Nintendo Cart Reader]より
 void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
@@ -383,45 +379,6 @@ void setup()
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
-// /REを制御して読み込む
-byte readbyte_cart(byte bank, word address) {
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_OUTPUT_ENABLE();
-
-  setAddress(bank, address, false);
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  byte ret = readData();
-
-  CART_OUTPUT_DISABLE();
-  return ret;
-}
-
-//　/WRとかをちゃんと制御して書き込む
-void writebyte_cart(byte bank, word address, byte data) {
-  setAddress(bank, address, false);        setData(data);
-
-  BB_DIR_OUTPUT();
-  BB_OUT_ENABLE();
-  CART_OUTPUT_DISABLE();
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_WRITE_ENABLE();
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_WRITE_DISABLE();
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  BB_OUT_DISABLE();
-  BB_DIR_INPUT();
-  //CART_OUTPUT_ENABLE();
-}
 
 //flash config
 #define FLASH_COMMAND_LENGTH 3
