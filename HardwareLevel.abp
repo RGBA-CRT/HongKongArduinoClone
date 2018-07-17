@@ -115,7 +115,7 @@ EndSub
 
 'カートリッジからのデータ受信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
-Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
+Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
 	Dim cmd[7] AS Byte
 	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
@@ -171,7 +171,7 @@ EndFunction
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
-Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS Byte) As Long
+Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
 	Dim cmd[7] AS Byte
 	Dim WriteCount As DWord
 	Dim dwWD As DWord
@@ -213,7 +213,7 @@ EndFunction
 Enum HKAC_CLOCK_STATE
 	HKAC_CLOCK_NORMAL  		 = &H35,
 	HKAC_CLOCK_CPU_ENABLED   = &H37,
-	HKAC_CLOCK_CPU_OVERCLOCK = &H3f,
+	HKAC_CLOCK_CPU_OVERCLOCKED = &H3f,
 	HKAC_CLOCK_DISABLED      = &H30
 End Enum
 

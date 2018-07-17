@@ -3,7 +3,7 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "0.8"	'hirom sram + bstest + 
+Const VerStr = "0.9"	'hirom sram + bstest + 
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 

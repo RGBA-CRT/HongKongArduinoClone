@@ -106,7 +106,7 @@ Const BSM_SLOT_MAX = 8
 Const BSM_CAP_MAX = 1024*1024
 Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
 
-Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS DWord,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
+Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
 	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long
 	Dim file AS File
 	if isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
@@ -130,8 +130,7 @@ Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS DWord,baseAddress 
 		i++
 		if i>BSM_SLOT_MAX then exit while
 
-
-		curAdr+=BSM_getNextFileOffset(tmp)
+		curAdr+=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
 	Wend
 
 	if isSerial=FALSE Then file.close()
@@ -223,7 +222,7 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	Dim str AS StringClass
 	Dim title[16] AS Byte, blocks AS Long, status As StringClass
 	Dim header AS *BSM_FILE_HEADER
-	header=_header
+	header=_header AS *BSM_FILE_HEADER
 
 	memcpy(title,header->title,16)
 	blocks=countBits(header->blockAllocation)
@@ -265,13 +264,15 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 
 
 	str.sprintf(ex"Name   : %s\r\nDate   : %dŒŽ%d“ú\r\nUsage  : %d blocks (%d KB)\r\nOffset : %Xh\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
-		title,_ 
-		header->month >> 4,header->day >> 3,_
-		blocks,blocks*128,_
-		_header->offset,_
-		status.ptr,_
-		GetRomSpeedString(header->mapMode),GetRomMapString(header->mapMode),_
-		header->exeFlags,flagStr.ptr)
+		(title) As DWord,_ 
+		(header->month >> 4) As DWord , (header->day >> 3) As DWord , _
+		(blocks) As DWord , (blocks*128) As DWord , _
+		(_header->offset) As DWord , _
+		(status.ptr) As DWord , _
+		(GetRomSpeedString(header->mapMode)) As DWord , (GetRomMapString(header->mapMode)) As DWord , _
+		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
+	)
+
 
 '	printf(str.ptr)
 	str.copyToNewPtr(BSM_printInfo)

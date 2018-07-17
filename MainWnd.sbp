@@ -615,6 +615,8 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 	Dim buf[SFC_SPEC_HEADER_SIZE+5] As Byte
 	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
+	
+'	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
 	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
 
 	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
@@ -945,7 +947,7 @@ End Sub
 
 Sub MainWnd_CommandButton12_Click()
 	DBM("CPU CLOCK ENABLE")
-	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCKED)
 
 End Sub
 
