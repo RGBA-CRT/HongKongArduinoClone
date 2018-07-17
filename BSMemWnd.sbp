@@ -60,6 +60,7 @@ Sub BSMemWnd_ListBox1_SelChange()
 		DBM("BSM File #"+Str$(idx))
 		str=BSM_printInfo(headerList[idx])
 		DBM(str)
+		free(str)
 	Else
 		DBM("BSMem Full Dump")
 	End If
@@ -88,7 +89,7 @@ Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 		SendMessage(BSMWnd(BSM_MT),CB_ADDSTRING,0,packNameTable[i])
 		i++
 	Wend
-	SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,0,0)
+	SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,BSM_UNKNOWN,0)
 
 	'BSMの中身を一覧表示する。
 	'CREATE時点ではスロットタイプがMainWndから送られてきていないのでメッセージ送るだけ
@@ -102,7 +103,7 @@ Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
 	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
 	if idx=-1 Then DBM("Cartridge type not selected."):exitsub
 
-	DBM(sprintfStr("%s Selected.",slotNameTable[idx]))
+'	DBM(sprintfStr("%s Selected.",slotNameTable[idx]))
 
 
 	With virtualHeader				
@@ -134,6 +135,12 @@ Sub BSM_genVirtualSnesHeader(ByRef virtualHeader As SFC_CART_INFO)
 End Sub
 
 Sub BSMemWnd_CommandButton1_Click()
+	Dim idx As Long
+	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
+	if idx=BSM_SLOT_SA1 Then	
+		BSM_SA1_MemPackAccess(TRUE)
+	End If
+
 	'ダイアログの設定から仮想SFCヘッダを生成してダンプ
 	Dim virtualHeader As SFC_CART_INFO
 	BSM_genVirtualSnesHeader(virtualHeader)
@@ -152,7 +159,9 @@ Sub BSMemWnd_CommandButton1_Click()
 #ifndef _DEBUG
 	free(path)
 #endif
-
+	if idx=BSM_SLOT_SA1 Then	
+		BSM_SA1_MemPackAccess(FALSE)
+	End If
 '	.diableChecksum=TRUE
 Endsub
 
@@ -169,21 +178,44 @@ Sub BSMemWnd_BSM_MT_SelChange()
 	End If
 End Sub
 
-
+'SA-1のバンク切り替えでメモリパックにアクセスできるようにする
+Sub BSM_SA1_MemPackAccess(isStart AS BOOL)
+	if isStart Then
+		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCK)
+		Sleep(500)
+		SetCartRegister(&H00,&H2220,&H04,FALSE)	
+	Else
+		SetCartRegister(&H00,&H2220,&H00,FALSE)		
+		SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+	End If
+End Sub
 
 Sub BSMemWnd_CommandButton3_Click()
-	Dim virtualHeader As SFC_CART_INFO
-	BSM_genVirtualSnesHeader(virtualHeader)
+	Dim info As *BSM_MEMPACK_INFO
+	info=calloc(sizeof(BSM_MEMPACK_INFO))
+	BSM_GetMemPackInfo(info)
 
-	if BSM_genHeaderList(TRUE,hCOM,virtualHeader.AddrOffset,virtualHeader.isLoROM)=FALSE Then
-		DBM(ex"Memory Pack not working...\r\n")	
-		SendMessage(BSMWnd(ListBox1),LB_RESETCONTENT,0,0)
-		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Memory Pack is Empty)")
-		ExitSub
+	Dim mpstatus AS BytePtr
+	if info->MP = &H504D Then
+		mpstatus="OK"
+	Else
+		mpstatus="NG"
 	End If
-	BSM_listupFiles()
-	DBM(ex"Memory Pack Found!!!!!!\r\n")
+	DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s (%c%c)\r\n FlashType : %d\r\n Capacity  : %dKB\r\n",mpstatus,info->MP,info->MP>>8,info->DeviceInfo>>4,(1 << (info->DeviceInfo And &H0F)) ))
 
+	Dim typeNumber AS Long
+	typeNumber=info->DeviceInfo>>4
+
+	if typeNumber<1 And typeNumber>4 Then
+		SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,BSM_UNKNOWN,0)
+		DBM("Invaild MemoryPack Type")
+	Else	
+		SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,typeNumber-1,0)
+	End If
+Endsub
+
+'メモリパック自体の情報と、中身のファイルリストを取得する（いつか分離する）
+Function BSM_GetMemPackInfo(mempackinfo AS *BSM_MEMPACK_INFO) AS BOOL
 	Dim idx AS DWord,cmdBank AS Byte,isLoROM AS BOOL
 	Dim info[32] AS Byte
 	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
@@ -194,10 +226,15 @@ Sub BSMemWnd_CommandButton3_Click()
 
 	if idx=BSM_SLOT_BIOS Then
 		'Disable BS-X MCC Write Protects
+		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
+		Sleep(500)
 		SetCartRegister(&H0C,&H5000,&H80,FALSE)	
 		SetCartRegister(&H0D,&H5000,&H80,FALSE)	
 		SetCartRegister(&H0E,&H5000,&H80,FALSE)	
+	Else if idx=BSM_SLOT_SA1 Then	
+		BSM_SA1_MemPackAccess(TRUE)
 	End If
+	
 
 	'request chip info part1
 	SetCartRegister(cmdBank,&H0000,&H38,isLoROM)	
@@ -219,11 +256,35 @@ Sub BSMemWnd_CommandButton3_Click()
 
 	ReadROM(hCOM,info,0,(cmdBank<<16)+&H00FF00,16,isLoROM)
 	Dump(info,16)
+	mempackinfo->MP=info[0] Or info[2]<<8
+	mempackinfo->Flags=info[4]
+	mempackinfo->DeviceInfo=info[6]
+	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
 
 	'exit status mode
 	SetCartRegister(cmdBank,&H0000,&HFF,isLoROM)
+
+	Dim virtualHeader As SFC_CART_INFO
+	BSM_genVirtualSnesHeader(virtualHeader)
+
+	if BSM_genHeaderList(TRUE,hCOM,virtualHeader.AddrOffset,virtualHeader.isLoROM)=FALSE Then
+		DBM(ex"Memory Pack not working...\r\n")	
+		SendMessage(BSMWnd(ListBox1),LB_RESETCONTENT,0,0)
+		SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Memory Pack is Empty)")
+		Goto *BSM_DITECT_BTN_EXIT
+	End If
+	BSM_listupFiles()
+	DBM(ex"Memory Pack Found!!!!!!\r\n")
+
+*BSM_DITECT_BTN_EXIT
+	if idx=BSM_SLOT_BIOS Then
+		SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+	Elseif idx=BSM_SLOT_SA1 Then
+		BSM_SA1_MemPackAccess(FALSE)
+	End If
+
 '*/
-End Sub
+End Function
 
 Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Dim buf[MAX_PATH] As Byte
@@ -263,5 +324,9 @@ Sub BSM_listupFiles()
 	Wend
 
 '	SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"[Full Dump]")
+
+End Sub
+
+Sub BSMemWnd_BSM_MT_EditChange()
 
 End Sub

@@ -346,7 +346,7 @@ Sub WriteSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 		lastBlock=(info->SRAMSize/&H2000) AS DWord
 		DBM("blocks = "+Hex$(lastBlock))
 
-		SetCPU_Clock(hFile,TRUE)
+		SetCPU_Clock(hFile,HKAC_CLOCK_CPU_ENABLED)
 	
 		for block=0 To lastBlock-1
 			SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
@@ -393,7 +393,7 @@ Sub WriteSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 		cmd[0]=0
 		WriteROM(hFile,cmd,0,&H2226,1,FALSE)	'SRAM DISABLE
 
-		SetCPU_Clock(hFile,FALSE)
+		SetCPU_Clock(hFile,HKAC_CLOCK_NORMAL)
 
 		SendControl(hFile,12)	'RST LOW
 	Endif

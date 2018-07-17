@@ -522,7 +522,8 @@ Sub MainWnd_CommandButton7_Click()
 	data=GetDlgItemHex(MWnd(EditBox3)) As Byte
 	adr=GetDlgItemHex(MWnd(EditBox4))
 	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
-	WriteROM(hCOM,VarPtr(data),0,adr,1,GetCheckBox(MWnd(CheckBox6)))
+	WriteROM(hCOM,VarPtr(data),0,adr,1, _
+			NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
 End Sub
 
 Sub MainWnd_CommandButton8_Click()
@@ -589,7 +590,10 @@ Sub MainWnd_CommandButton1_Click()
 End Sub
 
 Sub MainWnd_CommandButton10_Click()
-
+/*	DBM("SA-1 BSX MEM MAP C0")
+	SetCartRegister(0,&H02220,&H04,FALSE)*/
+	
+	SetCPU_Clock(hCOM,HKAC_CLOCK_DISABLED)
 End Sub
 
 
@@ -612,7 +616,8 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
 	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
-	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<>SFC_SPEC_HEADER_SIZE Then
+
+	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info.Title,"[ERR]通信エラー")
 		SetCartInfo(VarPtr(info))
 		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
@@ -810,7 +815,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 		Case 03 : DBM("(unknown)")
 	EndSelect
 
-	DBM("Version : "+Str$(info->Version/10+1.0))
+	DBM(ex"Version : "+Str$(info->Version/10+1.0))
 	if info->hasExtraHeader Then
 		'DBM("Extra Header Found.")
 		DBM(sprintfStr("MakerID : [%02X] %s", info->MakerCode, info->MakerName))
@@ -939,34 +944,20 @@ End Sub
 
 
 Sub MainWnd_CommandButton12_Click()
-	Dim cmd[5] AS Byte,dwAB AS DWord
-	cmd[0]=Asc("i")
-	WriteFile(hCOM,cmd,1,VarPtr(dwAB),ByVal NULL)
-	Sleep(100)
-	FlushCom(hCOM)
+	DBM("CPU CLOCK ENABLE")
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
 
 End Sub
 
 Sub MainWnd_CommandButton15_Click()
-	ResetArduino(hCOM)	'効く
+
+'	ResetArduino(hCOM)	'効く
 	FlushCom(hCOM)
 End Sub
 
-Sub MainWnd_CommandButton16_Click()
-	ChangeBaudrate(hCOM,1000000)
-
-End Sub
-
 Sub MainWnd_CommandButton13_Click()
-
-	Dim info As SFC_CART_INFO
-	Dim path As BytePtr
-
-	GetDumpConfig(info)
-	info.ROMSize=1024*1024*4
-	info.ROMType=SFC_MAP_HiROM
-	debug
-	DumpFullROM(VarPtr(info),"npdump.sfc")
+	DBM("CPU CLOCK DISABLE")
+	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
 End Sub
 
 Sub MainWnd_CommandButton14_Click()

@@ -35,6 +35,14 @@ Enum BSM_SLOT_TYPE
 	BSM_SLOT_TYPE_NUM
 End Enum
 
+
+Type BSM_MEMPACK_INFO
+	MP AS Word
+	Flags AS Byte
+	DeviceInfo AS Byte
+End Type
+
+
 'LoROMモードにおけるBSMCの位置Cn:8000h
 Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
 Const BSX_MEMPACK_ADR_HiROM = &HE00000 
@@ -43,7 +51,7 @@ Const BSX_MEMPACK_ADR_BIOS  = &HC00000
 
 Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
 	"BS-X BIOS",
-	"SA-1  (ﾊﾞｽ釣 ｶﾞﾝﾀﾞﾑ)[未実装]",
+	"SA-1  (ﾊﾞｽ釣 ｶﾞﾝﾀﾞﾑ)[非推奨]",
 	"HiROM (鮫亀 天牌 奏)",
 	"LoROM (ﾀﾞﾋﾞｽﾀ96 ﾉﾍﾞﾙ ﾂｸｰﾙ)",
 	0
@@ -56,6 +64,7 @@ Enum BSM_PACK_TYPE
 	BSM_8M_TYPE4
 	BSM_GNEXT
 	BSM_SAMEGAME
+	BSM_UNKNOWN
 	BSM_PACK_TYPE_NUM
 End Enum
 
@@ -66,6 +75,7 @@ Dim packNameTable[BSM_PACK_TYPE_NUM] = [
 	"8Mメモリパック TYPE 4",
 	"GNEXT ユニット＆マップコレクション",
 	"鮫亀キャラカセット",
+	"(不明)",
 	0
 ] AS BytePtr 
 
@@ -94,7 +104,7 @@ End Function
 
 Const BSM_SLOT_MAX = 8
 Const BSM_CAP_MAX = 1024*1024
-Dim headerList[BSM_SLOT_MAX] AS *BSM_FILE_INFO
+Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
 
 Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS DWord,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
 	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long
@@ -118,6 +128,9 @@ Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS DWord,baseAddress 
 		headerList[i]=tmp
 
 		i++
+		if i>BSM_SLOT_MAX then exit while
+
+
 		curAdr+=BSM_getNextFileOffset(tmp)
 	Wend
 
@@ -206,9 +219,11 @@ Function BSM_isHeader(header As *BSM_FILE_HEADER) AS BOOL
 	BSM_isHeader=TRUE
 End Function
 
-Function BSM_printInfo(header As *BSM_FILE_HEADER)  AS BytePtr
+Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	Dim str AS StringClass
 	Dim title[16] AS Byte, blocks AS Long, status As StringClass
+	Dim header AS *BSM_FILE_HEADER
+	header=_header
 
 	memcpy(title,header->title,16)
 	blocks=countBits(header->blockAllocation)
@@ -249,10 +264,11 @@ Function BSM_printInfo(header As *BSM_FILE_HEADER)  AS BytePtr
 	End If
 
 
-	str.sprintf(ex"Name   : %s\r\nDate   : %d月%d日\r\nUsage  : %d blocks (%d KB)\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
+	str.sprintf(ex"Name   : %s\r\nDate   : %d月%d日\r\nUsage  : %d blocks (%d KB)\r\nOffset : %Xh\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
 		title,_ 
 		header->month >> 4,header->day >> 3,_
 		blocks,blocks*128,_
+		_header->offset,_
 		status.ptr,_
 		GetRomSpeedString(header->mapMode),GetRomMapString(header->mapMode),_
 		header->exeFlags,flagStr.ptr)

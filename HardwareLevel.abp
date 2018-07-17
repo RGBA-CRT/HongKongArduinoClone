@@ -210,14 +210,24 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	
 EndFunction
 
+Enum HKAC_CLOCK_STATE
+	HKAC_CLOCK_NORMAL  		 = &H35,
+	HKAC_CLOCK_CPU_ENABLED   = &H37,
+	HKAC_CLOCK_CPU_OVERCLOCK = &H3f,
+	HKAC_CLOCK_DISABLED      = &H30
+End Enum
 
-Sub SetCPU_Clock(hSerial AS HANDLE,isStart AS BOOL)
+Sub SetCPU_Clock(hSerial AS HANDLE,flag AS HKAC_CLOCK_STATE)
 	Dim dwWB AS DWord
-	if isStart=TRUE Then
-		WriteFile(hSerial,"g1", 2,VarPtr(dwWB) , ByVal NULL)
-	Else
-		WriteFile(hSerial,"g0", 2,VarPtr(dwWB) , ByVal NULL)
-	End If
+	Dim cmd[1] AS Byte
+
+	cmd[0]=Asc("g")
+	cmd[1]=flag
+
+	WriteFile(hSerial,cmd, 2,VarPtr(dwWB) , ByVal NULL)
+
+	DBM(sprintfStr("ClockOutput: %d, %d, %d, oc:%d",(flag And 1),(flag And 2)>>1,(flag And 4)>>2,(flag And 8)>>3))
+
 End Sub
 
 #console

@@ -20,7 +20,7 @@
 #define FIRMWARE_ID "HKAF"
 #define FIRMWARE_VERSION '3'
 
-//クロック回路有効/無効
+//クロック回路有効
 #define _ENABLE_CIC
 
 /*
@@ -65,7 +65,8 @@
 #include <avr/io.h>
 
 //I2C通信状態を解除してA4,A5ピンを使用可能に
-#define DISABLE_I2C() (TWCR = 0)
+#define DISABLE_I2C() { TWCR = 0;}
+#define ENABLE_I2C() {TWCR = 0x45;}
 
 //クロックジェネレータ
 Si5351 clockgen;
@@ -90,7 +91,7 @@ Si5351 clockgen;
 #define G1  12
 #define G2  13
 
-//コントロールピン PORTC
+//[PORTC]コントロールピン
 #define DIR  14
 #define CK  15
 #define OE  16
@@ -322,17 +323,26 @@ inline void setCtrlBus(byte b) {
 
 #ifdef _ENABLE_CIC
 //[Nintendo Cart Reader]より
-void setupCloclGen() {
+void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
   // Adafruit Clock Generator
+  ENABLE_I2C();
   clockgen.set_correction(0);
   clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0);
   clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
   clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
   clockgen.set_freq(2147727200ULL, SI5351_PLL_FIXED, SI5351_CLK0);
+  if (clk2_oc) {
+    //over clock for SA-1
+    clockgen.set_freq(650000000ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+  } else {
+    //normal clock for BS-X
+    clockgen.set_freq(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+  }
   clockgen.set_freq(307200000ULL, SI5351_PLL_FIXED, SI5351_CLK2);
-  clockgen.output_enable(SI5351_CLK0, 1);
-  clockgen.output_enable(SI5351_CLK1, 0);
-  clockgen.output_enable(SI5351_CLK2, 1);
+  clockgen.output_enable(SI5351_CLK0, clk1_en);
+  clockgen.output_enable(SI5351_CLK1, clk2_en);
+  clockgen.output_enable(SI5351_CLK2, clk3_en);
+  DISABLE_I2C();
 }
 #endif
 
@@ -340,15 +350,12 @@ void setup()
 {
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
-  setupCloclGen();
-  //delay(100);
-  DISABLE_I2C();
+  setupCloclGen(true, false, true, false);
 #endif
 
   //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
-
 
   digitalWrite(GD, LOW);  //GD(PORTB 02) PWM DISABLE
   digitalWrite(GD, HIGH); // Disable
@@ -468,11 +475,10 @@ void loop() {
         while (Serial.available() < 1);
         byte mode = Serial.read();
 #ifdef _ENABLE_CIC
-        if (mode == '1') {
-          clockgen.set_freq(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
-          clockgen.output_enable(SI5351_CLK1, 1);
+        if ((mode & 0xf0) == 0x30) {
+          setupCloclGen(mode & 0x01, mode & 0x02, mode & 0x04, mode & 0x08);
         } else {
-          clockgen.output_enable(SI5351_CLK1, 0);
+          setupCloclGen(true, false, true, false);
         }
 #endif
       } break;
@@ -491,7 +497,7 @@ void loop() {
         //各種コマンドを投げてください
 
       } break;
-      
+
     case 'S':
       { // setup SF memory
 
@@ -530,6 +536,13 @@ void loop() {
 
         writebyte_cart(bank, address, data);
 
+      } break;
+
+    case 's':
+      { // set register(1byte write)
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+        writebyte_cart(0x00, 0x2220, 04);
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
       } break;
 
     case 'F':
