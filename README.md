@@ -44,13 +44,13 @@ This project adds high speed damping, SRAM read/write and other. Only works on w
 対応状況は以下の通りです。
  * [OK] SFメモリカセット / NP FLASH Cart(SF Memory)
  * [OK] 特殊LoROM (ダビスタ96) / Special LoROM(3MB)
- * [NG] 8Mメモリパック / satellaview 8M data pack
+ * [OK] 8Mメモリパック / satellaview 8M data pack
  * [OK] S-DD1
  * [OK] SA-1
  * [OK] SPC7110
- * [未確認] ExHiROM
- * [未確認] CX4
- * [未確認] STシリーズ
+ * [OK] ExHiROM
+ * [NG] CX4
+ * [NG] STシリーズ
  
 SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。  
 Dump from SA-1 and SPC7110 needs following Clock Modlue.  
@@ -112,3 +112,4 @@ Ver0.8からSFメモリカセットの吸出しに対応しました。
 	[2018/02/10]ver 0.62- UIを微修正。D&DでROMヘッダを表示するようにした。
 	[2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 96KB/s)
 	[2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正
+	[2018/07/18]ver 0.9 - BS-Xメモリーパックに対応。
