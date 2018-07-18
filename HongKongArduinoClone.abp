@@ -20,6 +20,15 @@ Const FIRMWARE_VERSION=&H33
 
 Dim INIFILE_PATH AS BytePtr
 
+#define DEBUG_BUILD
+#ifdef DEBUG_BUILD
+#console
+#else
+Declare Function AllocConsole Lib "kernel32" () As Long
+Dim _System_hConsoleOut As HANDLE
+_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
+#endif
+
 '---------------------------
 '  Window Message Loop
 '---------------------------

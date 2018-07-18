@@ -139,7 +139,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,info->isLoROM)
 		if ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
 		if ret<>DUMP_BUFFER_SIZE Then 
-			DBM(ex"\r\n["+Str$(C)+ex"]Warning!")
+			DBMN(ex"[x"+Str$(C)+ex"]")
 			C++
 			if C>MAX_CONTINUE Then DBM("Over retry count.")
 			Continue
@@ -219,7 +219,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		DBM(ex"Successful!!!")
 	Else
 		if info->diableChecksum Then
-			DBM("Dumping may be OK...")
+			DBM("Dumping may have been successful...")
 		Else
 			DBM(ex"Checksum Error!!!")
 			MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _

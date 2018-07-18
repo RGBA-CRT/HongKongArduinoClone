@@ -514,7 +514,13 @@ End Sub
 
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 	'ESC+マウス中ボタンダブルクリックでテストモード
-	if GetKeyState(VK_ESCAPE) And &H80 Then MoveWindow(hMainWnd,0,0,475,330,TRUE)
+	if GetKeyState(VK_ESCAPE) And &H80 Then 
+		MoveWindow(hMainWnd,0,0,475,330,TRUE)
+		AllocConsole()
+		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
+		printf("Welcome to debug mode")
+	Endif
+
 End Sub
 
 Sub MainWnd_CommandButton7_Click()
@@ -584,6 +590,8 @@ Sub MainWnd_CommandButton1_Click()
 	Else
 		BSM_close()
 	End If
+	
+	SetCheckBox(MWnd(CheckBox7),hasClockModule(hCOM))
 
 	'アクセスランプをLow
 	SetAddress(hCOM,&H000000,FALSE)
@@ -997,4 +1005,8 @@ Sub MainWnd_MAPPING_SelChange()
 	Else
 		ShowWindow(MWnd(CommandButton14),SW_HIDE)
 	End If
+End Sub
+
+Sub MainWnd_CheckBox1_Click()
+
 End Sub

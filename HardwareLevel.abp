@@ -226,11 +226,28 @@ Sub SetCPU_Clock(hSerial AS HANDLE,flag AS HKAC_CLOCK_STATE)
 
 	WriteFile(hSerial,cmd, 2,VarPtr(dwWB) , ByVal NULL)
 
-	DBM(sprintfStr("ClockOutput: %d, %d, %d, oc:%d",(flag And 1),(flag And 2)>>1,(flag And 4)>>2,(flag And 8)>>3))
-
+	ReadFile(hSerial,cmd,1,VarPtr(dwWB),ByVal NULL)
+	
+	printf(ex"ClockOutput: %d, %d, %d, oc:%d ret:%X dwAB:%d\n",(flag And 1),(flag And 2)>>1,(flag And 4)>>2,(flag And 8)>>3,cmd[0],dwWB)
 End Sub
 
-#console
+
+Function hasClockModule(hSerial AS HANDLE) AS BOOL
+	Dim dwWB AS DWord
+	Dim cmd[1] AS Byte
+
+	cmd[0]=Asc("G")
+
+	WriteFile(hSerial,cmd, 2,VarPtr(dwWB) , ByVal NULL)
+
+	ReadFile(hSerial,cmd,1,VarPtr(dwWB),ByVal NULL)
+	if cmd[0]=&H31 Then
+		hasClockModule=TRUE
+	Else
+		hasClockModule=FALSE
+	End If
+End Function
+
 'Arduinoに書かれているファームをチェック(別のスケッチか識別)
 'msgをFALSEにするとsilentモード
 Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
