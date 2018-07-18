@@ -129,6 +129,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	DBMN("Dumping")
 
 	lt=GetTickCount()
+	debug
 
 	Do
 		'ESCキーでキャンセル
@@ -141,7 +142,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		if ret<>DUMP_BUFFER_SIZE Then 
 			DBMN(ex"[x"+Str$(C)+ex"]")
 			C++
-			if C>MAX_CONTINUE Then DBM("Over retry count.")
+			'if C>MAX_CONTINUE Then DBM("Over retry count.")
 			Continue
 		endif
 
@@ -196,7 +197,15 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 				bBankChanged=TRUE
 				SPC7110_SetBanks(hCOM,1,FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
 				DumpAddress=offset+&H300000	'F0:0000からリスタート
-
+			Elseif info->ROMType=SFC_MAP_ExHiROM Then
+				if bBankChanged Then
+					ExitDo
+				Else
+					DumpAddress=&H400000
+					offset=&H400000
+					DBM("[ExHiROM]ROM P1 Bank:40-")
+					bBankChanged=TRUE
+				End If
 			End If
 
 		End If
