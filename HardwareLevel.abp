@@ -132,7 +132,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	Dim cs AS COMSTAT
 
 	Do		
-		if retry>HKAC_HW_RETRY or GetKeyState(VK_ESCAPE) And &H80 Then ExitDo
+		if retry>HKAC_HW_RETRY or GetCancelKey() And &H80 Then ExitDo
 
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
@@ -269,13 +269,13 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 	Dim cmd[2] AS Byte,rsv[10] As byte,FwVer AS Byte,retry AS Long
 	Dim dwWD As DWord
 	
-	if msg=TRUE Then DBMN("Firmware ID : ") 
+
 	cmd[0] = Asc("v")
 *SEND_VER_CHECK
 	if WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 	if ReadFile(hSerial,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 
-	DBM(rsv) 
+	Print "VerCheck:"
 	Dump(rsv,6)
 	
 
@@ -306,7 +306,7 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 			CheckFirmware=FALSE
 		Else
 			retry++	
-			DBMN("VerCheck retry...")
+			DBM("VerCheck retry...")
 			PumpMessage()
 			if retry And 1 = 0 Then
 				WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)
@@ -321,7 +321,11 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 				Goto *SEND_VER_CHECK
 			End If
 		End If
-
+	End If
+	
+	if msg=TRUE Then 
+		DBMN("FirmwareID : ") 
+		DBM(rsv) 
 	End If
 End Function
 

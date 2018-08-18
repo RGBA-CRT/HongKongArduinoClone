@@ -89,7 +89,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	177 As BytePtr, "ASCII", 
 	178 As BytePtr, "BanDai America", 
 	180 As BytePtr, "Enix", 
-	182 As BytePtr, "Halken", 
+	182 As BytePtr, "Namco", 
 	186 As BytePtr, "Culture Brain", 
 	187 As BytePtr, "Sunsoft", 
 	188 As BytePtr, "Toshiba EMI/System Vision", 

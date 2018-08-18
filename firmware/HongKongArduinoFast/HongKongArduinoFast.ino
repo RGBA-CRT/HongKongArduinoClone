@@ -78,7 +78,7 @@ Si5351 clockgen;
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //バッファ
-#define BUFFER_LEN 0xFF
+#define BUFFER_LEN 0xFF //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 

@@ -8,6 +8,8 @@
 
 Dim hCOM As HANDLE
 Dim DlgStatus As DLG_STATUS
+Dim fWindowActive AS BOOL
+
 
 'ダイアログの状態
 Enum DLG_STATUS
@@ -56,7 +58,7 @@ End Sub
 
 Sub ResetDBM()
 	SetWindowText(MWnd(EditBox1),"")
-	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016\r\nThis program was cloned \r\n     from WinHongKongArduino\r\nCopyright (c) 2014 たにやま\r\n")
+	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016\r\nThis program was cloned \r\n    from WinHongKongArduino.\r\nCopyright (c) 2014 たにやま\r\n")
 End Sub
 
 Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
@@ -209,12 +211,12 @@ Sub MainWnd_CommandButton5_Click()
 
 		if hCOM = NULL Then 
 			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。","接続失敗",0,GetLastError())
-			DBM("Failed.")
+			DBM("Serial connection Failed.")
 			hCOM=0
 			free(txCom)	
 			ExitSub
 		Else
-			DBM(ex"open ok\r\n")
+			DBM(ex"Connection Stage1 OK.\r\n")
 		endif
 		free(txCom)	
 
@@ -225,6 +227,7 @@ Sub MainWnd_CommandButton5_Click()
 		if CheckFirmware(hCOM,TRUE)=FALSE Then 
 			goto *HKAF_CON_ERR
 		Endif
+		DBM(ex"Connection Stage2 OK.\r\n")
 
 		'ボーレート変更コマンド送信
 		ChangeBaudrate(hCOM,rate)
@@ -237,7 +240,7 @@ Sub MainWnd_CommandButton5_Click()
 			goto *HKAF_CON_ERR
 		End If
 
-		DBM(ex"Connection Successfull!!!\r\n")
+		DBM(ex"Connection Successful!!!\r\n")
 
 		'GetCartInfo
 		MainWnd_CommandButton1_Click()
@@ -417,9 +420,14 @@ Sub MainWnd_CommandButton4_Click()
 	path=LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
 	if path=0 Then ExitSub
 #else
-	path="write.srm"
+	if GetKeyState(VK_ESCAPE) And &H80 Then
+		path=LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
+	Else
+		path="write.srm"
+	End If
+
 #endif
-	if MessageBox(hMainWnd,ex"この操作を行うとカセット内のセーブデータの内容が消えて上書きされます。\nまた、この機能は未完成のため正常にデータが書き込めない可能性があります。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
+	if MessageBox(hMainWnd,ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
 	Dim info As SFC_CART_INFO
 	GetDumpConfig(info)
 	WriteSRAM(hCOM,VarPtr(info),path)
@@ -555,14 +563,14 @@ End Sub
 
 Sub MainWnd_CommandButton1_Click()
 	Dim buf[SFC_SPEC_HEADER_SIZE+2] As Byte,cartInfo As SFC_CART_INFO
-	DBM( "Get Cartridge Infomation")
+	DBM( "Cartridge Infomation")
 
 	'ヘッダを読み出し＆ダイアログに情報を表示
 	FlushCom(hCOM)
 	getCartInfo(cartInfo)
 
 	'ダイアログに表示
-	SetCartInfo(VarPtr(cartInfo))
+	SetCartInfo(VarPtr(cartInfo),TRUE)
 	if cartInfo.ROMType=SFC_MAP_HiROM Then 
 		SetCheckBox(MWnd(CheckBox1),TRUE)
 	else		
@@ -615,7 +623,7 @@ Sub GetDumpConfig(ByRef info As SFC_CART_INFO)
 
 	GetDlgOption(info)	'infoにGUIの設定を反映
 
-	SetCartInfo(VarPtr(info))
+	SetCartInfo(VarPtr(info),FALSE)
 EndSub
 
 
@@ -630,7 +638,7 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 
 	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info.Title,"[ERR]通信エラー")
-		SetCartInfo(VarPtr(info))
+		SetCartInfo(VarPtr(info),TRUE)
 		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
 		DisconnectDevice()
 		ExitSub
@@ -660,16 +668,6 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 
 	info.ROMType=getSelectedMapMode() As Byte
 	info.MapMode = (info.MapMode And &HF0) or info.ROMType
-
-/*	info.Mad=GetCheckBox(MWnd(CheckBox1))
-	if info.Mad=TRUE Then
-		if info.ROMType=SFC_MAP_HiROM Then
-			info.SRAMAddress=SRAM_ADDRESS_HiROM_MAD
-		Else
-			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
-		endif
-	endif*/
-'	info.ROMSize=1024*1024*4
 EndSub
 
 
@@ -718,9 +716,7 @@ End Function
 
 
 'カートリッジ情報をGUIに反映
-Sub SetCartInfo(info As *SFC_CART_INFO)
-	'SFC_CART_INFOの内容をGUIに表示
-
+Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 	Dim CartChip[512] As Byte
 	Const UNK_CART_TYPE_TEXT = "+???"
 
@@ -728,7 +724,6 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->ROMType),0)
 	MainWnd_MAPPING_SelChange()
 
-	DBMN("Chips : ")
 	lstrcpy(CartChip,"ROM")
 
 	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
@@ -800,46 +795,48 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 	EndSelect
 
 	SetWindowText(MWnd(CART_CIPS),CartChip)
-	wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
-	DBM(CartChip)
 	
-	DBM(sprintfStr("MapMode:[%02X]%s%s",info->MapMode,GetRomSpeedString(info->MapMode),GetRomMapString(info->MapMode)))
+	if bMessageOutput Then	
+		DBMN("Chips: ")
+		wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
+		DBM(CartChip)
+		
+		DBM(sprintfStr("MapMode :[%02X]%s%s",info->MapMode,GetRomSpeedString(info->MapMode),GetRomMapString(info->MapMode)))
 
-	if info->ROMSize =0 Then
-		SetWindowText(MWnd(ROM_SIZE),"None")		
-	Else
-		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
-							(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
-	endif
+		if info->ROMSize =0 Then
+			SetWindowText(MWnd(ROM_SIZE),"None")		
+		Else
+			SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
+								(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
+		endif
 
-	if info->SRAMSize =0 Then
-		SetWindowText(MWnd(SRAM_SIZE),"None")		
-	Else
-		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
-	endif
+		if info->SRAMSize =0 Then
+			SetWindowText(MWnd(SRAM_SIZE),"None")		
+		Else
+			SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"KBit]")
+		endif
 
-	DBMN("Country : ")
-	Select Case info->Country
-		Case 00 : DBM("Japan")
-		Case 01 : DBM("USA")
-		Case 02 : DBM("Europe")
-		Case 03 : DBM("(unknown)")
-	EndSelect
+		DBMN("Country : ")
+		Select Case info->Country
+			Case 00 : DBM("Japan")
+			Case 01 : DBM("USA")
+			Case 02 : DBM("Europe")
+			Case 03 : DBM("(unknown)")
+		EndSelect
 
-	DBM(ex"Version : "+Str$(info->Version/10+1.0))
-	if info->hasExtraHeader Then
-		'DBM("Extra Header Found.")
-		DBM(sprintfStr("MakerID : [%02X] %s", info->MakerCode, info->MakerName))
-		'DBM("MakerID : "+Chr$(info->rawHeader.MakerCode And &HFF)+Chr$((info->rawHeader.MakerCode >> 8) And &HFF))
-		DBMN("GameCode: SHVC-"): DBM(info->GameCode)
+		DBM(ex"Version : "+Str$(info->Version/10+1.0))
+		if info->hasExtraHeader Then
+			'DBM("Extra Header Found.")
+			DBM(sprintfStr("MakerID : [%02X] %s", info->MakerCode, info->MakerName))
+			DBMN("GameCode: SHVC-"): DBM(info->GameCode)
+		End If
+
+		DBM("CheckSum1(sum) : "+Hex$(info->CheckSum1))
+		DBM("CheckSum2(rev) : "+Hex$(info->CheckSum2))
+
+		DBM("")
+		if info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
 	End If
-
-	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
-	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
-'	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
-	DBM("")
-	if info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
-
 EndSub	
 
 Function GetCheckBox(Ctrl As HWND) As Byte
@@ -938,7 +935,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	End If
 	
 	SloveCartInfo(VarPtr(header),VarPtr(cartInfo))
-	SetCartInfo(VarPtr(cartInfo))
+	SetCartInfo(VarPtr(cartInfo),TRUE)
 
 	
 End Sub
@@ -1010,4 +1007,20 @@ End Sub
 
 Sub MainWnd_CheckBox1_Click()
 
+End Sub
+
+Function GetCancelKey() AS BOOL
+	if (GetKeyState(VK_ESCAPE) And &H80) And (fWindowActive=TRUE) Then
+		GetCancelKey=TRUE
+	Else
+		GetCancelKey=FALSE
+	End If
+End Function
+
+Sub MainWnd_Activate(state As Integer, minimized As Integer)
+	if state=WA_INACTIVE Then
+		fWindowActive=FALSE
+	Else
+		fWindowActive=TRUE
+	End If
 End Sub
