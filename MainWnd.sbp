@@ -558,6 +558,7 @@ Sub MainWnd_CommandButton1_Click()
 	DBM( "Get Cartridge Infomation")
 
 	'ヘッダを読み出し＆ダイアログに情報を表示
+	FlushCom(hCOM)
 	getCartInfo(cartInfo)
 
 	'ダイアログに表示
@@ -660,14 +661,14 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 	info.ROMType=getSelectedMapMode() As Byte
 	info.MapMode = (info.MapMode And &HF0) or info.ROMType
 
-	info.Mad=GetCheckBox(MWnd(CheckBox1))
+/*	info.Mad=GetCheckBox(MWnd(CheckBox1))
 	if info.Mad=TRUE Then
 		if info.ROMType=SFC_MAP_HiROM Then
 			info.SRAMAddress=SRAM_ADDRESS_HiROM_MAD
 		Else
 			info.SRAMAddress=SRAM_ADDRESS_LoROM_MAD
 		endif
-	endif
+	endif*/
 '	info.ROMSize=1024*1024*4
 EndSub
 
@@ -835,7 +836,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 
 	DBM("CheckSum1(not)  : "+Hex$(info->CheckSum1))
 	DBM("CheckSum2(ffff) : "+Hex$(info->CheckSum2))
-	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
+'	if info->SRAMSize<>0 Then DBM("SRAM Address : 0x"+Hex$(info->SRAMAddress))
 	DBM("")
 	if info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
 

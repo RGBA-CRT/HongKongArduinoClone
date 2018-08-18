@@ -69,7 +69,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	139 As BytePtr, "Bullet-Proof Software", 
 	140 As BytePtr, "Vic Tokai", 
 	143 As BytePtr, "I'Max", 
-	145 As BytePtr, "CHUN Soft", 
+	145 As BytePtr, "CHUN SOFT", 
 	146 As BytePtr, "Video System Co., Ltd.", 
 	147 As BytePtr, "BEC", 
 	151 As BytePtr, "Kaneco", 

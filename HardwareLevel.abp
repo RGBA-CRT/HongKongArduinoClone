@@ -1,16 +1,5 @@
 'ファーム制御系
 
-Const OE = 1
-Const CE = 2
-Const WE = 4
-Const RST= 8
-Const SRAM_READ_NOMAL = RST or WE 
-Const SRAM_READ_MAD   = RST or WE or CE
-Const SRAM_WRITE_NORMAL=RST or OE
-Const SRAM_WRITE_MAD  = RST or OE or CE
-Const SRAM_WRITE_SA1 = RST or OE or WE or CE
-
-Const DEFAULT_CTRLBUS = &H0C	'RST WE
 
 
 Function SetComTimeOut(hSerialPort AS HANDLE,TimeOut AS DWord) AS Byte
@@ -132,7 +121,6 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 
 	cmd[4] = (size >>   0) AS Byte
 	cmd[5] = (size >>   8) AS Byte
-'	cmd[6] = (size >>  16) AS Byte
 
 	if size>&HFFFF Then debug
 
@@ -150,24 +138,46 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		if cs.cbInQue=0 Then 
 			retry++
 			if retry Mod 100 Then Sleep(1)
-'			if retry Mod 50 Then Sleep(5)
 			Continue
 		End If
 
-		if ReadFile(hSerial,(data)+offset + ReadByte, /*size - ReadByte*/cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n    [Connection Error!]"):ExitDo
+		if ReadFile(hSerial,(data)+offset + ReadByte, cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
 		ReadByte+=dwReadByte
-	/*	if size<>dwReadByte then 
-			DBM(Hex$(ReadByte)+"/"+Hex$(size)+" delta"+Hex$(dwReadByte))
-		End If*/
+	
 		if ReadByte >= size Then exitdo
-		'if dwReadByte=0 Then debug
 	Loop
-	'DBM(Str$(retry))
 
 	printf(ex"%03X:%X/%X bytes recived %d\n",address,ReadByte,size,retry)
-'	Dump(data,size)
+
 	ReadROM=ReadByte
 EndFunction
+
+Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWord) AS BOOL
+	Dim dwErrors AS DWord,retry AS DWord,rsv AS Byte
+	Dim cs AS COMSTAT
+	
+	Do
+		ClearCommError(hSerial,VarPtr(dwErrors),cs)
+		if cs.cbInQue=0 Then 
+			retry++
+			if retry>timedOut_ms Then WaitForRequest=FALSE:ExitDo
+		End If
+
+		ReadFile(hSerial,VarPtr(rsv),1,VarPtr(dwErrors),ByVal NULL)
+		if rsv=requestChar Then 
+			WaitForRequest=TRUE
+			ExitDo
+		Else
+			DBM(sprintfStr("[WaitRequest]Invailed Request : %X[%c]",rsv,rsv))
+		End If
+		Sleep(1)
+		Continue
+	Loop
+
+	if retry>10 Then
+		printf(ex"[WaitRequest] wait:%d ms ok:%d\n",retry,WaitForRequest)
+	End If
+End Function
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
@@ -195,8 +205,9 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 	WriteCount=0
 
-	'1バイトずつ送信(100バイトずつウェイト置いた方がいいかも)
+
 	Do
+		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
 		WriteCount+=dwWD
@@ -208,6 +219,10 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	
 	WriteROM=WriteCount
 	
+	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
+		DBM("[DBG]Firmware Error!")
+		DBM("書込ルーチン暴走中")
+	EndIf
 EndFunction
 
 Enum HKAC_CLOCK_STATE

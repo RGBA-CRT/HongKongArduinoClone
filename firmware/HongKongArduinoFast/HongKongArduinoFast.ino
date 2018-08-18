@@ -78,7 +78,7 @@ Si5351 clockgen;
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //バッファ
-#define BUFFER_LEN 16
+#define BUFFER_LEN 0xFF
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 
@@ -241,32 +241,25 @@ void writeCart(int isLoROM = false) {
   while (1) {
     //データ受信
     if (bufpos >= RX_BUFFER_LEN) {
+      //Send 'R'equest Signal
+      serial_send('R');
       serial_receive(RX_BUFFER_LEN);
       bufpos = 0;
     }
 
-    //アドレス/データバスセット
-    setAddress(bank, address, isLoROM);
-    setData(buf[bufpos]);
-
-    //書き込み
-    BB_OUT_ENABLE();
-    CART_WRITE_ENABLE();
-
-    //時間稼ぎ
+    writebyte_cart(bank, address, buf[bufpos]);
     address++; bufpos++;
-    if (address == goalAdr) break;
 
-    //書き込み終了
-    CART_WRITE_DISABLE();
-    BB_OUT_DISABLE();
-
+    if (address == goalAdr) break; 
   }
 
   CART_WRITE_DISABLE();
   BB_OUT_DISABLE();
   BB_DIR_INPUT();
 
+  //Send End Signal
+  serial_send('E');
+  //  Serial.println("WRITE_END");
 }
 
 inline void setCtrlBus(byte b) {
@@ -322,9 +315,7 @@ byte haveClockModule = 0;
 //[Nintendo Cart Reader]より
 void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
   // Adafruit Clock Generator
-
   ENABLE_I2C();
-
   haveClockModule = clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
   clockgen.pll_reset(SI5351_PLLA);
   clockgen.pll_reset(SI5351_PLLB);
@@ -406,13 +397,6 @@ void loop() {
       readCart((cmd == 'r'));
       break;
 
-    case 'c':
-      { //set control bus(OE WD RST CS)
-        while (Serial.available() < 1) ;
-        setCtrlBus(Serial.read());
-      } break;
-
-
     case 'a':
     case 'A':
       { //Set address
@@ -423,18 +407,44 @@ void loop() {
         setAddress(bank, address, isLoROM);
       } break;
 
-    case 'W':
-    case 'w':
-      { //Write cart
-        byte isLoROM = (cmd == 'w');
-        writeCart(isLoROM);
+    case 'b':
+      { //Set boudrate
+        while (Serial.available() < 4);
+
+        unsigned long new_boudrate = Serial.read()
+                                     | (unsigned long)Serial.read() << 8
+                                     | (unsigned long)Serial.read() << 16
+                                     | (unsigned long)Serial.read() << 24;
+        Serial.end();
+        Serial.begin(new_boudrate);
+        //このあと、ファームチェックで値が正常に帰ってくることを確認してから
+        //各種コマンドを投げてください
       } break;
 
-    case 'v':
-      { //Return fimware version
-        Serial.write(FIRMWARE_ID);
-        Serial.write((char)FIRMWARE_VERSION);
+    case 'c':
+      { //set control bus(OE WD RST CS)
+        while (Serial.available() < 1) ;
+        setCtrlBus(Serial.read());
+      } break;
 
+    case 'f':
+      { // flash command
+        while (Serial.available() < 1);
+        flash_cmd[FLASH_COMMAND_LENGTH] = Serial.read();
+        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+          writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
+        }
+      } break;
+
+    case 'F':
+      { // flash config
+        // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
+        while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
+        flash_bank = Serial.read();
+        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+          flash_address[i] = Serial_readWord();
+          flash_cmd[i] = Serial.read();
+        }
       } break;
 
     case 'g':
@@ -451,89 +461,8 @@ void loop() {
       } //続いてステータスの返却へ
 
     case 'G': {
+        //return clock module status
         Serial.write('0' | haveClockModule);
-      } break;
-
-    case 'b':
-      { //Set boudrate
-        while (Serial.available() < 4);
-
-        unsigned long new_boudrate = Serial.read()
-                                     | (unsigned long)Serial.read() << 8
-                                     | (unsigned long)Serial.read() << 16
-                                     | (unsigned long)Serial.read() << 24;
-        Serial.end();
-        Serial.begin(new_boudrate);
-        //このあと、ファームチェックで値が正常に帰ってくることを確認してから
-        //各種コマンドを投げてください
-
-      } break;
-
-    case 'S':
-      { // setup SF memory
-
-        digitalWrite(OE, HIGH);
-        digitalWrite(CS, LOW);
-        digitalWrite(WE, HIGH);
-        digitalWrite(RST, HIGH);
-
-        writebyte_cart(0x00, 0x2400, 0x09);
-        byte status = readbyte_cart(0x00, 0x2400);
-        writebyte_cart(0x00, 0x2401, 0x28);
-        writebyte_cart(0x00, 0x2401, 0x84);
-        writebyte_cart(0x00, 0x2400, 0x06);
-        writebyte_cart(0x00, 0x2400, 0x39);
-
-        //   writebyte_cart(0x00, 0x2400, 0x05);
-        if ( readbyte_cart(0x00, 0x2400) == 0x2A)
-          Serial.print("OK");
-        else
-          Serial.print("NG");
-        Serial.write(readbyte_cart(0x00, 0x2400));
-      } break;
-
-    case 'T':
-    case 't':
-      { // set register(1byte write)
-        while (Serial.available() < 4);
-        byte bank = Serial.read();
-        word address = Serial_readWord();
-        byte data = Serial.read();
-
-        //lorom -> real address
-        if (cmd == 't') {
-          LO_TO_REAL_ADDRESS(bank, address);
-        }
-
-        writebyte_cart(bank, address, data);
-
-      } break;
-
-    case 's':
-      { // set register(1byte write)
-        Serial.print((char)readbyte_cart(0xc0, 0x0000));
-        writebyte_cart(0x00, 0x2220, 04);
-        Serial.print((char)readbyte_cart(0xc0, 0x0000));
-      } break;
-
-    case 'F':
-      { // flash config
-        // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
-        while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
-        flash_bank = Serial.read();
-        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-          flash_address[i] = Serial_readWord();
-          flash_cmd[i] = Serial.read();
-        }
-      } break;
-
-    case 'f':
-      { // flash command
-        while (Serial.available() < 1);
-        flash_cmd[FLASH_COMMAND_LENGTH] = Serial.read();
-        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-          writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
-        }
       } break;
 
     case 'i':
@@ -558,9 +487,63 @@ void loop() {
 
       } break;
 
+    case 's':
+      { // set register(1byte write)
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+        writebyte_cart(0x00, 0x2220, 04);
+        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+      } break;
+
+    case 'S':
+      { // setup SF memory
+        digitalWrite(OE, HIGH);
+        digitalWrite(CS, LOW);
+        digitalWrite(WE, HIGH);
+        digitalWrite(RST, HIGH);
+
+        writebyte_cart(0x00, 0x2400, 0x09);
+        byte status = readbyte_cart(0x00, 0x2400);
+        writebyte_cart(0x00, 0x2401, 0x28);
+        writebyte_cart(0x00, 0x2401, 0x84);
+        writebyte_cart(0x00, 0x2400, 0x06);
+        writebyte_cart(0x00, 0x2400, 0x39);
+
+        if ( readbyte_cart(0x00, 0x2400) == 0x2A)
+          Serial.print("OK");
+        else
+          Serial.print("NG");
+        Serial.write(readbyte_cart(0x00, 0x2400));
+      } break;
+
+    case 'T':
+    case 't':
+      { // set register(1byte write)
+        while (Serial.available() < 4);
+        byte bank = Serial.read();
+        word address = Serial_readWord();
+        byte data = Serial.read();
+
+        //lorom -> real address
+        if (cmd == 't') {
+          LO_TO_REAL_ADDRESS(bank, address);
+        }
+        writebyte_cart(bank, address, data);
+      } break;
+
+    case 'W':
+    case 'w':
+      { //bulk write cart
+        byte isLoROM = (cmd == 'w');
+        writeCart(isLoROM);
+      } break;
+
+    case 'v':
+      { //Return fimware version
+        Serial.write(FIRMWARE_ID);
+        Serial.write((char)FIRMWARE_VERSION);
+
+      } break;
   }
-
-
 }
 
 

@@ -3,19 +3,18 @@
 Const SFC_SPEC_HEADER_SIZE=&H20+&H10
 Const SFC_SPEC_HEADER_ADDR=&HFFC0-&H10
 
+Const OE = 1
+Const CE = 2
+Const WE = 4
+Const RST= 8
+
+Const DEFAULT_CTRLBUS = &H0C	'RST WE
+
 Const HiROM_START_ADR=&HC00000
 Const HIROM_SRAM_BANKSIZE = 1024*8
 
-Const SRAM_ADDRESS_LoROM_NORMAL = &H700000'&H380000
-Const SRAM_ADDRESS_LoROM_MAD 	= &H384000
-Const SRAM_ADDRESS_HiROM_NORMAL = &H306000
-Const SRAM_ADDRESS_HiROM_MAD 	= &H306000'&HA06000
-Const SRAM_ADDRESS_SA1 = &H400000
-
-
-
 Const SFC_MAP_TYPE_NUM = 8
-Enum SFC_MAP_TYPE	'ヘッダのRomTypeの下位4ビット
+Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	SFC_MAP_LoROM = 0
 	SFC_MAP_HiROM = 1
 	SFC_MAP_SDD1= 2
@@ -37,20 +36,18 @@ Type SFC_CART_INFO
 	CartType As Byte		'ROM+SRAM+SFXみたいなの
 	ROMSize As DWord		'intのromサイズ
 	SRAMSize As DWord		'intのSRAMサイズ
-	SRAMAddress As DWord	'SRAMがマップされているアドレス
 	Country As Byte			'国コード
 	Version As Byte			'ROMバージョン
 	CheckSum1 As Word		'チェックサム
 	CheckSum2 As Word		'チェックサムのNOT
-	Mad As Byte				'MAD-1かどうか（現在未使用）
 	hasExtraHeader As BOOL	'拡張ヘッダ（FFB0h-FFBFh)があるかどうか
-	isBSX  AS BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
+	isBSX  As BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
 	diableChecksum As BOOL	'MENU PROGRAMとかBSMC等のチェックサムが無効なものに使う
-	isLoROM AS BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTrueになる
-	MakerCode AS Word		'メーカーコード
-	MakerName AS BytePtr	'メーカーコードから出した文字列
-	GameCode[4] AS Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
-	AddrOffset AS DWord		'ROMの開始アドレス
+	isLoROM As BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTrueになる
+	MakerCode As Word		'メーカーコード
+	MakerName As BytePtr	'メーカーコードから出した文字列
+	GameCode[4] As Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
+	AddrOffset As DWord		'ROMの開始アドレス
 	rawHeader As SFC_CART_HEADER
 EndType
 
@@ -75,12 +72,51 @@ Type Align(1) SFC_CART_HEADER
 	Checksum2 	As Word
 End Type
 
+'---------------
+' SRAM DEFINE
+'---------------
+Dim SFC_LoROM_SRAM_MODEL[3]=[
+	&H700000,
+	&H010000,
+	&H008000,
+	RST
+] As DWord
+
+Dim SFC_HiROM_SRAM_MODEL[3]=[
+	&H206000,
+	&H010000,
+	&H002000,
+	RST or CE
+] As DWord
+
+Type SFC_SRAM_MODEL
+	adr As DWord		'セーブ用SRAMのアドレス
+	bankStep As DWord	'バンク間の差 (BANK0 70:0000, BANK1 71:0000なら0x010000)
+	bankSize As DWord	'そのバンクにおけるSRAM領域のサイズ
+	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる
+End Type
+
+Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
+	if info->ROMType = SFC_MAP_LoROM Then
+		GetSramModel=SFC_LoROM_SRAM_MODEL
+	Else
+		GetSramModel=SFC_HiROM_SRAM_MODEL
+	End If
+End Function
+
+
+
+'----------------
+' Functions
+'----------------
+
+
 'ROMの吸出し
 Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE As DWord
 	Dim DumpAddress As DWord, offset As DWord, ret As DWord
-	Dim CheckSum=0 As DWord,bufChecksum AS DWord
+	Dim CheckSum=0 As DWord,bufChecksum As DWord
 	Dim bBankChanged=FALSE As BOOL	'8MBitBank
 
 	Dim buf As BytePtr,nowSize As DWord,Size As DWord,bRomType As Byte
@@ -129,7 +165,6 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	DBMN("Dumping")
 
 	lt=GetTickCount()
-	debug
 
 	Do
 		'ESCキーでキャンセル
@@ -197,7 +232,10 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 				bBankChanged=TRUE
 				SPC7110_SetBanks(hCOM,1,FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
 				DumpAddress=offset+&H300000	'F0:0000からリスタート
+
 			Elseif info->ROMType=SFC_MAP_ExHiROM Then
+				'わざわざバンク切り替え使わなくてもダンプできるけど一応
+
 				if bBankChanged Then
 					ExitDo
 				Else
@@ -250,7 +288,6 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	FlushCom(hCOM)
 EndSub
 
-
 'チェックサム計算
 Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	Dim i As Long,someCount As DWord,last As Byte
@@ -277,199 +314,124 @@ Function CalcChkSum(data As BytePtr,length As DWord) As DWord
 	Loop
 End Function
 
-'NP   01 CPU_CLOCK. 02 EXPAND, 59 PA1が結線
-'SA-1 01 CPU_CLOCK, 33 REFRESHが結線
 
-/*  http://hongkongarduino.web.fc2.com/archive/forprogram.htm
-    Ch4に3を設定。SRAMのOEとディスエーブル、CEをイネーブルにする。= CE:0 RST:1 OE:1
-    MADチップの場合は7を出力する。								  = CE:1 RST:1 OE:1
-    アドレスを設定する。
-    74138のCBAを100にし、データ出力モードにする。
-    このとき、STROBEはL(反転出力に注意)にしておく。
-    STROBEをHにし、WEをイネーブルにする。
-    BUSY線から74645が有効になっているか確認してからデータを出力する。
-    STROBEをLにし、WEをディスエーブルにする。
-    Ch4を1に設定する。MADチップの場合は5。 
-*/
-Sub WriteSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
-	Dim hIn As HANDLE,buf As BytePtr
-	Dim CtrMask As Byte
+'---------------------------
+' SRAM Functions
+'---------------------------
+
+Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
+	dim fout As File
 
 	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
-	DBM("SRAM Writeing...")
-	DBM("SRAM Adr : "+Hex$(info->SRAMAddress)+"h")
-	PumpMessage()
 
-	hIn=OpenFile(FileName,GENERIC_READ)	
-	if info->SRAMSize <> GetFileSize(hIn,NULL) Then
-		if MessageBox(hMainWnd,"ファイルサイズが不正です。続行しますか？",ProgramName+" - Write SRAM",MB_YESNO) = IDNO Then ExitSub
-	Endif
-
-	buf=calloc(info->SRAMSize)
-	LoadFile(hIn,buf,info->SRAMSize)
-	CloseHandle(hIn)
-
-	if info->ROMType <> SFC_MAP_SA1 Then
-		'ノーマルカートリッジ
-		if info->Mad=TRUE Then
-			CtrMask=SRAM_WRITE_MAD
-		Else
-			CtrMask=SRAM_WRITE_NORMAL
-		Endif	
-		SendControl(hFile,CtrMask)	' SRAM CE
-
-		if info->ROMType = SFC_MAP_HiROM Then
-			Dim BankCount As DWord,WriteSize As DWord,bi As Long,WriteAdr As DWord
-			BankCount=(info->SRAMSize/HIROM_SRAM_BANKSIZE -1) AS DWord 	'8KBバンクごとに分ける
-			if BankCount<0 Then  BankCount=0
-
-			DBM("SRAM BANK COUNT : "+Str$(BankCount+1))
-			if BankCount=0 Then
-				WriteSize=info->SRAMSize	'normal Write
-			Else
-				WriteSize=HIROM_SRAM_BANKSIZE 'Write with bank change 
-			Endif
-
-			For bi=0 To BankCount
-				WriteAdr=info->SRAMAddress+bi*&H010000
-				DBM(sprintfStr("Address %06Xh-%06Xh",WriteAdr,WriteAdr+WriteSize))
-				PumpMessage()				
-				WriteROM(hFile,buf+bi*WriteSize, 0, WriteAdr , WriteSize,FALSE)
-			Next bi
-		Else
-
-			WriteROM(hFile,buf, 0, info->SRAMAddress , info->SRAMSize,FALSE)
-		Endif
-	
-	Else
-		'SA-1 (sanni氏のcartreaderを参考)
-		'http://forum.arduino.cc/index.php?topic=158974.210
-
-		DBM("SA-1 Write BW-RAM (動作不能)")
-
-		Dim cmd[1512] As Byte
-		Dim block As Long,lastBlock As DWord,curByte As DWord,i As Long
-
-		
-		DBM("address = "+Hex$(info->SRAMAddress))
-		lastBlock=(info->SRAMSize/&H2000) AS DWord
-		DBM("blocks = "+Hex$(lastBlock))
-
-		SetCPU_Clock(hFile,HKAC_CLOCK_CPU_ENABLED)
-	
-		for block=0 To lastBlock-1
-			SendControl(hFile,RST or OE or CE or WE)'SRAM_WRITE_SA1)	' RST WE RD CE -> High
-
-			cmd[0]=&H20
-			WriteROM(hFile,cmd,0,&H2200,1,FALSE)	'SRAM WRITE ENABLE
-			cmd[0]=&H00
-			WriteROM(hFile,cmd,0,&H2200,1,FALSE)	'SRAM WRITE ENABLE
-			cmd[0]=0 As Byte
-			cmd[1]=0 As Byte
-			WriteROM(hFile,cmd,0,&H2225,2,FALSE)	'MAP SRAM to 0x6000~0x7FFF
-			cmd[0]=&H80
-			cmd[1]=&H80
-			WriteROM(hFile,cmd,0,&H2227,2,FALSE)	'SRAM WRITE ENABLE
-		'	cmd[0]=&Hff
-		'	WriteROM(hFile,cmd,0,&H2228,1,FALSE)	'SRAM WRITE ENABLE
-			DBM("Writeing block"+Str$(block))
-
-		/*	Dim ladr AS DWord,j AS DWord
-			for j=0 to 15
-				for i=0 to 15
-					ladr=i*&H1000+&H0000+j*&H100000
-					FillMemory(cmd,512,(i+(j<<4)) As Byte)
-					WriteROM(hFile,cmd,0,ladr,512,FALSE)
-					DBM(Hex$(ladr)+":+"+Hex$(cmd[0]))
-				Next i
-					if GetKeyState(VK_ESCAPE) And &H80 Then Exitfor
-			Next j*/
-
-			for curByte=0 To &H7FFF Step 512
-				if curByte < &H6000 Then
-					WriteROM(hFile,cmd,0,curByte,512,FALSE)
-				Else
-					WriteROM(hFile,buf+curByte-&H6000+block*&H2000,0,curByte,512,FALSE)
-					DBM(Hex$(curByte-&H6000+block*&H2000)+" / "+Hex$(curByte))
-				End If*/
-				Sleep(100)
-
-			Next curByte
-
-			Sleep(1000)
-		'	Exitfor
-		Next block
-		cmd[0]=0
-		WriteROM(hFile,cmd,0,&H2226,1,FALSE)	'SRAM DISABLE
-
-		SetCPU_Clock(hFile,HKAC_CLOCK_NORMAL)
-
-		SendControl(hFile,12)	'RST LOW
-	Endif
-
-	DBM(ex"Done\r\n")
-	free(buf)
-	
-	SendControl(hFile,DEFAULT_CTRLBUS)	'default
-	SetAddress(hFile,0,FALSE)
-EndSub
-
-Sub DumpSRAM(hFile As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
-	Dim hout As HANDLE,buf As BytePtr
-	Dim CtrMask As Byte
-
-	hout=OpenFileEx(FileName,GENERIC_WRITE)
-	if hout=NULL Then
+	if fout.openFile(FileName,GENERIC_WRITE) = FALSE Then
 		DBM("Cannot open file! "+MakeStr(FileName))
 		ErrMes(hMainWnd,"SRAMを保存できませんでした。",0,0,GetLastError())
 		ExitSub
 	Endif
 
-	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
-	DBM("SRAM Dumping...")
-	PumpMessage()
+	Dim sraminfo As *SFC_SRAM_MODEL
+	Dim bankCount As DWord
+	Dim lastDumpSize AS DWord
+	Dim buf As BytePtr
 
+	sraminfo=GetSramModel(info)
+	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
+	lastDumpSize=info->SRAMSize - bankCount*sraminfo->bankSize
+	buf=calloc(sraminfo->bankSize)
+
+	DBM("Dumping SRAM...")
+	DBM("SramSize = "+Str$(info->SRAMSize/1024)+"KB")
+	DBM("bankSize ="+Str$(sraminfo->bankSize/1024)+"KB")
+	DBM("bankCount="+Str$(bankCount))
+
+	SendControl(hSerial,sraminfo->ctrlBus or WE)
+
+	Dim i As Long,readAddr AS DWord
+	Do
+		if i => bankCount Then ExitDo
+		readAddr= sraminfo->adr + i*sraminfo->bankStep
+		DBM(sprintfStr("SRAM %02X:%04X +%04X",readAddr>>16,readAddr And &HFFFF,sraminfo->bankSize))
+		
+		SendControl(hSerial,sraminfo->ctrlBus or WE)
+		ReadROM(hSerial, buf, 0, readAddr, sraminfo->bankSize, FALSE)
+		fout.write(buf,sraminfo->bankSize)
+		i++
+		PumpMessage()
+	Loop
+	
+	if lastDumpSize > 0 Then
+		DBM(sprintfStr("LastSRAM %02X:%04X +%04X",i+sraminfo->adr>>16,sraminfo->adr And &HFFFF,lastDumpSize))
+		ReadROM(hSerial,buf, 0, sraminfo->adr + i*sraminfo->bankStep, lastDumpSize,FALSE)
+		fout.write(buf,lastDumpSize)
+	End If
+	
+	SendControl(hSerial,DEFAULT_CTRLBUS)
+
+	fout.close()
+	free(buf)
+
+	DBM("Dump SRAM Successful!!!")
+End Sub
+
+
+Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
+	Dim fin AS File
+
+	'諸計算
+	Dim sraminfo As *SFC_SRAM_MODEL
+	Dim bankCount As DWord
+	Dim lastDumpSize AS DWord
+	Dim buf As BytePtr
+
+	sraminfo=GetSramModel(info)
+	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
+	lastDumpSize=info->SRAMSize - bankCount*sraminfo->bankSize
 	buf=calloc(info->SRAMSize)
 
-	if info->Mad=TRUE Then
-		CtrMask=SRAM_READ_MAD
-	Else
-		CtrMask=SRAM_READ_NOMAL
-	Endif	
+	DBM("Writeing SRAM...")
+	DBM("SramSize = "+Str$(info->SRAMSize/1024)+"KB")
+	DBM("bankSize = "+Str$(sraminfo->bankSize/1024)+"KB")
+	DBM("bankCount= "+Str$(bankCount))
 
-	SendControl(hFile,CtrMask)	' SRAM CE
+	'バッファ生成	
+	if fin.openFile(FileName,GENERIC_READ) = FALSE Then
+		DBM("Cannot open file! "+MakeStr(FileName))
+		ErrMes(hMainWnd,"SRAMファイルが開けませんでした。",0,0,GetLastError())
+		ExitSub
+	Endif
+	fin.read(buf,info->SRAMSize)
+	fin.close()
 
-	if info->ROMType = SFC_MAP_HiROM Then
-		Dim BankCount As DWord,DumpSize As DWord,bi As Long,DumpAdr As DWord
-		BankCount=(info->SRAMSize/HIROM_SRAM_BANKSIZE -1) AS DWord 	'8KBバンクごとに分ける
-		if BankCount<0 Then  BankCount=0
+	'ライト開始
+	SendControl(hSerial,sraminfo->ctrlBus or OE)
 
-		DBM("SRAM BANK COUNT : "+Str$(BankCount))
-		if BankCount=0 Then
-			DumpSize=info->SRAMSize	'normal dump
-		Else
-			DumpSize=HIROM_SRAM_BANKSIZE 'dump with bank change 
-		Endif
+	Dim i AS DWord, writeAddr AS DWord
+	Do
+		if i => bankCount Then ExitDo
+		writeAddr= sraminfo->adr + i*sraminfo->bankStep
+		DBM(sprintfStr("SRAM %02X:%04X +%04X",writeAddr>>16,writeAddr And &HFFFF,sraminfo->bankSize))
+		
+		SendControl(hSerial,sraminfo->ctrlBus or WE)
+		WriteROM(hSerial, buf + i*sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
 
-		For bi=0 To BankCount
-			DumpAdr=info->SRAMAddress+bi*&H010000
-			DBM(sprintfStr("Address %06Xh-%06Xh",DumpAdr,DumpAdr+DumpSize))
-			ReadROM(hFile,buf, 0, DumpAdr, DumpSize,FALSE)
-			OutFile(hout,buf,DumpSize)
-		Next bi
-	Else
-		ReadROM(hFile,buf, 0, info->SRAMAddress, info->SRAMSize,FALSE)
-		OutFile(hout,buf,info->SRAMSize)
-	End If
-
-	CloseHandle(hout)
-
-	DBM(ex"Done\r\n")
-	free(buf)
+		i++
+		PumpMessage()
+	Loop
 	
-	SetAddress(hFile,0,FALSE)
-	SendControl(hFile,DEFAULT_CTRLBUS)	'default
-EndSub
+	if lastDumpSize > 0 Then
+		DBM(sprintfStr("LastSRAM %02X:%04X +%04X",i+sraminfo->adr>>16,sraminfo->adr And &HFFFF,lastDumpSize))
+		WriteROM(hSerial,buf + i*sraminfo->bankSize, 0, sraminfo->adr + i*sraminfo->bankStep, lastDumpSize,FALSE)
+
+	End If
+	
+	SendControl(hSerial,DEFAULT_CTRLBUS)
+	free(buf)
+	DBM(ex"Write SRAM Successful!!!\r\n")
+	
+	SetAddress(hSerial,&H000000 ,FALSE)
+
+End Sub
 
 
 '生のROMヘッダをSFC_CART_INFOに
@@ -507,7 +469,7 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	if info->hasExtraHeader Then
 		'ヘッダのコードは文字列で来る
 		'code = 下位 or 上位<<4
-		Dim code AS Word
+		Dim code As Word
 		code=data->MakerCode
 		if code=0 Then code=&H3030
 		code= ((code And &HFF00) -&H3000)>>8 or ( (code And &H0F) + (&H09 * ((code>>6) And &H01)) << 4 )
@@ -517,18 +479,6 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 		if lstrcmp(info->GameCode,"    ")=0 Then lstrcpy(info->GameCode,"????")
 	End If
 
-	Select Case info->ROMType
-		Case SFC_MAP_HiROM
-			info->SRAMAddress=SRAM_ADDRESS_HiROM_NORMAL
-
-		Case SFC_MAP_SA1
-			info->SRAMAddress=SRAM_ADDRESS_SA1
-
-		Case Else
-			info->SRAMAddress=SRAM_ADDRESS_LoROM_NORMAL
-
-	End Select
-	
 	if data->RomSize<>0 then
 		info->ROMSize=&H0400 << data->RomSize
 	Else
@@ -577,8 +527,8 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 
 EndSub
 
-Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
-	Dim i AS Long
+Function isSnesHeader(header As *SFC_CART_HEADER) As BOOL
+	Dim i As Long
 	For i=0 To 19
 		if header->GameTitle[i] < &H20 Then 
 			if NOT(i>4 And header->GameTitle[i]=0) Then	Goto *ISH_ERR
@@ -586,7 +536,6 @@ Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
 	Next i
 	'サイズチェック
 	if header->RomSize > &H0D Then Goto *ISH_ERR	'Over 64Mbit
-'	if header->SramSize > &H07 Then Goto *ISH_ERR	'Over 128Kbit (BS-XだとSRAMSizeがデタラメなので廃止)
 	isSnesHeader=TRUE
 	ExitFunction
 
@@ -595,6 +544,11 @@ Function isSnesHeader(header AS *SFC_CART_HEADER) AS BOOL
 End Function
 
 
+
+'------------------------------
+' Memory Controller Functions
+'------------------------------
+
 'SDD1のバンクをセットアップ
 'SNESバンクC0, D0, E0, F0にbankStartから始まるROMバンク(1MByteごと)を割り当て
 Sub SDD1_SetBanks(hCOM As HANDLE,bankStart As Long)
@@ -602,7 +556,7 @@ Sub SDD1_SetBanks(hCOM As HANDLE,bankStart As Long)
 	DBM(sprintfStr("Setting S-DD1 bank %d-%d...",bankStart,bankStart+3))
 
 	For i=0 To 3
-		buf[i] = (bankStart+i) AS Byte
+		buf[i] = (bankStart+i) As Byte
 	Next i
 
 	SendControl(hCOM,RST or OE)
@@ -635,7 +589,7 @@ Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As B
 	SendControl(hCOM,WE or CE or OE)
 
 	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
-		buf[i+1] = (bank+i) AS Byte
+		buf[i+1] = (bank+i) As Byte
 		DBM(sprintfStr("[SPC7110]SET_VBANK%X:%0d ",i,buf[i+1]))
 	Next i
 	buf[0]=(bSRAM_Enable<<7) As Byte
