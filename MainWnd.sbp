@@ -607,10 +607,11 @@ Sub MainWnd_CommandButton1_Click()
 End Sub
 
 Sub MainWnd_CommandButton10_Click()
-/*	DBM("SA-1 BSX MEM MAP C0")
-	SetCartRegister(0,&H02220,&H04,FALSE)*/
-	
-	SetCPU_Clock(hCOM,HKAC_CLOCK_DISABLED)
+	SPC7110_PrintBanks(hCOM)
+	SPC7110_SetBanks(hCOM,0,TRUE)
+	SPC7110_PrintBanks(hCOM)
+	SPC7110_SetBanks(hCOM,0,FALSE)
+	SPC7110_PrintBanks(hCOM)
 End Sub
 
 

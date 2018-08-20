@@ -404,14 +404,15 @@ End Function
 ' SRAM Functions
 '---------------------------
 
-Const SRAM_CTRL_SA1 = &H01000000
+Const SRAM_CTRL_SA1     = &H01000000
+Const SRAM_CTRL_SPC7110 = &H02000000
 
 Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
 Type SFC_SRAM_MODEL
 	adr As DWord		'セーブ用SRAMのアドレス
 	bankStep As DWord	'バンク間の差 (BANK0 70:0000, BANK1 71:0000なら0x010000)
 	bankSize As DWord	'そのバンクにおけるSRAM領域のサイズ
-	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる。例外としてSRAM_CTRL_SA1の代入が許可されている
+	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる。例外としてSRAM_CTRL_???の代入が許可されている
 End Type
 
 Dim SFC_LoROM_SRAM_MODEL[3]=[
@@ -464,6 +465,13 @@ Dim SFC_SA1_WRITE_SRAM_MODEL[3]=[
 	RST or SRAM_CTRL_SA1
 ] As DWord
 
+Dim SFC_SPC7110_SRAM_MODEL[3]=[
+	&H306000,
+	&H010000,
+	&H002000,
+	RST or CE or SRAM_CTRL_SPC7110
+] As DWord
+
 
 Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
 	if info->CartType = &HE5 Then
@@ -471,6 +479,9 @@ Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
 
 	Elseif info->ROMType = SFC_MAP_SDD1 Then
 		GetSramModel=SFC_SDD1_SRAM_MODEL
+
+	Elseif info->ROMType = SFC_MAP_SPC7110 Then
+		GetSramModel=SFC_SPC7110_SRAM_MODEL
 
 	Elseif info->ROMType = SFC_MAP_ExHiROM Then
 		GetSramModel=SFC_ExHiROM_SRAM_MODEL
@@ -504,6 +515,11 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	Dim buf As BytePtr
 
 	sraminfo=GetSramModel(info)
+
+	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+			SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
+	End If
+
 	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
 	lastDumpSize=info->SRAMSize - bankCount*sraminfo->bankSize
 	buf=calloc(sraminfo->bankSize)
@@ -534,6 +550,10 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 		fout.write(buf,lastDumpSize)
 	End If
 	
+	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+			SPC7110_SetBanks(hCOM,0,FALSE)	'SRAM ENABLE
+	End If
+
 	SendControl(hSerial,DEFAULT_CTRLBUS)
 
 	fout.close()
@@ -565,6 +585,9 @@ Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 
 		'書き込み用のメモリモデルを持ってくる
 		sraminfo=SFC_SA1_WRITE_SRAM_MODEL
+
+	Else if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
 	End If
 
 	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
@@ -621,6 +644,10 @@ Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 
 		'CPUクロックを停止してフィニッシュ
 		SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+
+	Else if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM,0,FALSE)	'SRAM DISABLE
+
 	End If
 
 	SendControl(hSerial,DEFAULT_CTRLBUS)
@@ -673,6 +700,12 @@ Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2
 Const SNES_SPC7110_MMC_ADR = &H4830
 Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As BOOL
 	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
+
+	if bSRAM_Enable Then
+		DBM("[SPC7110]SRAM Enable")
+	Else
+		DBM("[SPC7110]SRAM Disable")
+	Endif 
 
 	'RESET
 	SendControl(hCOM,WE or CE or OE)
