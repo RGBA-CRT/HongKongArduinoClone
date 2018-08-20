@@ -38,6 +38,7 @@ Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As L
 			Endif
 		
 		End If
+
 	End If
 	' イベントプロシージャの呼び出しを行います。
 	MainWndProc=EventCall_MainWnd(hWnd,dwMsg,wParam,lParam)
@@ -293,6 +294,8 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(CommandButton4),NOT(isEnable) And &H01)	
 
 	EnableWindow(MWnd(MAPPING),NOT(isEnable) And &H01)	
+	EnableWindow(MWnd(ROM_SIZE),NOT(isEnable) And &H01)	
+	EnableWindow(MWnd(SRAM_SIZE),NOT(isEnable) And &H01)	
 	if Mode=STATUS_DUMPING Then 
 		EnableWindow(MWnd(CommandButton5),FALSE)
 	Else
@@ -571,11 +574,6 @@ Sub MainWnd_CommandButton1_Click()
 
 	'ダイアログに表示
 	SetCartInfo(VarPtr(cartInfo),TRUE)
-	if cartInfo.ROMType=SFC_MAP_HiROM Then 
-		SetCheckBox(MWnd(CheckBox1),TRUE)
-	else		
-		SetCheckBox(MWnd(CheckBox1),FALSE)
-	End If
 
 	'BSスロットがあればBSMWndを出す
 	if cartInfo.isBSX Then
@@ -1024,4 +1022,8 @@ Sub MainWnd_Activate(state As Integer, minimized As Integer)
 	Else
 		fWindowActive=TRUE
 	End If
+End Sub
+
+Sub MainWnd_ROM_SIZE_EditChange()
+
 End Sub

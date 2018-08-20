@@ -32,6 +32,8 @@ _System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
 '---------------------------
 '  Window Message Loop
 '---------------------------
+RegisterSubClass()
+
 Dim msgMain As MSG, iResult As Long
 Do
 	iResult=GetMessage(msgMain,0,0,0)

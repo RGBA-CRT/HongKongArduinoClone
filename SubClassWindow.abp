@@ -1,0 +1,48 @@
+'MainWindowから分離
+'サブクラス化したやつ書くところ
+
+'-----------------------------
+' ComboBox
+'-----------------------------
+Const WM_CTLCOLOR=&H0019
+Const cb_ctrl_count = 2
+Dim cb_ctrl_hWnds[cb_ctrl_count] AS HWND
+Dim cb_old_proc[cb_ctrl_count] As *Function(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+Dim cb_bgBrush AS HBRUSH
+Const cb_bgColor = COLOR_3DFACE
+
+Sub RegisterSubClass()
+	'サブクラス化するウィンドウを記述
+	cb_ctrl_hWnds[0]=MWnd(ROM_SIZE)
+	cb_ctrl_hWnds[1]=MWnd(SRAM_SIZE)
+	cb_ctrl_hWnds[2]=MWnd(MAPPING)
+
+	'サブクラス化する
+	Dim i AS Long
+	For i=0 to cb_ctrl_count
+		cb_old_proc[i] = GetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC)
+		SetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC, AddressOf(cb_proc))
+	Next i
+
+	cb_bgBrush=CreateSolidBrush(GetSysColor(cb_bgColor))
+End Sub
+
+Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+'	printf(ex"hWnd %X subclass %08X %08X\n ",hWnd,dwMsg,wParam)
+
+	'メッセージ処理
+	if dwMsg=WM_CTLCOLORLISTBOX or dwMsg=WM_CTLCOLOREDIT Then
+		SetBkMode(wParam, TRANSPARENT)
+		cb_proc= cb_bgBrush 
+		ExitFunction
+	End If
+
+	'デフォルトウィンドウプロシージャを呼ぶ
+	Dim i AS Long
+	for i=0 to cb_ctrl_count
+		if hWnd=cb_ctrl_hWnds[i] Then
+			cb_proc=CallWindowProc(cb_old_proc[i],hWnd,dwMsg,wParam,lParam)
+			exitfor
+		Endif
+	Next i
+End Function
