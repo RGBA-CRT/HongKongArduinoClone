@@ -46,3 +46,5 @@ Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARA
 		Endif
 	Next i
 End Function
+
+'(http://note.phyllo.net/?eid=1105981

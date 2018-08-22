@@ -275,7 +275,7 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 	if WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 	if ReadFile(hSerial,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 
-	Print "VerCheck:"
+	PrintPtr("VerCheck:")
 	Dump(rsv,6)
 	
 

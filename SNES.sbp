@@ -715,7 +715,7 @@ Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As B
 		DBM(sprintfStr("[SPC7110]SET_VBANK%X:%0d ",i,buf[i+1]))
 	Next i
 	buf[0]=(bSRAM_Enable<<7) As Byte
-	buf[4]=&H03
+	buf[4]=&H03 '3ƒoƒ“ƒN•ÏX‚·‚é
 
 	SendControl(hCOM,RST or CE or OE)
 	WriteROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)

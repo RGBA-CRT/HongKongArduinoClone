@@ -20,6 +20,7 @@ Const FIRMWARE_VERSION=&H33
 
 Dim INIFILE_PATH AS BytePtr
 
+
 #define DEBUG_BUILD
 #ifdef DEBUG_BUILD
 #console
@@ -37,10 +38,13 @@ RegisterSubClass()
 Dim msgMain As MSG, iResult As Long
 Do
 	iResult=GetMessage(msgMain,0,0,0)
-	If iResult=0 or iResult=-1 Then Exit Do
-	TranslateMessage(msgMain)
-	DispatchMessage(msgMain)
+	If iResult=0 Then ExitDo
+    If IsDialogMessage(hMainWnd, msgMain) = FALSE Then 'TAB—p
+        TranslateMessage(msgMain)
+        DispatchMessage(msgMain)
+    End If
 Loop
 
 ' Call destructores and exit process
-End
+FreeConsole()
+ExitProcess(0)
