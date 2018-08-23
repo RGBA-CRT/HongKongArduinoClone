@@ -35,13 +35,11 @@ Enum BSM_SLOT_TYPE
 	BSM_SLOT_TYPE_NUM
 End Enum
 
-
 Type BSM_MEMPACK_INFO
 	MP AS Word
 	Flags AS Byte
 	DeviceInfo AS Byte
 End Type
-
 
 'LoROMモードにおけるBSMCの位置Cn:8000h
 Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
@@ -210,10 +208,7 @@ End Function
 Function BSM_isHeader(header As *BSM_FILE_HEADER) AS BOOL
 	BSM_isHeader=FALSE
 	if header->checksum1 <> (NOT(header->checksum2) And &HFFFF) Then ExitFunction
-'	if (header->month And &H0F) <> 0 Then  ExitFunction	
-/*	if header->extendHeaderFlag<>01 Then
-		if isSameBin(ex"\0\0\0\0\0\0\0\0\0\0",header->dummy1,10)=FALSE Then	ExitFunction
-	End If*/
+
 	if (header->mapMode And &H0F) > 1 Then ExitFunction
 	BSM_isHeader=TRUE
 End Function
@@ -227,7 +222,7 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	memcpy(title,header->title,16)
 	blocks=countBits(header->blockAllocation)
 
-	'generatestatus string 
+	'generate status string 
 	if (header->limit And &H8000) Then
 		status.sprintf("left %d ",countBits(header->limit And &H7FFF))
 	Else
@@ -235,8 +230,6 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	End If
 	if header->dummy33<>&H33 or header->limit=&H8000 Then
 		status.cat("[deleted]")
-	Else
-'		status.cat("available ")
 	End If
 
 	'Flag
@@ -273,11 +266,10 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
 	)
 
-
-'	printf(str.ptr)
 	str.copyToNewPtr(BSM_printInfo)
 End Function
 
+'ブロック数とか使用数はビットのカウントで表現
 Function countBits(int As DWord) AS DWord
 	Dim i As Long
 	for i=0 To 31

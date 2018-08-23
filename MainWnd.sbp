@@ -38,7 +38,16 @@ Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As L
 			Endif
 		
 		End If
+	Else if dwMsg=WM_COMMAND then
+		'アクセラレータキー経由だと、ActiveBasicのEventCallに引っかからないので、アクセラレータフラグを消す
+		printf(ex"WM_COMMAND nofty=%X %X\n",wParam>>16,lParam)
+		if lParam=NULL Then wParam = wParam And &HFFFeFFFF
 
+		'タブストップの処理（手動）
+		if wParam=ID_DLG_TAB Then  
+			SetFocus( GetNextDlgTabItem(hMainWnd,  GetFocus(), FALSE))
+			ExitFunction
+		End If
 	End If
 	' イベントプロシージャの呼び出しを行います。
 	MainWndProc=EventCall_MainWnd(hWnd,dwMsg,wParam,lParam)
@@ -200,7 +209,7 @@ Sub MainWnd_CommandButton5_Click()
 		Dim txCom As BytePtr,rate As DWord
 
 		rate=GetDlgItemInt(hMainWnd,EditBox6,NULL,FALSE)
-		if rate=0 Then ErrMes(hMainWnd,"ボーレートが不正です。","接続失敗",0):ExitSub
+		if rate=0 Then ErrMes(hMainWnd,"ボーレートが不正です。","Invalid baud rate",0):ExitSub
 
 		txCom=GetWndTextMalloc(GetDlgItem(hMainWnd,ComList))
 		DBM("Connect to "+MakeStr(txCom))
@@ -210,17 +219,17 @@ Sub MainWnd_CommandButton5_Click()
 		bufferSize=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
 		if bufferSize <= 0 Then bufferSize=DEFAULT_DUMP_SIZE
 		
-		'connect and reset
+		'connect and reset ボーレート
 		hCOM=OpenComPort(txCom,INITIAL_BAUDRATE,bufferSize,1024*10)
 		ResetArduino(hCOM)
 		CloseHandle(hCOM)		
-		Sleep(1000)
-
+		
 		'reconnect, 接続を確立
 		hCOM=OpenComPort(txCom,INITIAL_BAUDRATE,bufferSize,1024*10)
 
+		
 		if hCOM = NULL Then 
-			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。","接続失敗",0,GetLastError())
+			ErrMes(hMainWnd,MakeStr(txCom)+ex"への接続に失敗しました。","Connection failed",0,GetLastError())
 			DBM("Serial connection Failed.")
 			hCOM=0
 			free(txCom)	
@@ -322,6 +331,7 @@ Function GetWndTextMalloc(hWnd As HWND) As BytePtr
 
 	GetWndTextMalloc=buf
 EndFunction
+Declare Function GetNextDlgTabItem Lib "user32" Alias "GetNextDlgTabItem" (ByVal hDlg As Long, ByVal hCtl As Long, ByVal bPrevious As Long) As Long 
 
 Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 '	DBM("PressKey:"+Hex$(KeyCode))
@@ -329,6 +339,9 @@ Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 		Case &H70 : SpeedTest()	'F1
 		Case &H71 : CheckFirmware(hCOM,FALSE)	'F2
 		Case &H74 : ListUpComPort(GetDlgItem(hMainWnd,ComList))
+
+		'(このメッセージはフォーカスが無い状態なので)TABキーが押されたら適当なボタンにフォーカスを当てる
+		'Case VK_TAB : SetFocus( GetNextDlgTabItem(hMainWnd, 0, TRUE))
 	EndSelect
 End Sub
 
@@ -534,7 +547,7 @@ End Sub
 
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 	'ESC+マウス中ボタンダブルクリックでテストモード
-	if GetKeyState(VK_ESCAPE) And &H80 Then 
+	if GetCancelKey() Then 
 		MoveWindow(hMainWnd,0,0,475,330,TRUE)
 		AllocConsole()
 		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
@@ -657,7 +670,7 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info.Title,"[ERR]通信エラー")
 		SetCartInfo(VarPtr(info),TRUE)
-		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","デバイスロスト",0)
+		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
 		DisconnectDevice()
 		ExitSub
 	End If
@@ -688,7 +701,7 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 		info.MapMode = (info.MapMode And &HF0) or info.ROMType
 		info.ROMSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info.SRAMSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
-
+		printf(ex"custom rom size = %d\n",info.ROMSize/1024/1024)
 	End If
 
 EndSub
@@ -1061,7 +1074,7 @@ Sub MainWnd_CommandButton16_Click()
 		SetDlgEnable(STATUS_CONNECTED)
 End Sub
 
-Sub MainWnd_ROM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
+Sub MainWnd_ROM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):DBM("test3"):	End Sub
 Sub MainWnd_SRAM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
 Sub MainWnd_ROM_SIZE_EditChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
 Sub MainWnd_SRAM_SIZE_EditChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
@@ -1104,6 +1117,7 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 	CharLower(str)
 
 	Do 
+		if str[ci]=0 Then ExitDo
 
 		'数値に入る前の処理
 		if state=0 Then
@@ -1134,6 +1148,7 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 				'固定基数なのに変わってたらアウト
 				if fFixedBase And (base <> _base) Then Goto *rcATOI_ERRNUM
 			Else 
+				ci++
 				continue
 			End If
 		End If
@@ -1178,7 +1193,7 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 		if state=4 Then ExitDo
 
 		ci++
-		if str[ci]=0 Then ExitDo
+
 	Loop
 
 	if fNegative Then	num*=-1
@@ -1187,6 +1202,7 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 	rcAsciiToInt=TRUE
 	SetDWord(result_num,num)
 	ExitFunction
+
 *rcATOI_ERRNUM
 	rcAsciiToInt=FALSE
 End Function

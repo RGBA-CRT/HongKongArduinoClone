@@ -310,6 +310,10 @@ void writebyte_cart(byte bank, word address, byte data) {
 }
 
 
+#ifndef _ENABLE_CIC
+
+byte haveClockModule = 0;
+#endif
 #ifdef _ENABLE_CIC
 byte haveClockModule = 0;
 //[Nintendo Cart Reader]より

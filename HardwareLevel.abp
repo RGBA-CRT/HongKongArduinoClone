@@ -43,8 +43,13 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 	Dim dcb As DCB_SETTING
 
 	if rate=0 Then rate=DEFAULT_BAUDRATE
+	
+	Dim portPath As BytePtr
+	portPath=calloc(lstrlen(PortName)+6)
+	wsprintf(portPath,"\\.\%s",PortName)
 
-	hSerial=CreateFile(PortName,GENERIC_READ Or GENERIC_WRITE,NULL,ByVal NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL)
+	hSerial=CreateFile(portPath,GENERIC_READ Or GENERIC_WRITE,NULL,ByVal NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL)
+	free(portPath):portPath=NULL
 	if hSerial=INVALID_HANDLE_VALUE  Then OpenComPort=NULL AS VoidPtr :ExitFunction
 
 	'バッファ設定

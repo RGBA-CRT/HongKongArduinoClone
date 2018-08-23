@@ -43,16 +43,17 @@ This project supports high-speed dumping, SRAM read/write, BS-X Memory Pack and 
 
 ## 特殊カートリッジについて / About Special Carts
 対応状況は以下の通りです。
+# ※ここに対応表を作成
  * [OK] SFメモリカセット / NP FLASH Cart(SF Memory)
  * [OK] 特殊LoROM (ダビスタ96) / Special LoROM(3MB)
  * [OK] 8Mメモリパック / satellaview 8M data pack
+ * [OK] ExHiROM
  * [OK] S-DD1
  * [OK] SA-1
  * [OK] SPC7110
- * [OK] ExHiROM
  * [NG] CX4
- * [NG] STシリーズ
- 
+ * [NG] ST01x
+  
 SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。  
 Dump from SA-1 and SPC7110 needs following Clock Modlue.  
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
@@ -114,3 +115,4 @@ Ver0.8からSFメモリカセットの吸出しに対応しました。
     [2018/02/26]ver 0.7 - ファームウェアアップデート。動的ボーレート, 速度向上(55 -> 96KB/s)
     [2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正
     [2018/07/18]ver 0.9 - SA-1追加回路修正, サテラビューに対応
+    [2018/08/24]ver 1.0 - SRAMリードライトを改善, UIを改善, 正式版

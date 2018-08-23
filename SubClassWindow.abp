@@ -11,6 +11,8 @@ Dim cb_old_proc[cb_ctrl_count] As *Function(hWnd As HWND, dwMsg As DWord, wParam
 Dim cb_bgBrush AS HBRUSH
 Const cb_bgColor = COLOR_3DFACE
 
+Dim hAccel AS HANDLE
+
 Sub RegisterSubClass()
 	'サブクラス化するウィンドウを記述
 	cb_ctrl_hWnds[0]=MWnd(ROM_SIZE)
@@ -28,8 +30,6 @@ Sub RegisterSubClass()
 End Sub
 
 Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
-'	printf(ex"hWnd %X subclass %08X %08X\n ",hWnd,dwMsg,wParam)
-
 	'メッセージ処理
 	if dwMsg=WM_CTLCOLORLISTBOX or dwMsg=WM_CTLCOLOREDIT Then
 		SetBkMode(wParam, TRANSPARENT)
@@ -47,4 +47,34 @@ Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARA
 	Next i
 End Function
 
-'(http://note.phyllo.net/?eid=1105981
+Sub RegistAcceleratorKey()
+	Dim accel[5] as ACCEL
+	accel[0].fVirt=FVIRTKEY or FALT
+	accel[0].key=GetByte("C")
+	accel[0].cmd=CommandButton5
+
+	accel[1].fVirt=FVIRTKEY or FALT
+	accel[1].key=GetByte("G")
+	accel[1].cmd=CommandButton1
+
+	accel[2].fVirt=FVIRTKEY or FALT
+	accel[2].key=GetByte("R")
+	accel[2].cmd=CommandButton2
+
+	accel[3].fVirt=FVIRTKEY or FALT
+	accel[3].key=GetByte("S")
+	accel[3].cmd=CommandButton3
+
+	accel[4].fVirt=FVIRTKEY or FALT
+	accel[4].key=GetByte("W")
+	accel[4].cmd=CommandButton4
+
+	accel[5].fVirt=FVIRTKEY
+	accel[5].key=VK_TAB
+	accel[5].cmd=ID_DLG_TAB
+
+	hAccel=CreateAcceleratorTable(accel, 6)
+	if hAccel=NULL then
+		DBM("Accelerator regist failed.")
+	End If
+End Sub

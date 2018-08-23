@@ -18,6 +18,7 @@ Const HKAC_WRITE_BUFFER_LEN = &HFF
 Const FIRMWARE_ID="HKAF"
 Const FIRMWARE_VERSION=&H33
 
+const ID_DLG_TAB = &H1001
 Dim INIFILE_PATH AS BytePtr
 
 
@@ -34,17 +35,22 @@ _System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
 '  Window Message Loop
 '---------------------------
 RegisterSubClass()
+RegistAcceleratorKey()
 
 Dim msgMain As MSG, iResult As Long
 Do
 	iResult=GetMessage(msgMain,0,0,0)
 	If iResult=0 Then ExitDo
-    If IsDialogMessage(hMainWnd, msgMain) = FALSE Then 'TAB用
-        TranslateMessage(msgMain)
-        DispatchMessage(msgMain)
-    End If
+
+	if TranslateAccelerator(hMainWnd, hAccel, msgMain) = FALSE Then 'ショートカットキー
+	    If IsDialogMessage(hMainWnd, msgMain) = FALSE Then 'TAB用
+	        TranslateMessage(msgMain)
+    	    DispatchMessage(msgMain)
+		End If
+  End If
 Loop
 
 ' Call destructores and exit process
+DestroyAcceleratorTable(hAccel)
 FreeConsole()
 ExitProcess(0)

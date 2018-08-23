@@ -230,7 +230,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		DBM("Checking SPC7110...")
 		if SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
 			SPC7110_SetBanks(hCOM,0,FALSE) = FALSE Then
-			ErrMes(hMainWnd,ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。","SPC7110バンク切り替え失敗",0)
+			ErrMes(hMainWnd,ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。","SPC7110 Bank Control Error",0)
 			ExitSub
 		End If
 		SPC7110_PrintBanks(hCOM)
@@ -358,7 +358,6 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 				ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
 		End If
 	Endif
-	
 
 *EXIT_DUMP
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
@@ -371,6 +370,8 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	SetAddress(hCOM,0,FALSE)
 
 	FlushCom(hCOM)
+	
+	DBM("")
 EndSub
 
 'チェックサム計算
@@ -505,7 +506,7 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 
 	if fout.openFile(FileName,GENERIC_WRITE) = FALSE Then
 		DBM("Cannot open file! "+MakeStr(FileName))
-		ErrMes(hMainWnd,"SRAMを保存できませんでした。",0,0,GetLastError())
+		ErrMes(hMainWnd,"SRAMを保存できませんでした。","File I/O Error",0,GetLastError())
 		ExitSub
 	Endif
 
@@ -534,6 +535,8 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	Dim i As Long,readAddr AS DWord
 	Do
 		if i => bankCount Then ExitDo
+		if GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto *EXIT_SRAM_DUMP
+
 		readAddr= sraminfo->adr + i*sraminfo->bankStep
 		DBM(sprintfStr("SRAM %02X:%04X +%04X",readAddr>>16,readAddr And &HFFFF,sraminfo->bankSize))
 		
@@ -550,6 +553,9 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 		fout.write(buf,lastDumpSize)
 	End If
 	
+	DBM(ex"SRAM dumping successful!!!\r\n")
+
+*EXIT_SRAM_DUMP
 	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 			SPC7110_SetBanks(hCOM,0,FALSE)	'SRAM ENABLE
 	End If
@@ -559,7 +565,6 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	fout.close()
 	free(buf)
 
-	DBM(ex"SRAM dumping successful!!!\r\n")
 End Sub
 
 'Writing SA-1 SRAM routine was programmed from sanni's cartreader.
@@ -602,7 +607,7 @@ Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	'バッファ生成	
 	if fin.openFile(FileName,GENERIC_READ) = FALSE Then
 		DBM("Cannot open file! "+MakeStr(FileName))
-		ErrMes(hMainWnd,"SRAMファイルが開けませんでした。",0,0,GetLastError())
+		ErrMes(hMainWnd,"SRAMファイルが開けませんでした。","File Open Error",0,GetLastError())
 		ExitSub
 	Endif
 	fin.read(buf,info->SRAMSize)
