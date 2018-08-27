@@ -1,6 +1,10 @@
 'ファーム制御系
 
-
+Function GetComBaudrate(hSerial AS HANDLE) AS DWord
+	Dim dcb As DCB_SETTING
+	GetCommState(hSerial,dcb)
+	GetComBaudrate=dcb.BaudRate
+End Function
 
 Function SetComTimeOut(hSerialPort AS HANDLE,TimeOut AS DWord) AS Byte
 	Dim ct AS COMMTIMEOUTS
@@ -130,9 +134,16 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	if size>&HFFFF Then debug
 
 	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
-
 	dwReadByte=0
-	Const HKAC_HW_RETRY = 500
+
+	'デフォルトのリトライ回数(=タイムアウトのms)
+	'TIMEOUT = 転送時間（理論値）× 10 + 10
+	Const HKAC_TRANSFER_FLOAT_TIME_MUL = 2.5
+	Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
+	Dim HKAC_HW_RETRY As DWord
+	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL +10
+	printf(ex"理論転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
+
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
 
@@ -152,7 +163,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		if ReadByte >= size Then exitdo
 	Loop
 
-	printf(ex"%03X:%X/%X bytes recived %d\n",address,ReadByte,size,retry)
+	printf(ex"%03X:%X/%X bytes recived %d/%d\n",address,ReadByte,size,retry,HKAC_HW_RETRY)
 
 	ReadROM=ReadByte
 EndFunction

@@ -40,7 +40,7 @@ Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As L
 		End If
 	Else if dwMsg=WM_COMMAND then
 		'アクセラレータキー経由だと、ActiveBasicのEventCallに引っかからないので、アクセラレータフラグを消す
-		printf(ex"WM_COMMAND nofty=%X %X\n",wParam>>16,lParam)
+		'printf(ex"WM_COMMAND nofty=%X %X\n",wParam>>16,lParam)
 		if lParam=NULL Then wParam = wParam And &HFFFeFFFF
 
 		'タブストップの処理（手動）

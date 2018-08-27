@@ -20,6 +20,11 @@ This project supports high-speed dumping, SRAM read/write, BS-X Memory Pack and 
     
     コンパイルにはこちらのライブラが必要です。
     https://github.com/RGBA-CRT/RGBALib
+    
+# 動作環境
++ Windows 98SE, Windows 2000以降, Wineでの動作確認が取れています。
++ ArduinoはArduino UNO(ATmega 328P), Arduino NANO(ATmega168)で動作確認が取れています。
++ ATmega168の場合、現在のバージョンではｸﾛｯｸﾓｼﾞｭｰﾙの制御プログラムが収まりません。
 
 
 ## リンク / Link
