@@ -7,7 +7,7 @@ Const VerStr = "1.0"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 
-Const DEFAULT_BAUDRATE = 1090000
+Const DEFAULT_BAUDRATE = 1000000
 Const DEFAULT_CONTINUE = 20
 Const DEFAULT_DUMP_SIZE = &H004000
 Const DEFAULT_QDD_BUFSIZE = 1024*512

@@ -351,7 +351,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		DBM(ex"Successful!!!")
 	Else
 		if info->diableChecksum Then
-			DBM("Dumping may have been successful...")
+			DBM("Checksum is disabled.")
 		Else
 			DBM(ex"Checksum Error!!!")
 			MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _

@@ -142,7 +142,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
 	Dim HKAC_HW_RETRY As DWord
 	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL +10
-	printf(ex"理論転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
+'	printf(ex"理論転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
@@ -170,24 +170,28 @@ EndFunction
 
 Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWord) AS BOOL
 	Dim dwErrors AS DWord,retry AS DWord,rsv AS Byte
-	Dim cs AS COMSTAT
+	Dim cs AS COMSTAT,readLen AS DWord
 	
 	Do
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
 			retry++
 			if retry>timedOut_ms Then WaitForRequest=FALSE:ExitDo
+			readLen=0
+		Else
+			readLen=1
 		End If
 
-		ReadFile(hSerial,VarPtr(rsv),1,VarPtr(dwErrors),ByVal NULL)
+		ReadFile(hSerial,VarPtr(rsv),readLen ,VarPtr(dwErrors),ByVal NULL)
 		if rsv=requestChar Then 
 			WaitForRequest=TRUE
 			ExitDo
 		Else
-			DBM(sprintfStr("[WaitRequest]Invailed Request : %X[%c]",rsv,rsv))
+			printf("[WaitRequest]Invailed Request : %X[%c]",rsv,rsv)
 		End If
 		Sleep(1)
-		Continue
+		retry++
+		if retry<timedOut_ms Then Continue
 	Loop
 
 	if retry>10 Then
@@ -228,8 +232,6 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 		WriteCount+=dwWD
 		if WriteCount => size Then exitdo
-'		if (WriteCount Mod 32) =0 Then Sleep(5)
-'		if (WriteCount Mod 128) =0 Then Sleep(10)
 		if dwWD=0 Then debug
 	Loop
 	
@@ -284,16 +286,11 @@ End Function
 Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 	Dim cmd[2] AS Byte,rsv[10] As byte,FwVer AS Byte,retry AS Long
 	Dim dwWD As DWord
-	
-
+	Dim cs AS COMSTAT
 	cmd[0] = Asc("v")
 *SEND_VER_CHECK
 	if WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
 	if ReadFile(hSerial,rsv, 5 ,VarPtr(dwWD),ByVal NULL)=FALSE Then ExitFunction
-
-	PrintPtr("VerCheck:")
-	Dump(rsv,6)
-	
 
 	FwVer=rsv[4]
 	rsv[4]=0
@@ -324,11 +321,7 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 			retry++	
 			DBM("VerCheck retry...")
 			PumpMessage()
-			if retry And 1 = 0 Then
-				WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)
-				FlushCom(hSerial)
-				Sleep(100)
-			End If
+
 			if GetKeyState(VK_ESCAPE) And &H80 Then
 				DBM("cancel")
 				CheckFirmware=FALSE
@@ -349,16 +342,23 @@ Sub FlushCom(hSerial AS HANDLE)
 	PurgeComm(hSerial,PURGE_TXABORT)
 	PurgeComm(hSerial,PURGE_RXABORT)
 
-	Dim cs AS COMSTAT,dwErrors AS DWord,tmp aS BytePtr
+	Dim cs AS COMSTAT,dwErrors AS DWord
 	ClearCommError(hSerial,VarPtr(dwErrors),cs)
-	'if cs.cbInQue=0 Then ExitSub
+
+	'理由はわからないがこのSleepを外すとファームチェックに失敗する
+	Sleep(10)
+
+	if cs.cbInQue=0 Then ExitSub
 
 	'受信バッファを全部取り出す
+	Dim tmp aS BytePtr
 	tmp=calloc(cs.cbInQue)
 	LoadFile(hSerial,tmp,cs.cbInQue)
-	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
-	Dump(tmp,cs.cbInQue)
-	printf(ex"%d bytes\n",cs.cbInQue)
+'	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
+'	Dump(tmp,cs.cbInQue)
+'	printf(ex"%d bytes\n",cs.cbInQue)
+
+	free(tmp): tmp=NULL
 
 	FlushFileBuffers(hSerial)
 

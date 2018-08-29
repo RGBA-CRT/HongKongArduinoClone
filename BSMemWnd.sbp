@@ -87,7 +87,7 @@ Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 
 	'BSMの中身を一覧表示する。
 	'CREATE時点ではスロットタイプがMainWndから送られてきていないのでメッセージ送るだけ
-	PostMessage(BSMWnd(CommandButton3),BM_CLICK,0,0)
+	'PostMessage(BSMWnd(CommandButton3),BM_CLICK,0,0)
 End Sub
 
 Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO)
@@ -152,9 +152,9 @@ Sub BSM_SA1_MemPackAccess(isStart AS BOOL)
 	if isStart Then
 		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCKED)
 		Sleep(500)
-		SetCartRegister(&H00,&H2220,&H04,FALSE)	
+		SetCartRegister(&H00,&H2223,&H04,FALSE)	
 	Else
-		SetCartRegister(&H00,&H2220,&H00,FALSE)		
+		SetCartRegister(&H00,&H2223,&H00,FALSE)		
 		SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
 	End If
 End Sub
@@ -207,7 +207,8 @@ Function BSM_GetMemPackInfo(mempackinfo AS *BSM_MEMPACK_INFO) AS BOOL
 		'Disable BS-X MCC Write Protects
 		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
 		Sleep(100)
-	'	DBM("ｸﾛｯｸﾓｼﾞｭｰﾙを外してください")
+
+		'C0:0000- WriteEnable
 		SetCartRegister(&H0C,&H5000,&H80,FALSE)	
 		SetCartRegister(&H0D,&H5000,&H80,FALSE)	
 		SetCartRegister(&H0E,&H5000,&H80,FALSE)	

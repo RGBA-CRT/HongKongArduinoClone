@@ -185,9 +185,7 @@ Sub SFMemWnd_CommandButton4_Click()
 End Sub
 
 Sub SFMemWnd_CommandButton5_Click()
-
 	viewNPStatus()
-
 End Sub
 
 Sub SFMemWnd_CommandButton2_Click()

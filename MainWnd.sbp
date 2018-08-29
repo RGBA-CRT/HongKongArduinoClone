@@ -218,7 +218,7 @@ Sub MainWnd_CommandButton5_Click()
 		Dim bufferSize AS DWord
 		bufferSize=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
 		if bufferSize <= 0 Then bufferSize=DEFAULT_DUMP_SIZE
-		
+
 		'connect and reset ボーレート
 		hCOM=OpenComPort(txCom,INITIAL_BAUDRATE,bufferSize,1024*10)
 		ResetArduino(hCOM)
@@ -391,10 +391,6 @@ Sub MainWnd_CommandButton2_Click()
 	MessageBeep(MB_ICONASTERISK)
 End Sub
 
-
-/*
-	Todo:ダブルクリックでテキストボックスを有効にして手動ROM・RAMサイズ入力
-*/
 Sub MainWnd_QueryClose(ByRef cancel As Integer)
 	SaveIniFile()
 End Sub
@@ -594,7 +590,6 @@ Sub SetRomInfoToDlg_FromROM()
 	Dim buf[SFC_SPEC_HEADER_SIZE+2] As Byte,cartInfo As SFC_CART_INFO
 	DBM( "Cartridge Infomation")
 
-
 	'ヘッダを読み出し＆ダイアログに情報を表示
 	FlushCom(hCOM)
 	getCartInfo(cartInfo)
@@ -628,6 +623,10 @@ Sub SetRomInfoToDlg_FromROM()
 		BSM_close()
 	End If
 	
+	if cartInfo.ROMType=SFC_MAP_SF_MENU Then
+		SFM_open()
+	End if	
+
 	SetCheckBox(MWnd(CheckBox7),hasClockModule(hCOM))
 
 	'アクセスランプをLow
