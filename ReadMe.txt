@@ -1,5 +1,6 @@
 /*-------------------------------------------------------------------------------------
 					HongKongArduino 高速版 [2018/08/29] 
+					HongKongArduinoClone version 1.0
 	
 	オリジナルの作者 : (c) 2014 たにやま  [http://hongkongarduino.web.fc2.com/]
 	　高速版作者者　 : RGBA_CRT 2018/08/29 [rgba3crt1p@gmail.com]
@@ -20,7 +21,7 @@
 
 
 ◇注意
-	本プログラムを使用していかなる破損・災害が発生したとしても作者は一切責任を取りません。
+	本プログラムを使用していかなる損害・災害が発生したとしても作者は一切責任を取りません。
 	特にカートリッジ内部のセーブデータ領域のデータは消えやすいので、そのことを踏まえた上でご使用ください。
 	すべてのカートリッジにおいて正確なROM・SRAMの吸出しを保証はしません。
 	特にSRAMの書き込み機能は不安定なので、消えてほしくないデータがカートリッジにある場合には使用しないでください。
@@ -32,9 +33,9 @@
 	HongKongArduinoCloneSrc.zip	->	上記ファイルのソースコードです。
 	
 	firmware\ArduinoHexWriter.exe	->	Arduinoへファームウェアを書き込むためのバッチファイル作成プログラムです。
-	firmware\ArduinoHexWriterSrc.zip	->	上記ファイルのソースコードです。
 	firmware\HongKongArduinoFast.ino	->	Arduinoのスケッチです。
 	firmware\HongKongArduinoFast.ino.standard.hex	->	コンパイル済みArduino用バイナリです。これをArduinoへ書き込んでください。
+	firmware\HongKongArduinoFast.ino.eightanaloginputs.hex	->	ATmega168用バイナリです。
 
 
 ◇特殊カートリッジについて
@@ -60,7 +61,7 @@
 
 	1.Arduinoにファームウェアを書き込み
 		HongkongArduinoFastフォルダに
-		HongKongArduinoFast.hexというファイルがあるので、Arduinoを接続して書き込んでください。
+		HongKongArduinoFast.ino.standard.hexというファイルがあるので、Arduinoを接続して書き込んでください。
 		※初回のみ行ってください。
 		
 		ArduinoHexWriter.exeを使うと比較的簡単に書き込めます。
