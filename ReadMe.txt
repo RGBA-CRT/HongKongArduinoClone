@@ -1,161 +1,155 @@
 /*-------------------------------------------------------------------------------------
-					HongKongArduino ‚‘¬”Å [2016/7/20] 
+					HongKongArduino é«˜é€Ÿç‰ˆ [2018/08/29] 
 	
-	ƒIƒŠƒWƒiƒ‹‚ÌìŽÒ : (c) 2014 ‚½‚É‚â‚Ü  [http://hongkongarduino.web.fc2.com/]
-	@‚‘¬”ÅìŽÒŽÒ@ : RGBA_CRT 2016/7/20 [rgba3crt1p@gmail.com]
+	ã‚ªãƒªã‚¸ãƒŠãƒ«ã®ä½œè€… : (c) 2014 ãŸã«ã‚„ã¾  [http://hongkongarduino.web.fc2.com/]
+	ã€€é«˜é€Ÿç‰ˆä½œè€…è€…ã€€ : RGBA_CRT 2018/08/29 [rgba3crt1p@gmail.com]
 -------------------------------------------------------------------------------------*/
 
-žŠT—v
-	‚±‚ÌƒvƒƒOƒ‰ƒ€‚Í‚½‚É‚â‚ÜŽ‚ªŠJ”­EŒöŠJ‚³‚ê‚½A"‚±[‚Ç‚Ë[‚Þuƒzƒ“ƒRƒ“v with Arduino"‚ÉŽè‚ð‰Á‚¦‚Ä
-	‚‘¬‰»ESRAM‚Ì‹zo‚µ‚È‚Ç‚Ì‹@”\‚ð‰Á‚¦‚½‚à‚Ì‚Å‚·B
+â—‡æ¦‚è¦
+	ã“ã®ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã¯ãŸã«ã‚„ã¾æ°ãŒé–‹ç™ºãƒ»å…¬é–‹ã•ã‚ŒãŸã€"ã“ãƒ¼ã©ã­ãƒ¼ã‚€ã€Œãƒ›ãƒ³ã‚³ãƒ³ã€ with Arduino"ã«æ‰‹ã‚’åŠ ãˆã¦
+	é«˜é€ŸåŒ–ãƒ»SRAMã®å¸å‡ºã—ãªã©ã®æ©Ÿèƒ½ã‚’åŠ ãˆãŸã‚‚ã®ã§ã™ã€‚
 
-	[–{‰Æ]‚±[‚Ç‚Ë[‚Þuƒzƒ“ƒRƒ“v with Arduino
+	[æœ¬å®¶]ã“ãƒ¼ã©ã­ãƒ¼ã‚€ã€Œãƒ›ãƒ³ã‚³ãƒ³ã€ with Arduino
 	http://hongkongarduino.web.fc2.com/
 	
-	‚‘¬”Å‚Ìƒy[ƒW
+	é«˜é€Ÿç‰ˆã®ãƒšãƒ¼ã‚¸
 	http://rgbacrt.seesaa.net/article/435543541.html
 	
-	ŠJ”­ƒy[ƒW
+	é–‹ç™ºãƒšãƒ¼ã‚¸
 	https://github.com/RGBA-CRT/HongKongArduinoClone
 
 
-ž’ˆÓ
-	–{ƒvƒƒOƒ‰ƒ€‚ðŽg—p‚µ‚Ä‚¢‚©‚È‚é”j‘¹EÐŠQ‚ª”­¶‚µ‚½‚Æ‚µ‚Ä‚àìŽÒ‚ÍˆêØÓ”C‚ðŽæ‚è‚Ü‚¹‚ñB
-	“Á‚ÉƒJ[ƒgƒŠƒbƒW“à•”‚ÌƒZ[ƒuƒf[ƒ^—Ìˆæ‚Ìƒf[ƒ^‚ÍÁ‚¦‚â‚·‚¢‚Ì‚ÅA‚»‚Ì‚±‚Æ‚ð“¥‚Ü‚¦‚½ã‚Å‚²Žg—p‚­‚¾‚³‚¢B
-	‚·‚×‚Ä‚ÌƒJ[ƒgƒŠƒbƒW‚É‚¨‚¢‚Ä³Šm‚ÈROMESRAM‚Ì‹zo‚µ‚ð•ÛØ‚Í‚µ‚Ü‚¹‚ñB
-	“Á‚ÉSRAM‚Ì‘‚«ž‚Ý‹@”\‚Í•sˆÀ’è‚È‚Ì‚ÅAÁ‚¦‚Ä‚Ù‚µ‚­‚È‚¢ƒf[ƒ^‚ªƒJ[ƒgƒŠƒbƒW‚É‚ ‚éê‡‚É‚ÍŽg—p‚µ‚È‚¢‚Å‚­‚¾‚³‚¢B
-	‚Ü‚½A‹z‚¢o‚µ‚½ROMƒCƒ[ƒW‚ðƒCƒ“ƒ^[ƒlƒbƒgã‚ÉŒöŠJ‚·‚é‚±‚Æ‚Í”Æß‚Å‚·B
+â—‡æ³¨æ„
+	æœ¬ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã‚’ä½¿ç”¨ã—ã¦ã„ã‹ãªã‚‹ç ´æãƒ»ç½å®³ãŒç™ºç”Ÿã—ãŸã¨ã—ã¦ã‚‚ä½œè€…ã¯ä¸€åˆ‡è²¬ä»»ã‚’å–ã‚Šã¾ã›ã‚“ã€‚
+	ç‰¹ã«ã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸å†…éƒ¨ã®ã‚»ãƒ¼ãƒ–ãƒ‡ãƒ¼ã‚¿é ˜åŸŸã®ãƒ‡ãƒ¼ã‚¿ã¯æ¶ˆãˆã‚„ã™ã„ã®ã§ã€ãã®ã“ã¨ã‚’è¸ã¾ãˆãŸä¸Šã§ã”ä½¿ç”¨ãã ã•ã„ã€‚
+	ã™ã¹ã¦ã®ã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸ã«ãŠã„ã¦æ­£ç¢ºãªROMãƒ»SRAMã®å¸å‡ºã—ã‚’ä¿è¨¼ã¯ã—ã¾ã›ã‚“ã€‚
+	ç‰¹ã«SRAMã®æ›¸ãè¾¼ã¿æ©Ÿèƒ½ã¯ä¸å®‰å®šãªã®ã§ã€æ¶ˆãˆã¦ã»ã—ããªã„ãƒ‡ãƒ¼ã‚¿ãŒã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸ã«ã‚ã‚‹å ´åˆã«ã¯ä½¿ç”¨ã—ãªã„ã§ãã ã•ã„ã€‚
+	ã¾ãŸã€å¸ã„å‡ºã—ãŸROMã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ã‚¤ãƒ³ã‚¿ãƒ¼ãƒãƒƒãƒˆä¸Šã«å…¬é–‹ã™ã‚‹ã“ã¨ã¯çŠ¯ç½ªã§ã™ã€‚
 
 
-žƒZƒbƒg“à—e
-	HongKongArduinoClone.exe		->	Windows—p‹zo‚µƒvƒƒOƒ‰ƒ€‚Å‚·B
-	HongKongArduinoCloneSrc.zip	->	ã‹Lƒtƒ@ƒCƒ‹‚Ìƒ\[ƒXƒR[ƒh‚Å‚·B
+â—‡ã‚»ãƒƒãƒˆå†…å®¹
+	HongKongArduinoClone.exe		->	Windowsç”¨å¸å‡ºã—ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã§ã™ã€‚
+	HongKongArduinoCloneSrc.zip	->	ä¸Šè¨˜ãƒ•ã‚¡ã‚¤ãƒ«ã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã§ã™ã€‚
 	
-	firmware\ArduinoHexWriter.exe	->	Arduino‚Öƒtƒ@[ƒ€ƒEƒFƒA‚ð‘‚«ž‚Þ‚½‚ß‚Ìƒoƒbƒ`ƒtƒ@ƒCƒ‹ì¬ƒvƒƒOƒ‰ƒ€‚Å‚·B
-	firmware\ArduinoHexWriterSrc.zip	->	ã‹Lƒtƒ@ƒCƒ‹‚Ìƒ\[ƒXƒR[ƒh‚Å‚·B
-	firmware\HongKongArduinoFast.ino	->	Arduino‚ÌƒXƒPƒbƒ`‚Å‚·B
-	firmware\HongKongArduinoFast.ino.standard.hex	->	ƒRƒ“ƒpƒCƒ‹Ï‚ÝArduino—pƒoƒCƒiƒŠ‚Å‚·B‚±‚ê‚ðArduino‚Ö‘‚«ž‚ñ‚Å‚­‚¾‚³‚¢B
+	firmware\ArduinoHexWriter.exe	->	Arduinoã¸ãƒ•ã‚¡ãƒ¼ãƒ ã‚¦ã‚§ã‚¢ã‚’æ›¸ãè¾¼ã‚€ãŸã‚ã®ãƒãƒƒãƒãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆãƒ—ãƒ­ã‚°ãƒ©ãƒ ã§ã™ã€‚
+	firmware\ArduinoHexWriterSrc.zip	->	ä¸Šè¨˜ãƒ•ã‚¡ã‚¤ãƒ«ã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã§ã™ã€‚
+	firmware\HongKongArduinoFast.ino	->	Arduinoã®ã‚¹ã‚±ãƒƒãƒã§ã™ã€‚
+	firmware\HongKongArduinoFast.ino.standard.hex	->	ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«æ¸ˆã¿Arduinoç”¨ãƒã‚¤ãƒŠãƒªã§ã™ã€‚ã“ã‚Œã‚’Arduinoã¸æ›¸ãè¾¼ã‚“ã§ãã ã•ã„ã€‚
 
 
-ž“ÁŽêƒJ[ƒgƒŠƒbƒW‚É‚Â‚¢‚Ä
-	‘Î‰žó‹µ‚ÍˆÈ‰º‚Ì’Ê‚è‚Å‚·B
-	 * [NG] SFƒƒ‚ƒŠƒJƒZƒbƒg
-	 * [NG] “ÁŽêLoROM?(ƒ_ƒrƒXƒ^96)
-	 * [NG] 8Mƒƒ‚ƒŠƒpƒbƒN
-	 * [–¢ƒeƒXƒg] ExHiROM(ƒeƒCƒ‹ƒY)
+â—‡ç‰¹æ®Šã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸ã«ã¤ã„ã¦
+	å¯¾å¿œçŠ¶æ³ã¯ä»¥ä¸‹ã®é€šã‚Šã§ã™ã€‚
+	 * [OK] LoROM
+	 * [OK] HiROM
+	 * [OK] SFãƒ¡ãƒ¢ãƒªã‚«ã‚»ãƒƒãƒˆ / NP FLASH Cart(SF Memory)
+	 * [OK] ç‰¹æ®ŠLoROM (ãƒ€ãƒ“ã‚¹ã‚¿96) / Special LoROM(3MB)
+	 * [OK] 8Mãƒ¡ãƒ¢ãƒªãƒ‘ãƒƒã‚¯ / satellaview 8M data pack
+	 * [OK] ExHiROM
 	 * [OK] S-DD1
 	 * [OK] SA-1
-	SA-1‚ÍSA1.png‚Ì‰ñ˜H‚ð’Ç‰Á‚·‚é‚±‚Æ‚Å‹zo‚µ‰Â”\‚É‚È‚è‚Ü‚·B
-	i–³—‚Ì‚ ‚é”zü‚ð‚µ‚Ä‚¢‚é‚Ì‚ÅArduino‚Ìƒo[ƒWƒ‡ƒ“‚É‚æ‚Á‚Ä‚Í“®ì‚µ‚È‚¢‰Â”\«‚ª‚ ‚è‚Ü‚·Bj
+	 * [OK] SPC7110
+	 * [NG] CX4
+	 * [NG] ST01x
+
+	SA-1, SPC7110ã¯SA1.pngã®å›žè·¯ã‚’è¿½åŠ ã™ã‚‹ã“ã¨ã§å¸å‡ºã—å¯èƒ½ã«ãªã‚Šã¾ã™ã€‚
+	ï¼ˆç„¡ç†ã®ã‚ã‚‹é…ç·šã‚’ã—ã¦ã„ã‚‹ã®ã§Arduinoã®ãƒãƒ¼ã‚¸ãƒ§ãƒ³ã«ã‚ˆã£ã¦ã¯å‹•ä½œã—ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ã€‚ï¼‰
 
 
-žŽg‚¢•û
-	æ‚É‰ñ˜H‚ªŠ®¬‚µAŒöŽ®‚ÌƒNƒ‰ƒCƒAƒ“ƒgiWinHongKongj‚Å‚Ì³í‚È‹zo‚µ‚ª‚Å‚«‚é‚±‚Æ‚ª‘O’ñ‚Å‚·B
+â—‡ä½¿ã„æ–¹
+	å…ˆã«å›žè·¯ãŒå®Œæˆã—ã€å…¬å¼ã®ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆï¼ˆWinHongKongï¼‰ã§ã®æ­£å¸¸ãªå¸å‡ºã—ãŒã§ãã‚‹ã“ã¨ãŒå‰æã§ã™ã€‚
 
-	1.Arduino‚Éƒtƒ@[ƒ€ƒEƒFƒA‚ð‘‚«ž‚Ý
-		HongkongArduinoFastƒtƒHƒ‹ƒ_‚É	HongKongArduinoFast.hex‚Æ‚¢‚¤ƒtƒ@ƒCƒ‹‚ª‚ ‚é‚Ì‚ÅAArduino‚ðÚ‘±‚µ‚Ä‘‚«ž‚ñ‚Å‚­‚¾‚³‚¢B
-		¦‰‰ñ‚Ì‚Ýs‚Á‚Ä‚­‚¾‚³‚¢B
+	1.Arduinoã«ãƒ•ã‚¡ãƒ¼ãƒ ã‚¦ã‚§ã‚¢ã‚’æ›¸ãè¾¼ã¿
+		HongkongArduinoFastãƒ•ã‚©ãƒ«ãƒ€ã«
+		HongKongArduinoFast.hexã¨ã„ã†ãƒ•ã‚¡ã‚¤ãƒ«ãŒã‚ã‚‹ã®ã§ã€Arduinoã‚’æŽ¥ç¶šã—ã¦æ›¸ãè¾¼ã‚“ã§ãã ã•ã„ã€‚
+		â€»åˆå›žã®ã¿è¡Œã£ã¦ãã ã•ã„ã€‚
 		
-		ArduinoHexWriter.exe‚ðŽg‚¤‚Æ”äŠr“IŠÈ’P‚É‘‚«ž‚ß‚Ü‚·B
-			ArduinoIDEƒtƒHƒ‹ƒ_‚ÍAarduino.exe‚ª‚ ‚éƒtƒHƒ‹ƒ_‚ðŽw’è‚µ‚Ä‚­‚¾‚³‚¢BŠm”Fƒ{ƒ^ƒ“‚ð‰Ÿ‚µ‚Äu³ív‚Æ•\Ž¦‚³‚ê‚é‚±‚Æ‚ðŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
-			ArduinoHexWriter‚ð‹N“®‚µAˆê”Ô‰º‚ÌƒeƒLƒXƒgƒ{ƒbƒNƒX‚Éhexƒtƒ@ƒCƒ‹‚ðƒhƒƒbƒv‚·‚é‚ÆƒpƒX‚ª“ü—Í‚³‚ê‚Ü‚·B
-			u‘‚«ž‚Ývƒ{ƒ^ƒ“‚ð‰Ÿ‚·‚ÆArduino‚ÉHEXƒtƒ@ƒCƒ‹‚ð‘‚«ž‚Ý‚Ü‚·B
-			ƒRƒ}ƒ“ƒhƒvƒƒ“ƒvƒg‚ª•\Ž¦‚³‚êAuavrdude.exe done. Thank you.v‚Æ•\Ž¦‚³‚ê‚½‚ç‘‚«ž‚Ý‚É¬Œ÷‚µ‚Ä‚¢‚Ü‚·B
-			‰½‚©ƒL[‚ð‰Ÿ‚µ‚ÄI—¹‚µ‚Ä‚­‚¾‚³‚¢B
+		ArduinoHexWriter.exeã‚’ä½¿ã†ã¨æ¯”è¼ƒçš„ç°¡å˜ã«æ›¸ãè¾¼ã‚ã¾ã™ã€‚
+			ArduinoIDEãƒ•ã‚©ãƒ«ãƒ€ã¯ã€arduino.exeãŒã‚ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã‚’æŒ‡å®šã—ã¦ãã ã•ã„ã€‚ç¢ºèªãƒœã‚¿ãƒ³ã‚’æŠ¼ã—ã¦ã€Œæ­£å¸¸ã€ã¨è¡¨ç¤ºã•ã‚Œã‚‹ã“ã¨ã‚’ç¢ºèªã—ã¦ãã ã•ã„ã€‚
+			ArduinoHexWriterã‚’èµ·å‹•ã—ã€ä¸€ç•ªä¸‹ã®ãƒ†ã‚­ã‚¹ãƒˆãƒœãƒƒã‚¯ã‚¹ã«hexãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‰ãƒ­ãƒƒãƒ—ã™ã‚‹ã¨ãƒ‘ã‚¹ãŒå…¥åŠ›ã•ã‚Œã¾ã™ã€‚
+			ã€Œæ›¸ãè¾¼ã¿ã€ãƒœã‚¿ãƒ³ã‚’æŠ¼ã™ã¨Arduinoã«HEXãƒ•ã‚¡ã‚¤ãƒ«ã‚’æ›¸ãè¾¼ã¿ã¾ã™ã€‚
+			ã‚³ãƒžãƒ³ãƒ‰ãƒ—ãƒ­ãƒ³ãƒ—ãƒˆãŒè¡¨ç¤ºã•ã‚Œã€ã€Œavrdude.exe done. Thank you.ã€ã¨è¡¨ç¤ºã•ã‚ŒãŸã‚‰æ›¸ãè¾¼ã¿ã«æˆåŠŸã—ã¦ã„ã¾ã™ã€‚
+			ä½•ã‹ã‚­ãƒ¼ã‚’æŠ¼ã—ã¦çµ‚äº†ã—ã¦ãã ã•ã„ã€‚
 		
-		‚È‚¨A‚±‚ÌHEXƒtƒ@ƒCƒ‹‚ÍÅ“K‰»ƒIƒvƒVƒ‡ƒ“-O3(ˆ—‘¬“x—Dæ)‚ÅƒRƒ“ƒpƒCƒ‹‚³‚ê‚Ä‚¢‚Ü‚·B
-		ƒfƒtƒHƒ‹ƒg‚ÌArduinoIDE‚ÌÝ’è‚Å‚ÍÅ“K‰»ƒIƒvƒVƒ‡ƒ“‚ª-Os(ƒTƒCƒY‚Ì¬‚³‚³—Dæ)‚É‚È‚Á‚Ä‚¢‚Ü‚·B
+		ãªãŠã€ã“ã®HEXãƒ•ã‚¡ã‚¤ãƒ«ã¯æœ€é©åŒ–ã‚ªãƒ—ã‚·ãƒ§ãƒ³-O3(å‡¦ç†é€Ÿåº¦å„ªå…ˆ)ã§ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«ã•ã‚Œã¦ã„ã¾ã™ã€‚
+		ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®ArduinoIDEã®è¨­å®šã§ã¯æœ€é©åŒ–ã‚ªãƒ—ã‚·ãƒ§ãƒ³ãŒ-Os(ã‚µã‚¤ã‚ºã®å°ã•ã•å„ªå…ˆ)ã«ãªã£ã¦ã„ã¾ã™ã€‚
 		
-	2.ƒNƒ‰ƒCƒAƒ“ƒg‚Ì‹N“®
-		HongKongArduinoClone.exe‚ð‹N“®‚µ‚Ä‚­‚¾‚³‚¢B
-		uSerial Portv‚ÉArduino‚Ìƒ|[ƒg‚ðŽw’è‚µ‚Ä[connect]ƒ{ƒ^ƒ“‚ð‰Ÿ‚µ‚Ä‚­‚¾‚³‚¢B
-		‰E‚ÌInfomation—“‚ÉuConnection successful!v‚ª•\Ž¦‚³‚êAƒQ[ƒ€ƒ^ƒCƒgƒ‹‚ª•\Ž¦‚³‚ê‚Ä‚¢‚ê‚ÎÚ‘±¬Œ÷‚Å‚·B
-		‚à‚µAƒtƒ@[ƒ€ƒEƒFƒA‚ð•ÏX‚µ‚Ä’ÊMƒŒ[ƒg‚ð•ÏX‚µ‚½ê‡‚Íƒ_ƒCƒAƒƒO‰E‚Ì[baudrate]‚ð•ÏX‚µ‚Ä‚­‚¾‚³‚¢B
+	2.ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã®èµ·å‹•
+		HongKongArduinoClone.exeã‚’èµ·å‹•ã—ã¦ãã ã•ã„ã€‚
+		ã€ŒSerial Portã€ã«Arduinoã®ãƒãƒ¼ãƒˆã‚’æŒ‡å®šã—ã¦[connect]ãƒœã‚¿ãƒ³ã‚’æŠ¼ã—ã¦ãã ã•ã„ã€‚
+		å³ã®Infomationæ¬„ã«ã€ŒConnection successful!ã€ãŒè¡¨ç¤ºã•ã‚Œã€ã‚²ãƒ¼ãƒ ã‚¿ã‚¤ãƒˆãƒ«ãŒè¡¨ç¤ºã•ã‚Œã¦ã„ã‚Œã°æŽ¥ç¶šæˆåŠŸã§ã™ã€‚
+		ã‚‚ã—ã€ãƒ•ã‚¡ãƒ¼ãƒ ã‚¦ã‚§ã‚¢ã‚’å¤‰æ›´ã—ã¦é€šä¿¡ãƒ¬ãƒ¼ãƒˆã‚’å¤‰æ›´ã—ãŸå ´åˆã¯ãƒ€ã‚¤ã‚¢ãƒ­ã‚°å³ã®[baudrate]ã‚’å¤‰æ›´ã—ã¦ãã ã•ã„ã€‚
 		
-	3.ƒNƒ‰ƒCƒAƒ“ƒg‚Ì‘€ì
-		3-1 ƒJ[ƒgƒŠƒbƒW‚ðÚ‘±‚µAGetCartInfoƒ{ƒ^ƒ“‚ð‰Ÿ‚µ‚ÄƒQ[ƒ€î•ñ‚ðŽæ“¾‚µ‚Ä‚­‚¾‚³‚¢B‚±‚ê‚ð‚µ‚È‚¢‚ÆLoROM/HiROM‚Ì”»’è‚ª‚³‚ê‚Ü‚¹‚ñB
-		3-2 DumpROM‚Å‹zo‚µ‚ðs‚¢‚Ü‚·B
-		3-3 DumpSRAM‚ÅSRAM‚Ì‹zo‚µ‚ðs‚¢‚Ü‚·B‚¤‚Ü‚­‹z‚¢o‚¹‚È‚©‚Á‚½ê‡‚ÍMAD-1‚Ìƒ`ƒFƒbƒN‚ð“ü‚ê‚Ä‹zo‚µ‚ð‚µ‚Ä‚Ý‚Ä‚­‚¾‚³‚¢B
+	3.ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã®æ“ä½œ
+		3-1 ã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸ã‚’æŽ¥ç¶šã—ã€GetCartInfoãƒœã‚¿ãƒ³ã‚’æŠ¼ã—ã¦ã‚²ãƒ¼ãƒ æƒ…å ±ã‚’å–å¾—ã—ã¦ãã ã•ã„ã€‚ã“ã‚Œã‚’ã—ãªã„ã¨LoROM/HiROMã®åˆ¤å®šãŒã•ã‚Œã¾ã›ã‚“ã€‚
+		3-2 DumpROMã§å¸å‡ºã—ã‚’è¡Œã„ã¾ã™ã€‚
+		3-3 DumpSRAMã§SRAMã®å¸å‡ºã—ã‚’è¡Œã„ã¾ã™ã€‚ã†ã¾ãå¸ã„å‡ºã›ãªã‹ã£ãŸå ´åˆã¯MAD-1ã®ãƒã‚§ãƒƒã‚¯ã‚’å…¥ã‚Œã¦å¸å‡ºã—ã‚’ã—ã¦ã¿ã¦ãã ã•ã„ã€‚
 		
-	4.I—¹
-		[Close]ƒ{ƒ^ƒ“‚ð‰Ÿ‚·‚ÆArduino‚Æ‚ÌÚ‘±‚ðØ’f‚µ‚Ü‚·B
+	4.çµ‚äº†
+		[Close]ãƒœã‚¿ãƒ³ã‚’æŠ¼ã™ã¨Arduinoã¨ã®æŽ¥ç¶šã‚’åˆ‡æ–­ã—ã¾ã™ã€‚
 		
 
-žŠJ”­ŠÂ‹«
-	“®ì‰Â”\ŠÂ‹«‚Ì–ÚˆÀ‚É‚µ‚Ä‚­‚¾‚³‚¢B
-	OS 	: Win7 SP1@32bit
+â—‡é–‹ç™ºç’°å¢ƒ
+	å‹•ä½œå¯èƒ½ç’°å¢ƒã®ç›®å®‰ã«ã—ã¦ãã ã•ã„ã€‚
+	OS 	: Win7 SP1ã€€32bit
 	CPU 	: Core i3 330M
-	Arduino : Aitendo»‚ÌArduino UNOŒÝŠ·‹@iATMega328P 16MHz 5.0vj
+	Arduino : Aitendoè£½ã®Arduino UNOäº’æ›æ©Ÿï¼ˆATMega328P 16MHz 5.0vï¼‰
 	ArduinoIDE : ver1.6.6
-	HongKongArduino‚Æ‚Ì’ÊM‘¬“xF54179byte/sec
-	ŠJ”­Œ¾ŒêFActiveBasic ver4 + Ž©•ª—pƒ‰ƒCƒuƒ‰ƒŠ
+	HongKongArduinoã¨ã®é€šä¿¡é€Ÿåº¦ï¼š54179byte/sec
+	é–‹ç™ºè¨€èªžï¼šActiveBasic ver4 + è‡ªåˆ†ç”¨ãƒ©ã‚¤ãƒ–ãƒ©ãƒª
 
-žQ&A
-	E‹zo‚µ’†‚É[0]Warning!@‚Æo‚é‚ªA‚±‚ê‚Í‰½‚©H
-		‘—M‚³‚ê‚Ä‚«‚½ƒf[ƒ^‚ÌƒTƒCƒY‚ª•s³‚ÌŽž‚É•\Ž¦‚³‚ê‚Ü‚·B
+â—‡Q&A
+	ãƒ»å¸å‡ºã—ä¸­ã«[0]Warning!ã€€ã¨å‡ºã‚‹ãŒã€ã“ã‚Œã¯ä½•ã‹ï¼Ÿ
+		é€ä¿¡ã•ã‚Œã¦ããŸãƒ‡ãƒ¼ã‚¿ã®ã‚µã‚¤ã‚ºãŒä¸æ­£ã®æ™‚ã«è¡¨ç¤ºã•ã‚Œã¾ã™ã€‚
 		
-	EuOver retry count.v‚Æ•\Ž¦‚³‚ê‚Ä‹zo‚µ‚ª’âŽ~‚µ‚½
-		ã‹L‚ÌWarning‚ª20‰ñ‚Ù‚Ç”­¶‚µ‚½ê‡‚É‹zo‚µ‚ª’âŽ~‚µ‚Ü‚·B
-		HongKongArduinoClone.ini‚Ì’†‚ÌMaxContinue‚Ì‰E•Ó‚Ì’l‚ð‘‚â‚·‚±‚Æ‚ÅWarningŽž‚ÌÄŽŽs‰ñ”‚ð‘‚â‚¹‚Ü‚·B
+	ãƒ»Serial Portã®æ¬„ã«Errã¨è¡¨ç¤ºã•ã‚Œã‚‹
+		COMãƒãƒ¼ãƒˆã®ãƒªã‚¹ãƒˆã‚¢ãƒƒãƒ—ã«å¿…è¦ãªãƒ¡ãƒ¢ãƒªãŒä¸è¶³ã—ã¦ã„ã‚‹å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ã€‚
+		HongKongArduinoClone.iniã®ä¸­ã®QDDSizeã®å³è¾ºã‚’æ›¸ãæ›ãˆã‚‹ã¨æ”¹å–„ã™ã‚‹å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ã€‚
+		ãªãŠã€QDDSizeã®å€¤ãŒ1023ä»¥ä¸‹ã®å ´åˆãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®å€¤ã«æˆ»ã•ã‚Œã¾ã™ã®ã§æ³¨æ„ã—ã¦ãã ã•ã„ã€‚
+		æ”¹å–„ã—ãªã„å ´åˆã¯æ‰‹å‹•ã§ãƒãƒ¼ãƒˆç•ªå·ã‚’æ›¸ã„ã¦ãã ã•ã„ã€‚
 		
-	ESerial Port‚Ì—“‚ÉErr‚Æ•\Ž¦‚³‚ê‚é
-		COMƒ|[ƒg‚ÌƒŠƒXƒgƒAƒbƒv‚É•K—v‚Èƒƒ‚ƒŠ‚ª•s‘«‚µ‚Ä‚¢‚é‰Â”\«‚ª‚ ‚è‚Ü‚·B
-		HongKongArduinoClone.ini‚Ì’†‚ÌQDDSize‚Ì‰E•Ó‚ð‘‚«Š·‚¦‚é‚Æ‰ü‘P‚·‚é‰Â”\«‚ª‚ ‚è‚Ü‚·B
-		‚È‚¨AQDDSize‚Ì’l‚ª1023ˆÈ‰º‚Ìê‡ƒfƒtƒHƒ‹ƒg‚Ì’l‚É–ß‚³‚ê‚Ü‚·‚Ì‚Å’ˆÓ‚µ‚Ä‚­‚¾‚³‚¢B
+	ãƒ»ã‚²ãƒ¼ãƒ ã‚¿ã‚¤ãƒˆãƒ«ãªã©ãŒæ­£å¸¸ã«è¡¨ç¤ºã•ã‚Œãªã„
+	ãƒ»å¸ã„å‡ºã—ãŸãƒ‡ãƒ¼ã‚¿ã®CRCãŒåˆã‚ãªã„
+		ã‚«ã‚»ãƒƒãƒˆã®æŽ¥è§¦ãŒæ‚ªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ã€‚ç¶¿æ£’ã«ã‚µãƒ“å–ã‚Šå‰¤ãªã©ã‚’ã¤ã‘ã¦ç«¯å­ã‚’æŽƒé™¤ã—ã¦ãã ã•ã„ã€‚
+		ã¾ãŸã€ã„ã£ãŸã‚“æŽ¥ç¶šã‚’åˆ‡ã‚Šã€USBã‚±ãƒ¼ãƒ–ãƒ«ã‚’æŠœã„ãŸã®ã¡ã€ã‚‚ã†ä¸€åº¦å†æŽ¥ç¶šã™ã‚‹ã¨æ”¹å–„ã™ã‚‹å ´åˆãŒã‚ã‚Šã¾ã™ã€‚
 		
-	EƒQ[ƒ€ƒ^ƒCƒgƒ‹‚È‚Ç‚ª³í‚É•\Ž¦‚³‚ê‚È‚¢
-	E‹z‚¢o‚µ‚½ƒf[ƒ^‚ÌCRC‚ª‡‚í‚È‚¢
-		ƒJƒZƒbƒg‚ÌÚG‚ªˆ«‚¢‰Â”\«‚ª‚ ‚è‚Ü‚·B–È–_‚ÉƒTƒrŽæ‚èÜ‚È‚Ç‚ð‚Â‚¯‚Ä’[Žq‚ð‘|œ‚µ‚Ä‚­‚¾‚³‚¢B
-		‚Ü‚½A‚¢‚Á‚½‚ñÚ‘±‚ðØ‚èAUSBƒP[ƒuƒ‹‚ð”²‚¢‚½‚Ì‚¿A‚à‚¤ˆê“xÄÚ‘±‚·‚é‚Æ‰ü‘P‚·‚éê‡‚ª‚ ‚è‚Ü‚·B
-		‚»‚ê‚Å‚àƒ_ƒ‚Èê‡‚Í‚ ‚«‚ç‚ß‚Ä‚­‚¾‚³‚¢B
+	ãƒ»ã‚²ãƒ¼ãƒ ãŒæ­£å¸¸ã«å¸ã„å‡ºã›ãªã„
+		éžå¯¾å¿œã®ã‚«ãƒ¼ãƒˆãƒªãƒƒã‚¸ã®å ´åˆãŒã‚ã‚Šã¾ã™ã€‚
+				
+	ãƒ»ãƒã‚°ãŒã‚ã‚‹/ã‚¹ãƒšãƒ«ãŒé–“é•ã£ã¦ã„ã‚‹/è¦æœ›ãŒã‚ã‚‹
+		ä½œè€…ã§ã‚ã‚‹RGBA_CRTã¸é€£çµ¡[rgba3crt1p@gmail.com]ã—ã¦ãã ã•ã„ã€‚ãŸã ã—ã€ç›´ã›ã‚‹ã¨ã¯é™ã‚Šã¾ã›ã‚“ã€‚
+		ãªãŠã€é«˜é€Ÿç‰ˆã«é–¢ã™ã‚‹é€£çµ¡ã¯ã‚ªãƒªã‚¸ãƒŠãƒ«ã®ä½œè€…ã§ã‚ã‚‹ ãŸã«ã‚„ã¾æ°ã«ã¯è¿·æƒ‘ã«ãªã‚‹ã®ã§æ­¢ã‚ã¦ãã ã•ã„ã€‚
 		
-	EƒQ[ƒ€‚ª³í‚É‹z‚¢o‚¹‚È‚¢
-		”ñ‘Î‰ž‚ÌƒJ[ƒgƒŠƒbƒW‚Ìê‡‚ª‚ ‚è‚Ü‚·B
+	ãƒ»ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã®ãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã¯ï¼Ÿ
+		Arduinoç”¨ã®ãƒ•ã‚¡ãƒ¼ãƒ ã‚¦ã‚§ã‚¢ã¯ãŸã«ã‚„ã¾æ°ã®åˆ¶ä½œç‰©ã§ã‚ã‚‹ã®ã§ã€åŽŸç‰ˆã¨åŒã˜ãã€Œã‚¯ãƒªã‚¨ã‚¤ãƒ†ã‚£ãƒ–ãƒ»ã‚³ãƒ¢ãƒ³ã‚º è¡¨ç¤º - éžå–¶åˆ© 4.0 å›½éš› ãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã€ãŒé©ç”¨ã•ã‚Œã¾ã™ã€‚
+		HongKongArduinoCloneã¯ãŸã«ã‚„ã¾æ°ã®WinHongKongArduinoã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã‚„è³‡æ–™ã‚’å‚è€ƒã«ä½œã£ãŸã‚‚ã®ãªã®ã§åŒã˜ã
+		ã€Œã‚¯ãƒªã‚¨ã‚¤ãƒ†ã‚£ãƒ–ãƒ»ã‚³ãƒ¢ãƒ³ã‚º è¡¨ç¤º - éžå–¶åˆ© 4.0 å›½éš› ãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã€ã‚’é©ç”¨ã—ã¾ã™ã€‚
 		
-	EƒZ[ƒuƒf[ƒ^iSRAMj‚ª³í‚É‹z‚¢o‚¹‚È‚¢
-		MAD1‚ÌƒIƒvƒVƒ‡ƒ“‚ðŽŽ‚µ‚Ä‚Ý‚Ä‚­‚¾‚³‚¢B
-		SRAM‚Ì‹zo‚µ‚Ì“®ìŠm”FÏ‚Ý‚ÌƒJ[ƒgƒŠƒbƒW‚ÍˆÈ‰º‚Ì’Ê‚è‚Å‚·B
-		Eƒm[ƒ}ƒ‹LoROMƒJ[ƒgƒŠƒbƒW
-		EMAD1“‹ÚHiROMƒJ[ƒgƒŠƒbƒW
-		ESA1“‹ÚƒJ[ƒgƒŠƒbƒWB
-		SA1‚É‚Â‚¢‚Ä‚Í‘‚«ž‚Ý‚Í‚Å‚«‚Ü‚¹‚ñB
-		‚Ü‚½MAD1‚ð“‹Ú‚µ‚Ä‚¢‚È‚¢‚Ì‚ÉMAD1‚Éƒ`ƒFƒbƒN‚ð‚Â‚¯‚È‚¢‚ÆSRAM‚ª‹z‚¢o‚¹‚È‚¢ƒJ[ƒgƒŠƒbƒW‚à‚ ‚è‚Ü‚µ‚½B
-		
-	EƒoƒO‚ª‚ ‚é/ƒXƒyƒ‹‚ªŠÔˆá‚Á‚Ä‚¢‚é/—v–]‚ª‚ ‚é
-		ìŽÒ‚Å‚ ‚éRGBA_CRT‚Ö˜A—[rgba3crt1p@gmail.com]‚µ‚Ä‚­‚¾‚³‚¢B‚½‚¾‚µA’¼‚¹‚é‚Æ‚ÍŒÀ‚è‚Ü‚¹‚ñB
-		‚È‚¨A‚‘¬”Å‚ÉŠÖ‚·‚é˜A—‚ÍƒIƒŠƒWƒiƒ‹‚ÌìŽÒ‚Å‚ ‚é ‚½‚É‚â‚ÜŽ‚É‚Í–À˜f‚É‚È‚é‚Ì‚ÅŽ~‚ß‚Ä‚­‚¾‚³‚¢B
-		
-	Eƒ\[ƒXƒR[ƒh‚Ìƒ‰ƒCƒZƒ“ƒX‚ÍH
-		Arduino—p‚Ìƒtƒ@[ƒ€ƒEƒFƒA‚Í‚½‚É‚â‚ÜŽ‚Ì§ì•¨‚Å‚ ‚é‚Ì‚ÅAŒ´”Å‚Æ“¯‚¶‚­uƒNƒŠƒGƒCƒeƒBƒuEƒRƒ‚ƒ“ƒY •\Ž¦ - ”ñ‰c—˜ 4.0 ‘Û ƒ‰ƒCƒZƒ“ƒXv‚ª“K—p‚³‚ê‚Ü‚·B
-		HongKongArduinoClone‚Í‚½‚É‚â‚ÜŽ‚ÌWinHongKongArduino‚Ìƒ\[ƒXƒR[ƒh‚âŽ‘—¿‚ðŽQl‚Éì‚Á‚½‚à‚Ì‚È‚Ì‚Å“¯‚¶‚­
-		uƒNƒŠƒGƒCƒeƒBƒuEƒRƒ‚ƒ“ƒY •\Ž¦ - ”ñ‰c—˜ 4.0 ‘Û ƒ‰ƒCƒZƒ“ƒXv‚ð“K—p‚µ‚Ü‚·B
-		
-	E’ÊM‘¬“x‚ð•ÏX‚µ‚½‚¢
-		HongKongArduinoFast.ino ‚Ì setup()“à‚ÌSerial.begin(500000);‚ª’ÊM‘¬“x‚Å‚·B
-		‚¨D‚Ý‚Å•ÏX‚µ‚Ä‚­‚¾‚³‚¢B
-		‚È‚¨AArduinoIDE‚ÌƒfƒtƒHƒ‹ƒg‚ÌÅ“K‰»ƒIƒvƒVƒ‡ƒ“‚Í-Os‚È‚Ì‚Å-O3‚ÉÝ’è•ÏX‚·‚é‚±‚Æ‚ð‚¨Š©‚ß‚µ‚Ü‚·B
-		
-	EHongKongArduinoClone.exe‚Ìƒ\[ƒXƒR[ƒh‚É‚Â‚¢‚Ä
-		ActiveBasic ver4‚ÅŠJ”­‚µ‚Ä‚¢‚Ü‚·B[http://www.activebasic.com/ab4_download.html]
-		•¶–@‚ÍBASIC‚Ì”ç‚ð‚©‚Ô‚Á‚½CŒ¾Œê‚Æ‚¢‚¤‚æ‚¤‚ÈŠ´‚¶‚È‚Ì‚Å‚·‚®‚í‚©‚é‚ÆŽv‚¢‚Ü‚·B
+	ãƒ»HongKongArduinoClone.exeã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã«ã¤ã„ã¦
+		ActiveBasic ver4ã§é–‹ç™ºã—ã¦ã„ã¾ã™ã€‚[http://www.activebasic.com/ab4_download.html]
+		æ–‡æ³•ã¯BASICã®çš®ã‚’ã‹ã¶ã£ãŸCè¨€èªžã¨ã„ã†ã‚ˆã†ãªæ„Ÿã˜ãªã®ã§ã™ãã‚ã‹ã‚‹ã¨æ€ã„ã¾ã™ã€‚
 		
 		
 	
-žŽÓŽ«
-	‚±‚ÌƒvƒƒOƒ‰ƒ€‚ðì‚é‚É‚ ‚½‚Á‚ÄA‚½‚É‚â‚ÜŽ‚ÌWinHongKongArduino‚Ìƒ\[ƒXƒR[ƒhA
-	‚»‚µ‚Äu‰ñ˜H‚Ì“®ìŒ´—‚ÆƒvƒƒOƒ‰ƒ€ì¬‚Ìƒqƒ“ƒgv‚âƒpƒ‰ƒŒƒ‹”Å‚Ìƒzƒ“ƒRƒ“‚Ìƒ\[ƒXƒR[ƒh‚ðŽQl‚É‚µ‚Äì‚è‚Ü‚µ‚½B
-	‰ñ˜H‚Ì•”•ª‚à”ñí‚É•×‹­‚É‚È‚è‚Ü‚µ‚½B‚±‚±‚ÉŠ´ŽÓ‚ÌˆÓ‚ð•\‚µ‚Ü‚·B
+â—‡è¬è¾ž
+	ã“ã®ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã‚’ä½œã‚‹ã«ã‚ãŸã£ã¦ã€ãŸã«ã‚„ã¾æ°ã®WinHongKongArduinoã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã€
+	ãã—ã¦ã€Œå›žè·¯ã®å‹•ä½œåŽŸç†ã¨ãƒ—ãƒ­ã‚°ãƒ©ãƒ ä½œæˆã®ãƒ’ãƒ³ãƒˆã€ã‚„ãƒ‘ãƒ©ãƒ¬ãƒ«ç‰ˆã®ãƒ›ãƒ³ã‚³ãƒ³ã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã‚’å‚è€ƒã«ã—ã¦ä½œã‚Šã¾ã—ãŸã€‚
+	å›žè·¯ã®éƒ¨åˆ†ã‚‚éžå¸¸ã«å‹‰å¼·ã«ãªã‚Šã¾ã—ãŸã€‚ã“ã“ã«æ„Ÿè¬ã®æ„ã‚’è¡¨ã—ã¾ã™ã€‚
+	ã¾ãŸã€Fullsnes, sanniæ°ã®cartreaderã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã‚‚å‚è€ƒã«ã—ã¦ã„ã¾ã™ã€‚
 	
 	
-ž˜A—æ
+â—‡é€£çµ¡å…ˆ
 	E-mail : rgba3crt1p@gmail.com
 	
 
-ž —š—ð
-	[2016/03/23]ver 0.0 - ‰‰ñƒŠƒŠ[ƒX
-	[2016/07/20]ver 0.1 - ƒ`ƒFƒbƒNƒTƒ€”»’è‹@”\’Ç‰Á
-	[2017/02/17]ver 0.3 - Å“K‰»•ƒoƒOƒtƒBƒbƒNƒXAƒtƒ@[ƒ€”»’è‹@”\’Ç‰Á
-	[2017/09/17]ver 0.4 - S-DD1‚É‘Î‰ž
-	[2017/09/19]ver 0.5 - SPC7110‚É‘Î‰ž
-	[2017/12/24]ver 0.6 - ƒ_ƒrƒXƒ^96(“ÁŽêLoROM)‚É‘Î‰ž, HiROM 256Kbit SRAM‚É‘Î‰ž
-	[2018/02/10]ver 0.62- UI‚ð”÷C³BD&D‚ÅROMƒwƒbƒ_‚ð•\Ž¦‚·‚é‚æ‚¤‚É‚µ‚½B
+â—‡ å±¥æ­´
+	[2016/03/23]ver 0.0 - åˆå›žãƒªãƒªãƒ¼ã‚¹
+	[2016/07/20]ver 0.1 - ãƒã‚§ãƒƒã‚¯ã‚µãƒ åˆ¤å®šæ©Ÿèƒ½è¿½åŠ 
+	[2017/02/17]ver 0.3 - æœ€é©åŒ–ï¼†ãƒã‚°ãƒ•ã‚£ãƒƒã‚¯ã‚¹ã€ãƒ•ã‚¡ãƒ¼ãƒ åˆ¤å®šæ©Ÿèƒ½è¿½åŠ 
+	[2017/09/17]ver 0.4 - S-DD1ã«å¯¾å¿œ
+	[2017/09/19]ver 0.5 - SPC7110ã«å¯¾å¿œ
+	[2017/12/24]ver 0.6 - ãƒ€ãƒ“ã‚¹ã‚¿96(ç‰¹æ®ŠLoROM)ã«å¯¾å¿œ, HiROM 256Kbit SRAMã«å¯¾å¿œ
+	[2018/02/10]ver 0.62- UIã‚’å¾®ä¿®æ­£ã€‚D&Dã§ROMãƒ˜ãƒƒãƒ€ã‚’è¡¨ç¤ºã™ã‚‹ã‚ˆã†ã«ã—ãŸã€‚
+	[2018/02/26]ver 0.7 - ãƒ•ã‚¡ãƒ¼ãƒ ã‚¦ã‚§ã‚¢ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆã€‚å‹•çš„ãƒœãƒ¼ãƒ¬ãƒ¼ãƒˆ, é€Ÿåº¦å‘ä¸Š(55 -> 96KB/s)
+	[2018/02/26]ver 0.8 - SFãƒ¡ãƒ¢ãƒªã‚«ã‚»ãƒƒãƒˆã«å¯¾å¿œã€‚ãƒã‚§ãƒƒã‚¯ã‚µãƒ è¨ˆç®—ã‚’ä¿®æ­£
+	[2018/07/18]ver 0.9 - SA-1è¿½åŠ å›žè·¯ä¿®æ­£, ã‚µãƒ†ãƒ©ãƒ“ãƒ¥ãƒ¼ã«å¯¾å¿œ
+	[2018/08/24]ver 1.0 - SRAMãƒªãƒ¼ãƒ‰ãƒ©ã‚¤ãƒˆã‚’æ”¹å–„, UIã‚’æ”¹å–„, æ­£å¼ç‰ˆ
