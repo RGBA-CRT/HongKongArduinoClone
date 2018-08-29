@@ -1,21 +1,23 @@
 # HongKongArduinoClone
 [![cc](https://licensebuttons.net/l/by-nc/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc/4.0/)  
- 「こーどねーむホンコン with Arduino」を高速化するスケッチとホストプログラム
- SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
+ 「こーどねーむホンコン with Arduino」を高速化するスケッチとホストプログラム  
+SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
+
 
 ## 概要 / About
 + このプログラムは、たにやま氏の"こーどねーむ「ホンコン」 with Arduino"に手を加え、  
   約40倍の高速化・特殊カートリッジ対応しなどの機能を加えたものです。
-+ Arduino UNOとWindows PCでスーファミのカセットの吸出しができます。  
-
++ Arduino UNOとWindows PCでスーファミのカセットの吸出しができます。
 + This project is mods of "Codename Hong Kong with Arduino".   
   It is SNES cartridge dumper. Original has been developed by Taniyama.   
 + This project supports high-speed dumping, SRAM read/write, BS-X Memory Pack and other.  
 
+
 ## 動作環境 / System requirements
-+ Windows 98SE, Windows 2000以降, Wineでの動作確認が取れています。
-+ ArduinoはArduino UNO(ATmega 328P), Arduino NANO(ATmega168)で動作確認が取れています。
++ Windows 98SE, Windows 2000 or later, Wine
++ Arduino UNO(ATmega 328P), Arduino NANO(ATmega168)
 + ATmega168の場合、現在のバージョンではｸﾛｯｸﾓｼﾞｭｰﾙの制御プログラムが収まりません。
+
 
 ## リンク / Link
 + こーどねーむ「ホンコン」 with Arduino / Original page  
@@ -27,17 +29,21 @@
 + このプログラムについてのページ / My page  
   <http://rgbacrt.seesaa.net/article/435543541.html>
 
+
 ## 参考資料 / Referenced documents
  * <http://hongkongarduino.web.fc2.com/archive>  
  * <https://github.com/sanni/cartreader/> 
  * <http://problemkaputt.de/fullsnes.txt>  
 
+
 ## ダウンロード / Download
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
 
 
-## 特殊カートリッジについて / About Special Carts
+## 特殊カートリッジについて / Surpported Carts
 対応状況は以下の通りです。
+ * [OK] LoROM
+ * [OK] HiROM
  * [OK] SFメモリカセット / NP FLASH Cart(SF Memory)
  * [OK] 特殊LoROM (ダビスタ96) / Special LoROM(3MB)
  * [OK] 8Mメモリパック / satellaview 8M data pack
@@ -53,8 +59,17 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1SS.png "SS")  　　　  　
 
+
 ## SFメモリカセットについて / About NP FLASH Cart
 + [接続手順](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/SF-Memory)
+
+
+## SPC7110の注意 / SPC7110 Warning
++ SPC7110のカートリッジ(天外魔境ZEROなど)は特定の手順で接続しないと、セーブが消えます。詳しくは以下から。
++ If you don't connect the cartridge of SPC7110 (Far East of Eden Zero) in a special procedure,
+  Save RAM will break. For details, please see below.
++ <https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/SPC7110-SRAM-Read-Write>
+
 
 ## 開発環境 / Dev Environment
 + OS : Windows 7
@@ -63,7 +78,7 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 + DevLang：ActiveBasic ver4 + 自分用ライブラリ
 
 + コンパイルにはこちらのライブラが必要です。
-+ +    https://github.com/RGBA-CRT/RGBALib
+++ https://github.com/RGBA-CRT/RGBALib
  
 
 ## 履歴 / History
