@@ -3,7 +3,7 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "1.0"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
+Const VerStr = "1.0a"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 

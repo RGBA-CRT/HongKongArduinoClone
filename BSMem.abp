@@ -92,6 +92,18 @@ Function BSM_GetMempackAdress(slotTypeIdx AS DWord) AS DWord
 	End If
 End Function
 
+Function BSM_GetMempackSize(packTypeIdx AS DWord) AS DWord
+	if packTypeIdx < BSM_PACK_TYPE_NUM Then
+		if packTypeIdx=BSM_GNEXT or packTypeIdx=BSM_SAMEGAME Then
+			BSM_GetMempackSize=512*1024
+		Else
+			BSM_GetMempackSize=1024*1024
+		End If
+	Else
+		BSM_GetMempackSize=0
+	End If
+End Function
+
 Function BSM_isLoROM(slotTypeIdx AS DWord) AS BOOL
 	if slotTypeIdx < BSM_SLOT_TYPE_NUM And slotTypeIdx=BSM_SLOT_SpLoROM Then
 		BSM_isLoROM=TRUE
@@ -105,7 +117,7 @@ Const BSM_CAP_MAX = 1024*1024
 Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
 
 Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
-	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long
+	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long,nextOffset AS DWord
 	Dim file AS File
 	if isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
 
@@ -128,7 +140,9 @@ Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddres
 		i++
 		if i>BSM_SLOT_MAX then exit while
 
-		curAdr+=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
+		nextOffset=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
+		if nextOffset=0 Then ExitWhile
+		curAdr+=nextOffset
 	Wend
 
 	if isSerial=FALSE Then file.close()

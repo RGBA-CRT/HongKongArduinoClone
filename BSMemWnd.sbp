@@ -88,33 +88,46 @@ Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	'BSMの中身を一覧表示する。
 	'CREATE時点ではスロットタイプがMainWndから送られてきていないのでメッセージ送るだけ
 	'PostMessage(BSMWnd(CommandButton3),BM_CLICK,0,0)
+	
+	SendMessage(BSMWnd(ListBox1),LB_ADDSTRING,0,"(Press detect button)" As Long)
 End Sub
 
 Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO)
-	Dim idx As Long
-	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
-	if idx=-1 Then DBM("Slot Type not selected."):exitsub
+	Dim slot_idx As Long
+	Dim pack_idx AS Long
+
+	slot_idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
+	pack_idx=SendMessage(BSMWnd(BSM_MT),CB_GETCURSEL,0,0)
+
+	if slot_idx=-1 Then DBM("Slot Type not selected."):exitsub
+	if pack_idx=-1 Then DBM("Mempack Type not selected."):exitsub
 
 	With virtualHeader				
 		lstrcpy(.Title,"BSX Mempack")
 		.diableChecksum=TRUE
-		.ROMSize=1024*1024
+		.ROMSize=BSM_GetMempackSize(pack_idx)
 		.ROMType=SFC_MAP_HiROM
-		.AddrOffset=BSM_GetMempackAdress(idx)
-		.isLoROM=BSM_isLoROM(idx)
+		.AddrOffset=BSM_GetMempackAdress(slot_idx)
+		.isLoROM=BSM_isLoROM(slot_idx)
 	End With
+
+	if pack_idx=BSM_SAMEGAME or pack_idx=BSM_GNEXT Then
+		virtualHeader.ROMSize=512*1024
+	End If
 End Sub
 
 Sub BSMemWnd_CommandButton1_Click()
-	Dim idx As Long
-	idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
-	if idx=BSM_SLOT_SA1 Then	
+	Dim slot_idx As Long
+	slot_idx=SendMessage(BSMWnd(BSM_CT),CB_GETCURSEL,0,0)
+	if slot_idx=BSM_SLOT_SA1 Then	
 		BSM_SA1_MemPackAccess(TRUE)
 	End If
 
 	'ダイアログの設定から仮想SFCヘッダを生成してダンプ
 	Dim virtualHeader As SFC_CART_INFO
 	BSM_createCartInfoForBSX(virtualHeader)
+
+
 
 	Dim path AS BytePtr
 #ifndef _DEBUG
@@ -129,7 +142,7 @@ Sub BSMemWnd_CommandButton1_Click()
 #ifndef _DEBUG
 	free(path)
 #endif
-	if idx=BSM_SLOT_SA1 Then	
+	if slot_idx=BSM_SLOT_SA1 Then	
 		BSM_SA1_MemPackAccess(FALSE)
 	End If
 Endsub
@@ -184,11 +197,15 @@ Sub BSMemWnd_CommandButton3_Click()
 	Dim typeNumber AS Long
 	typeNumber=info->DeviceInfo>>4
 
-	if typeNumber<1 Or typeNumber>4 Then
+	if typeNumber>1 And typeNumber<4 Then
+		SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,typeNumber-1,0)
+	Else if headerList[0]<>NULL Then
+		if lstrcmpi(headerList[0]->raw.title,"さめがめＲＯＭ！")=0 Then
+			SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,BSM_SAMEGAME,0)
+		End If
+	Else	
 		SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,BSM_UNKNOWN,0)
 		DBM("Illegal Memory Pack Type")
-	Else	
-		SendMessage(BSMWnd(BSM_MT),CB_SETCURSEL,typeNumber-1,0)
 	End If
 Endsub
 

@@ -609,7 +609,7 @@ Sub SetRomInfoToDlg_FromROM()
 			idx=BSM_SLOT_BIOS
 		Elseif cartInfo.ROMType=SFC_MAP_LoROM or cartInfo.ROMType=SFC_MAP_SpLoROM then
 			idx=BSM_SLOT_SpLoROM
-		Elseif cartInfo.ROMType=BSM_SLOT_HiROM then
+		Elseif cartInfo.ROMType=SFC_MAP_HiROM then
 			idx=BSM_SLOT_HiROM
 		Elseif cartInfo.ROMType=SFC_MAP_SA1 then
 			idx=BSM_SLOT_SA1

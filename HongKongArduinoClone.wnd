@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 475,285
-    CAPTION   = "HongKongArduinoClone v1.0"
+    CAPTION   = "HongKongArduinoClone v1.0a"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000010
     ID        = 0
@@ -98,7 +98,7 @@ WINDOW:BSMemWnd
     TYPE      = 3
     FILEPATH  = BSMemWnd.sbp
     ITEM      = BSM_CT,16,36,167,167,"",&H50200402,&H00000000,3
-    ITEM      = CommandButton1,67,234,60,21,"Dump",&H50000000,&H00000000,1
+    ITEM      = CommandButton1,67,233,60,21,"Dump",&H50000000,&H00000000,1
     ITEM      = Static3,9,4,153,12,"BS-X Memory Pack Manager",&H50000000,&H00000000,11
     ITEM      = GroupBox1,8,20,182,42,"Slot Type",&H50000007,&H00000000,5
     ITEM      = BSM_MT,15,82,167,167,"",&H50200402,&H00000000,3
@@ -107,5 +107,5 @@ WINDOW:BSMemWnd
     ITEM      = Static2,327,248,14,12,"KB",&H40000002,&H00000000,11
     ITEM      = CommandButton2,133,234,55,21,"Write",&H58000000,&H00000000,1
     ITEM      = CommandButton3,7,234,55,21,"Detect",&H50000000,&H00000000,1
-    ITEM      = ListBox1,7,116,182,112,"",&H50200001,&H00000200,8
+    ITEM      = ListBox1,6,116,182,112,"",&H50200001,&H00000200,8
 END
