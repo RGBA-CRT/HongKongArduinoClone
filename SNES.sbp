@@ -567,7 +567,7 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 
 End Sub
 
-'Writing SA-1 SRAM routine was programmed from sanni's cartreader.
+'Writing SA-1 SRAM routine is based on sanni's cartreader.
 Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	Dim fin AS File
 

@@ -40,13 +40,15 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
 
 
-## 特殊カートリッジについて / Surpported Carts
+## 対応カートリッジについて / Surpported Carts
 対応状況は以下の通りです。
  * [OK] LoROM
  * [OK] HiROM
+ * [OK] SuperFX
+ * [OK] DSP1
  * [OK] SFメモリカセット / NP FLASH Cart(SF Memory)
  * [OK] 特殊LoROM (ダビスタ96) / Special LoROM(3MB)
- * [OK] 8Mメモリパック / satellaview 8M data pack
+ * [OK] 8Mメモリパック / Satellaview 8M data pack
  * [OK] ExHiROM
  * [OK] S-DD1
  * [OK] SA-1
