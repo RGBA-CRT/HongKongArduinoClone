@@ -57,8 +57,8 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 	if hSerial=INVALID_HANDLE_VALUE  Then OpenComPort=NULL AS VoidPtr :ExitFunction
 
 	'バッファ設定
-	if inBuffer=0 Then	inBuffer=1024*10
-	if outBuffer=0 Then	outBuffer=1024*10
+	if inBuffer=0 Then	inBuffer =DEVICE_BUFFER_SIZE_IN
+	if outBuffer=0 Then	outBuffer=DEVICE_BUFFER_SIZE_OUT
 	if SetupComm(hSerial,inBuffer,outBuffer)=0 Then
 		outBuffer=GetLastError()
 		DBM("Init com error")
@@ -69,9 +69,14 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 
 	dcb.BaudRate = rate		'転送速度の指定
 	dcb.ByteSize = 8		'ビット長の指定
-	dcb.fBitFields = TRUE	'バイナリモードのフラグを有効にし
+	dcb.fBitFields = 0	'バイナリモードのフラグを有効にし
 	dcb.Parity = 0			'パリティの設定（パリティなし）
 	dcb.StopBits = 0		'ストップビット数を指定(1ビット)
+	dcb.DCBlength = sizeof(DCB_SETTING)
+	dcb.wReserved=0
+	dcb.wReserved1=0
+	dcb.XonLim=2048
+	dcb.XoffLim=2048
 	SetCommState(hSerial,dcb)
 
 	'通信タイムアウトの設定
@@ -110,6 +115,24 @@ Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
 
 	WriteFile(hSerial,cmd,4,VarPtr(dwReadByte),ByVal NULL)
 EndSub
+ Type COMSTAT2
+    fReserved As DWord
+    cbInQue As DWord
+    cbOutQue As DWord
+  End Type
+Type COMMCONFIG 
+	dwSize AS DWord
+	wVer AS Word
+	wReserved aS Word
+	dcb AS DCB_SETTING
+	dwProviderSubType AS DWord
+	dwPrvOffset AS DWord
+	dwPrvSize As DWord
+	wcProvData AS Word
+End Type
+Declare Function ClearCommBreak Lib "kernel32" Alias "ClearCommError" ( hFile As HANDLE) As Long
+Declare Function GetCommConfig Lib "kernel32" ( hFile As HANDLE,ptr AS VoidPtr,size AS *DWord) As Long
+Declare Function CommConfigDialogA Lib "kernel32" (test AS BytePtr, hFile As HANDLE,ptr AS VoidPtr) As Long
 
 'カートリッジからのデータ受信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
@@ -136,22 +159,30 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
 	dwReadByte=0
 
-	'デフォルトのリトライ回数(=タイムアウトのms)
+	'deフォルトのリトライ回数(=タイムアウトのms)
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
 	Dim HKAC_HW_RETRY As DWord
 	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL +10
 	printf(ex"理論転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
-	Dim cs AS COMSTAT
+	Dim cs AS COMSTAT2,retCCE AS DWord,ccc AS COMMCONFIG
+	dwErrors=sizeof(COMMCONFIG)
+	GetCommConfig(hSerial,VarPtr(ccc),VarPtr(dwErrors))
+'	CommConfigDialogA ("COM3",hSerial,VarPtr(ccc))
 
-	Do		
-		if retry>HKAC_HW_RETRY or GetCancelKey() And &H80 Then ExitDo
+	Do
+		
+		if retry>HKAC_HW_RETRY or GetCancelKey() Then ExitDo
 
-		ClearCommError(hSerial,VarPtr(dwErrors),cs)
+		ClearCommError(hSerial,VarPtr(dwErrors),ByVal VarPtr(cs))
 		if cs.cbInQue=0 Then 
 			retry++
-			if retry Mod 100 Then Sleep(1)
+			if (retry Mod 10) =0 Then 
+				PumpMessage()
+				Sleep(1)
+			End If
+			printf(".")
 			Continue
 		End If
 
