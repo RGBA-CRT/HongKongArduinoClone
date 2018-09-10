@@ -20,14 +20,9 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 
 
 ## リンク / Link
-+ こーどねーむ「ホンコン」 with Arduino / Original page  
-  <http://hongkongarduino.web.fc2.com>
-
-+ たにやま氏のリポジトリ / Original repository  
-  <https://github.com/SusumuTaniyama/HongKongArduino>
-
-+ このプログラムについてのページ / My page  
-  <http://rgbacrt.seesaa.net/article/435543541.html>
++ [こーどねーむ「ホンコン」 with Arduino / Original page](http://hongkongarduino.web.fc2.com)
++ [たにやま氏のリポジトリ / Original repository](https://github.com/SusumuTaniyama/HongKongArduino)
++ [このプログラムについてのページ / My page](http://rgbacrt.seesaa.net/article/435543541.html)
 
 
 ## 参考資料 / Referenced documents
@@ -72,6 +67,8 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
   Save RAM will break. For details, please see below.
 + <https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/SPC7110-SRAM-Read-Write>
 
+## 既知の問題 / Known issues
++ [click here](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Known-Issues)
 
 ## 開発環境 / Dev Environment
 + OS : Windows 7
