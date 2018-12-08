@@ -194,6 +194,23 @@ End Function
 '----------------
 ' ROM Functions
 '----------------
+Sub SA1_Init()
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCKED)
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
+
+	Sleep(500)
+End Sub
+Sub SA1_DeInit()
+	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+End Sub
+
+
+Sub SA1_BankCtrl(hSerial AS HANDLE,startBank AS Long)
+	SetCartRegister(&H00,&H2220,startBank+0,FALSE)	
+	SetCartRegister(&H00,&H2221,startBank+1,FALSE)	
+	SetCartRegister(&H00,&H2222,startBank+2,FALSE)	
+	SetCartRegister(&H00,&H2223,startBank+3,FALSE)	
+End Sub
 
 
 'ROMの吸出し
@@ -220,7 +237,13 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
 
 	'特殊系のセットアップ
-	if info->ROMType=SFC_MAP_SDD1 Then
+	if info->ROMType=SFC_MAP_SA1 And info->isBSX Then
+		'バス釣りのときだけ実行する処理（判定がザルなようであれば修正）
+/*		SA1_Init()
+		SA1_BankCtrl(hCOM,0)
+		DBM("バス釣り用SA1初期化処理実行")
+*/
+	Elseif info->ROMType=SFC_MAP_SDD1 Then
 		SDD1_SetBanks(hCOM,0)
 		SDD1_PrintBanks(hCOM)
 
@@ -297,7 +320,17 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 
 		Else if DumpAddress-offset=&H400000 Then
 			'4MB超えする時
-			if info->ROMType=SFC_MAP_SDD1 Then
+			/*if info->ROMType=SFC_MAP_SA1 And info->ROMSize > &H400000 Then
+				if bBankChanged=FALSE Then
+					DBM(ex"\r\n[SA-1]Bank Change: 04h-07h")
+					SA1_BankCtrl(hCOM,4)
+					bBankChanged=TRUE
+					DumpAddress=offset	'アドレスリセット
+				Else
+					ExitDo
+				End If
+	
+			Else */if info->ROMType=SFC_MAP_SDD1 Then
 				if bBankChanged=FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
 					DBM(ex"\r\n")
@@ -311,6 +344,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 					'4-7バンクを吸い出し終わったので終了
 					ExitDo
 				End If
+
 			Elseif info->ROMType=SFC_MAP_SPC7110 Then
 				if bBankChanged=TRUE Then ExitDo
 				DBM("")
@@ -360,6 +394,12 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Endif
 
 *EXIT_DUMP
+
+/*	if info->ROMType=SFC_MAP_SA1 And info->isBSX Then
+		SA1_BankCtrl(hCOM,0)
+		SA1_DeInit()
+	End If
+*/
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
 	SetWindowText(MWnd(Static7),"100%")
 	SetDlgEnable(STATUS_CONNECTED)

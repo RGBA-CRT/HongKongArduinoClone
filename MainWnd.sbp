@@ -68,7 +68,7 @@ End Sub
 
 Sub ResetDBM()
 	SetWindowText(MWnd(EditBox1),"")
-	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016\r\nThis program was cloned \r\n    from WinHongKongArduino.\r\nCopyright (c) 2014 たにやま\r\n")
+	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2018\r\nThis program was cloned \r\n    from WinHongKongArduino.\r\nCopyright (c) 2014 たにやま\r\n")
 End Sub
 
 Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
@@ -244,6 +244,7 @@ Sub MainWnd_CommandButton5_Click()
 
 		'正常なデータ通信を確立(できるようになるまでリトライ）
 		if CheckFirmware(hCOM,TRUE)=FALSE Then 
+		'	ErrMes(hMainWnd,"指定されたデバイスはHongKoongArduinoではありません。",0,0)
 			goto *HKAF_CON_ERR
 		Endif
 		DBM(ex"Connection Stage2 OK.\r\n")
@@ -339,6 +340,9 @@ Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 		Case &H70 : SpeedTest()	'F1
 		Case &H71 : CheckFirmware(hCOM,FALSE)	'F2
 		Case &H74 : ListUpComPort(GetDlgItem(hMainWnd,ComList))
+		Case &H78 : MainWnd_CommandButton12_Click()
+		Case &H7A : MainWnd_CommandButton15_Click()
+		Case &H7B : MainWnd_CommandButton13_Click()
 
 		'(このメッセージはフォーカスが無い状態なので)TABキーが押されたら適当なボタンにフォーカスを当てる
 		'Case VK_TAB : SetFocus( GetNextDlgTabItem(hMainWnd, 0, TRUE))
@@ -701,6 +705,15 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 		info.ROMSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info.SRAMSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
 		printf(ex"custom rom size = %d\n",info.ROMSize/1024/1024)
+
+		if info.ROMType=SFC_MAP_LoROM or info.ROMType=SFC_MAP_SpLoROM or info.ROMType=SFC_MAP_SF_MENU Then
+			info.AddrOffset=0
+			info.isLoROM=TRUE
+		Else
+			info.AddrOffset=HiROM_START_ADR
+			info.isLoROM=FALSE
+		End If
+
 	End If
 
 EndSub
@@ -994,20 +1007,21 @@ End Sub
 
 
 Sub MainWnd_CommandButton12_Click()
-	DBM("CPU CLOCK ENABLE")
+	DBM("CPU CLOCK OVERCLOCKED")
 	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCKED)
 
 End Sub
 
 Sub MainWnd_CommandButton15_Click()
-
-'	ResetArduino(hCOM)	'効く
-	FlushCom(hCOM)
+	DBM("SA-1 ﾊﾞﾝｸｲﾆｼｬﾗｲｽﾞ")
+		SA1_Init()
+		SA1_BankCtrl(hCOM,0)
+		SA1_DeInit()
 End Sub
 
 Sub MainWnd_CommandButton13_Click()
 	DBM("CPU CLOCK DISABLE")
-	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+	SetCPU_Clock(hCOM,HKAC_CLOCK_DISABLED)
 End Sub
 
 Sub MainWnd_CommandButton14_Click()

@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 475,285
-    CAPTION   = "HongKongArduinoClone v1.0a"
+    CAPTION   = "HongKongArduinoClone v1.0b"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000010
     ID        = 0
@@ -29,9 +29,9 @@ WINDOW:MainWnd
     ITEM      = GroupBox1,254,7,209,213,"Infomation",&H50000007,&H00000000,5
     ITEM      = hProg,256,244,182,9,"",&H50000000,&H00020000,15
     ITEM      = EditBox1,263,23,191,189,"",&H50203844,&H00000200,4
-    ITEM      = EditBox6,382,223,56,17,"410000",&H50010002,&H00000200,4
-    ITEM      = Static9,326,226,50,12,"baudrate : ",&H50000000,&H00000000,11
-    ITEM      = Static10,442,226,23,11,"bps",&H50000000,&H00000000,11
+    ITEM      = EditBox6,382,224,56,17,"410000",&H50010002,&H00000200,4
+    ITEM      = Static9,326,224,50,12,"baudrate : ",&H50000000,&H00000000,11
+    ITEM      = Static10,442,224,23,11,"bps",&H50000000,&H00000000,11
     ITEM      = CommandButton5,186,44,51,21,"&Connect",&H50010000,&H00000000,1
     ITEM      = MAPPING,79,100,158,160,"",&H50200002,&H00000000,3
     ITEM      = Static7,442,242,31,12,"---",&H50000000,&H00000000,11
@@ -58,6 +58,8 @@ WINDOW:MainWnd
     ITEM      = CheckBox7,140,291,40,12,"CLK",&H58000003,&H00000000,2
     ITEM      = ROM_SIZE,79,152,158,200,"",&H50000002,&H00000000,3
     ITEM      = SRAM_SIZE,79,177,158,200,"",&H50000002,&H00000000,3
+    ITEM      = CommandButton16,442,369,20,18,"ê›",&H50000f00,&H00000000,1
+    ITEM      = Static11,369,371,71,16,"1000000bps",&H50000001,&H00020000,11
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem

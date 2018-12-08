@@ -3,17 +3,20 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "1.0a"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
+Const VerStr = "1.0b"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 
 Const DEFAULT_BAUDRATE = 1000000
 Const DEFAULT_CONTINUE = 20
-Const DEFAULT_DUMP_SIZE = &H002000
+Const DEFAULT_DUMP_SIZE = &H002000*2
 Const DEFAULT_QDD_BUFSIZE = 1024*512
 
+Const DEVICE_BUFFER_SIZE_OUT = 16*1024
+Const DEVICE_BUFFER_SIZE_IN  = 16*1024
+
 'タイムアウト設定
-Const HKAC_TRANSFER_FLOAT_TIME_MUL = 10
+Const HKAC_TRANSFER_FLOAT_TIME_MUL = 2.5
 Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
 
 'ファームウェアと同期すべき案件

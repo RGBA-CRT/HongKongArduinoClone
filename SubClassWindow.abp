@@ -9,7 +9,9 @@ Const cb_ctrl_count = 2
 Dim cb_ctrl_hWnds[cb_ctrl_count] AS HWND
 Dim cb_old_proc[cb_ctrl_count] As *Function(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
 Dim cb_bgBrush AS HBRUSH
+Dim txtColor AS DWord
 Const cb_bgColor = COLOR_3DFACE
+
 
 Dim hAccel AS HANDLE
 
@@ -27,12 +29,14 @@ Sub RegisterSubClass()
 	Next i
 
 	cb_bgBrush=CreateSolidBrush(GetSysColor(cb_bgColor))
+	txtColor=GetSysColor(COLOR_WINDOWTEXT)
 End Sub
 
 Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
 	'メッセージ処理
 	if dwMsg=WM_CTLCOLORLISTBOX or dwMsg=WM_CTLCOLOREDIT Then
 		SetBkMode(wParam, TRANSPARENT)
+		SetTextColor(wParam, txtColor)
 		cb_proc= cb_bgBrush 
 		ExitFunction
 	End If

@@ -198,6 +198,7 @@ inline byte readData()
   CART_OUTPUT_ENABLE();
   setDataDir(INPUT);
   BB_OUT_ENABLE();
+  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
@@ -217,8 +218,11 @@ inline void readCart(byte isLoROM) {
 
   word goalAdr = address + datasize;
   while (1) {
+    // CART_OUTPUT_ENABLE();
     setAddress(bank, address, isLoROM);
+    __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
     serial_send(readData());
+    // CART_OUTPUT_DISABLE();
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -250,7 +254,7 @@ void writeCart(int isLoROM = false) {
     writebyte_cart(bank, address, buf[bufpos]);
     address++; bufpos++;
 
-    if (address == goalAdr) break; 
+    if (address == goalAdr) break;
   }
 
   CART_WRITE_DISABLE();
@@ -270,7 +274,7 @@ inline void setCtrlBus(byte b) {
 }
 
 // /REを制御して読み込む
-byte readbyte_cart(byte bank, word address) {
+inline byte readbyte_cart(byte bank, word address) {
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_OUTPUT_ENABLE();
