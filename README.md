@@ -41,7 +41,8 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
  * [NG] CX4
  * [NG] ST01x
   
-SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。  
+SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。
+認識率が低いので認識するまでリトライしてください。ArduinoにACアダプタをつけると安定性が向上します。  
 Dump from SA-1 and SPC7110 needs following Clock Modlue.  
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
 
@@ -90,6 +91,7 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
     [2018/02/26]ver 0.8 - SFメモリカセットに対応。チェックサム計算を修正
     [2018/07/18]ver 0.9 - SA-1追加回路修正, サテラビューに対応
     [2018/08/24]ver 1.0 - SRAMリードライトを改善, UIを改善, 正式版
+    [2018/08/24]ver 1.0b- SA1の認識率向上
 
 ----
 Programmed by RGBA_CRT 2018  
