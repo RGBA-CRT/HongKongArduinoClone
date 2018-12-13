@@ -1,5 +1,4 @@
 # HongKongArduinoClone
-[![cc](https://licensebuttons.net/l/by-nc/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc/4.0/)  
  「こーどねーむホンコン with Arduino」を高速化するスケッチとホストプログラム  
 SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
 
@@ -76,6 +75,13 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 + Arduino : Aitendo製のArduino UNO互換機（ATMega328P 16MHz
 + ArduinoIDE : ver1.6.6
 + Language：[ActiveBasic4](https://www.activebasic.com/) + [RGBALib](https://github.com/RGBA-CRT/RGBALib)
+
+## ライセンス / Licenses
++ たにやま氏制作部分（HongKongArduinoFast.ino）にはクリエイティブコモンズby-ncが適用されます。
+[![cc](https://licensebuttons.net/l/by-nc/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc/4.0/)  
+
++ 私が制作した部分(Windowsプログラム,　HongKongArduinoFast.ino以外のファイル)はCC0が適応されます。
+[![cc0](https://licensebuttons.net/p/zero/1.0/80x15.png)](http://creativecommons.org/publicdomain/zero/1.0/)  
 
 ---
 
