@@ -88,6 +88,8 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 As BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
 
+	SetCheckBox(MWnd(CheckBox6),TRUE)
+
 	SetDlgEnable(STATUS_CLOSED)
 
 	Dim i AS Long, buf[100] AS Byte
@@ -150,8 +152,13 @@ Sub ListUpComPort(Wnd As HWND)
 		Goto *LUCP_EXIT
 	endif	
 	Do
-		if win_strncmp(buf+p,"COM",3)=TRUE Then	
+		if win_strncmp(buf+p,"COM",3)=TRUE Then
 			SendMessage(Wnd,CB_ADDSTRING,0,(buf+p) As Long)
+
+		/*	if lstrcmpi(buf+p,lastDevice)=0 Then _
+				lastDeviceIdx=C
+			
+			DBM(sprintfStr(ex"%s ::: %s  idx=%d\n",buf+p,lastDevice,lastDeviceIdx))*/
 			C++
 		Endif
 		While buf[p]<>0
@@ -165,7 +172,20 @@ Sub ListUpComPort(Wnd As HWND)
 	free(buf)
 
 	if C=0 then SendMessage(Wnd,CB_ADDSTRING,0,"None" As Long)
-	SendMessage(Wnd,CB_SETCURSEL,0,0)
+
+	'最後に選択されたポートを選ぶ
+	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
+	lastDevice=calloc(128)
+	GetPrivateProfileString(ProgramName,"LastDevice","None",lastDevice,128,INIFILE_PATH)
+
+	'探す
+	lastDeviceIdx=SendMessage(Wnd,CB_FINDSTRINGEXACT,-1,lastDevice)
+	if lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
+
+	'セットする
+	SendMessage(Wnd,CB_SETCURSEL,lastDeviceIdx,0)
+	 
+	free(lastDevice)	
 EndSub
 
 Sub DBM(Text As BytePtr)
@@ -405,6 +425,10 @@ Sub SaveIniFile()
 	ratestr=GetWndTextMalloc(MWnd(EditBox6))
 	WritePrivateProfileString(ProgramName,"BaudRate",ratestr,INIFILE_PATH)
 	free(ratestr)
+	
+	ratestr=GetWndTextMalloc(MWnd(ComList))
+	WritePrivateProfileString(ProgramName,"LastDevice",ratestr,INIFILE_PATH)
+	free(ratestr)
 
 	Tmp=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
 	WritePrivateProfileString(ProgramName,"MaxContinue",Str$(Tmp),INIFILE_PATH)
@@ -556,14 +580,7 @@ Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 
 End Sub
 
-Sub MainWnd_CommandButton7_Click()
-	Dim data As Byte,adr As DWord
-	data=GetDlgItemHex(MWnd(EditBox3)) As Byte
-	adr=GetDlgItemHex(MWnd(EditBox4))
-	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
-	WriteROM(hCOM,VarPtr(data),0,adr,1, _
-			NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
-End Sub
+
 
 Sub MainWnd_CommandButton8_Click()
 	if hCOM=0 Then ExitSub
@@ -1219,3 +1236,15 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 *rcATOI_ERRNUM
 	rcAsciiToInt=FALSE
 End Function
+
+Sub MainWnd_CommandButton7_Click()
+
+	Dim data As Byte,adr As DWord
+	data=GetDlgItemHex(MWnd(EditBox3)) As Byte
+	adr=GetDlgItemHex(MWnd(EditBox4))
+	DBM("Write 0x"+Hex$(data)+" to 0x"+Hex$(adr))
+/*	WriteROM(hCOM,VarPtr(data),0,adr,1, _
+			NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)*/
+	SetCartRegister(adr>>16,adr And &HFFFF,data,	NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
+	
+End Sub

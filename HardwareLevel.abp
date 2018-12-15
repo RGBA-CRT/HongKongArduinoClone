@@ -386,6 +386,6 @@ Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)(isLoROM AS BOOL)
 	cmd[4] = val
 
 	WriteFile(hCOM,cmd,5,VarPtr(dwAB),ByVal NULL)
-	printf(ex"[CMD]%02X%04X = %X\n",bank,address,val)
+	printf(ex"[CMD_%c]%02X%04X = %X\n",cmd[0],bank,address,val)
 End Sub
 

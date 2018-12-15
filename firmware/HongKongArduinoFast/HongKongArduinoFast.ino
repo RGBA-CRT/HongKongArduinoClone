@@ -325,26 +325,26 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
   // Adafruit Clock Generator
   ENABLE_I2C();
   haveClockModule = clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
-  clockgen.pll_reset(SI5351_PLLA);
-  clockgen.pll_reset(SI5351_PLLB);
+/*  clockgen.pll_reset(SI5351_PLLA);
+  clockgen.pll_reset(SI5351_PLLB);*/
   if (haveClockModule) {
     clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
     clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
-    clockgen.set_freq_manual(2147727200ULL, SI5351_PLL_FIXED, SI5351_CLK0);
+    clockgen.set_freq(2147727200ULL, SI5351_CLK0);
     if (clk2_oc) {
       //over clock for SA-1
-      clockgen.set_freq_manual(650000000ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+      clockgen.set_freq(650000000ULL, SI5351_CLK1);
     } else {
       //normal clock for BS-X
-      clockgen.set_freq_manual(357954500ULL, SI5351_PLL_FIXED, SI5351_CLK1);
+      clockgen.set_freq(357954500ULL, SI5351_CLK1);
     }
-    clockgen.set_freq_manual(307200000ULL, SI5351_PLL_FIXED, SI5351_CLK2);
+    clockgen.set_freq(307200000ULL, SI5351_CLK2);
     clockgen.output_enable(SI5351_CLK0, clk1_en);
     clockgen.output_enable(SI5351_CLK1, clk2_en);
     clockgen.output_enable(SI5351_CLK2, clk3_en);
-    clockgen.set_clock_invert(SI5351_CLK0, 1);
+ /*   clockgen.set_clock_invert(SI5351_CLK0, 1);
     clockgen.set_clock_invert(SI5351_CLK1, 1);
-    clockgen.set_clock_invert(SI5351_CLK2, 1);
+    clockgen.set_clock_invert(SI5351_CLK2, 1);*/
   }
   DISABLE_I2C();
 }
