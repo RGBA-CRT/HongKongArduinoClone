@@ -198,7 +198,7 @@ inline byte readData()
   CART_OUTPUT_ENABLE();
   setDataDir(INPUT);
   BB_OUT_ENABLE();
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
@@ -218,11 +218,17 @@ inline void readCart(byte isLoROM) {
 
   word goalAdr = address + datasize;
   while (1) {
-    // CART_OUTPUT_ENABLE();
+#if 1
+    //CART_OUTPUT_ENABLE();
     setAddress(bank, address, isLoROM);
-    __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+    //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
     serial_send(readData());
-    // CART_OUTPUT_DISABLE();
+    //CART_OUTPUT_DISABLE();
+    
+#else
+    //serial_send(readbyte_cart(bank, address));
+#endif
+
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
@@ -333,9 +339,9 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
     clockgen.set_freq(2147727200ULL, SI5351_CLK0);
     if (clk2_oc) {
       //over clock for SA-1
-      clockgen.set_freq(650000000ULL, SI5351_CLK1);
+      clockgen.set_freq(659000000ULL, SI5351_CLK1);
     } else {
-      //normal clock for BS-X
+      //normal clock
       clockgen.set_freq(357954500ULL, SI5351_CLK1);
     }
     clockgen.set_freq(307200000ULL, SI5351_CLK2);

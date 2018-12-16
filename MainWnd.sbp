@@ -567,6 +567,7 @@ Sub MainWnd_CommandButton6_Click()
 		p+=wsprintf(p,"[%c]",data[i])
 	Next i
 	DBM(data+&H5000)
+	Dump(data,128)
 End Sub
 
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
