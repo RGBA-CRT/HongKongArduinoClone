@@ -287,9 +287,9 @@ inline void setCtrlBus(byte b) {
 inline byte readbyte_cart(byte bank, word address) {
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
-  CART_OUTPUT_ENABLE();
 
   setAddress(bank, address, false);
+  CART_OUTPUT_ENABLE();
 
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
@@ -377,21 +377,12 @@ void setup()
   digitalWrite(CK, LOW);
 
   digitalWrite(DIR, LOW); // 入力
-
-  digitalWrite(OE, HIGH);
-  digitalWrite(CS, HIGH);
-  digitalWrite(WE, HIGH);
-  digitalWrite(RST, HIGH);
   
-#ifdef _ENABLE_CIC
-  //クロックジェネレータの動作を開始
-  setupCloclGen(true, false, true, false);
-#endif
-
   digitalWrite(OE, HIGH);
   digitalWrite(CS, HIGH);
   digitalWrite(WE, HIGH);
   digitalWrite(RST, LOW);
+  
   
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
@@ -402,6 +393,15 @@ void setup()
   setFF(2, 0x00); lastadr[2] = 0;
 
 
+#ifdef _ENABLE_CIC
+  //クロックジェネレータの動作を開始
+  setupCloclGen(true, false, true, false);
+#endif
+
+  digitalWrite(OE, HIGH);
+  digitalWrite(CS, LOW);
+  digitalWrite(WE, HIGH);
+  digitalWrite(RST, HIGH);
 
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
@@ -451,7 +451,7 @@ void loop() {
     case 'c':
       { //set control bus(OE WD RST CS)
         while (Serial.available() < 1) ;
-        //setCtrlBus(Serial.read());
+        setCtrlBus(Serial.read());
       } break;
 
     case 'f':
