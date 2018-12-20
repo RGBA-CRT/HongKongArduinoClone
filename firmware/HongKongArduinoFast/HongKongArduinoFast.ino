@@ -217,6 +217,7 @@ inline void readCart(byte isLoROM) {
   word datasize = Serial_readWord();
 
   word goalAdr = address + datasize;
+  digitalWrite(CS, LOW);
   while (1) {
 #if 1
     //CART_OUTPUT_ENABLE();
@@ -233,6 +234,9 @@ inline void readCart(byte isLoROM) {
     if (address == goalAdr) break; //00:C000-01:0000
   }
 
+
+  CART_OUTPUT_DISABLE();
+  digitalWrite(CS, HIGH);
 }
 
 void writeCart(int isLoROM = false) {
@@ -358,10 +362,7 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
 
 void setup()
 {
-#ifdef _ENABLE_CIC
-  //クロックジェネレータの動作を開始
-  setupCloclGen(true, false, true, false);
-#endif
+
 
   //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++)
@@ -377,11 +378,21 @@ void setup()
 
   digitalWrite(DIR, LOW); // 入力
 
-  digitalWrite(OE, LOW);
-  digitalWrite(CS, LOW);
+  digitalWrite(OE, HIGH);
+  digitalWrite(CS, HIGH);
   digitalWrite(WE, HIGH);
   digitalWrite(RST, HIGH);
+  
+#ifdef _ENABLE_CIC
+  //クロックジェネレータの動作を開始
+  setupCloclGen(true, false, true, false);
+#endif
 
+  digitalWrite(OE, HIGH);
+  digitalWrite(CS, HIGH);
+  digitalWrite(WE, HIGH);
+  digitalWrite(RST, LOW);
+  
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
   setDataDir(OUTPUT);
@@ -389,6 +400,8 @@ void setup()
   setFF(0, 0x00); lastadr[0] = 0;
   setFF(1, 0x00); lastadr[1] = 0;
   setFF(2, 0x00); lastadr[2] = 0;
+
+
 
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
@@ -438,7 +451,7 @@ void loop() {
     case 'c':
       { //set control bus(OE WD RST CS)
         while (Serial.available() < 1) ;
-        setCtrlBus(Serial.read());
+        //setCtrlBus(Serial.read());
       } break;
 
     case 'f':
