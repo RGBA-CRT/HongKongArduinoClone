@@ -142,8 +142,8 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	'デフォルトのリトライ回数(=タイムアウトのms)
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
 	Dim HKAC_HW_RETRY As DWord
-	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL +10
-	printf(ex"理論転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
+	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL + HKAC_RX_TIMEOUT_MARGIN
+	printf(ex"論理転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT

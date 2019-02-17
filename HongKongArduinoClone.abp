@@ -3,7 +3,7 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "1.0b"	'SA-1 SRAM Write,SRAM Routine Fix, UI Fix
+Const VerStr = "v1.1"	'FhashSave対応, ST018対応, 自動ボーレート対応
 Const INIFILE_NAME= "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME="HongKongArduinoFast"
 
@@ -38,6 +38,10 @@ Declare Function FreeConsole Lib "kernel32" () As Long
 Dim _System_hConsoleOut As HANDLE
 _System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
 #endif
+
+'受信タイムアウト追加時間の設定読み込み
+Dim HKAC_RX_TIMEOUT_MARGIN AS Long
+HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName,"RxTimeoutMargine",10,INIFILE_PATH)
 
 '---------------------------
 '  Window Message Loop

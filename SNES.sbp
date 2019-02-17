@@ -45,9 +45,10 @@ Type SFC_CART_INFO
 	CheckSum1 As Word		'チェックサム
 	CheckSum2 As Word		'チェックサムのNOT
 	hasExtraHeader As BOOL	'拡張ヘッダ（FFB0h-FFBFh)があるかどうか
-	isBSX  As BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
 	diableChecksum As BOOL	'MENU PROGRAMとかBSMC等のチェックサムが無効なものに使う
 	isLoROM As BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTrueになる
+	isBSX  As BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
+	isFlashSave AS BOOL		'FLASHセーブかどうか
 	MakerCode As Word		'メーカーコード
 	MakerName As BytePtr	'メーカーコードから出した文字列
 	GameCode[4] As Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
@@ -113,6 +114,7 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 		(NOT(isSameBin(VarPtr(data->MakerCode),ex"\xFF\xFF\xFF\xFF\xFF\xFF\xFF",7))) ) And &H01
 
 	if info->hasExtraHeader Then
+		/*
 		'ヘッダのコードは文字列で来る
 		'code = 下位 or 上位<<4
 		Dim code As Word
@@ -120,7 +122,9 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 		if code=0 Then code=&H3030
 		code= ((code And &HFF00) -&H3000)>>8 or ( (code And &H0F) + (&H09 * ((code>>6) And &H01)) << 4 )
 		info->MakerCode=code
-		info->MakerName=getLicenceString(code)
+*/
+		info->MakerCode=data->MakerCode
+		info->MakerName=getLicenceString(data->MakerCode)
 		lstrcpy(info->GameCode,Dw2Str(info->rawHeader.GameCode))
 		if lstrcmp(info->GameCode,"    ")=0 Then lstrcpy(info->GameCode,"????")
 	End If
@@ -169,6 +173,12 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	if lstrcmp("MENU PROGRAM",info->Title)=0 Then
 		info->ROMType=SFC_MAP_SF_MENU
 		info->diableChecksum=TRUE
+	End If
+
+	'メーカがEJ（NTT DATA）ならFlashSaveカセット
+	if info->MakerCode=&H4A45 Then
+		info->isFlashSave=TRUE
+		info->SRAMSize=(128*1024) AS DWord
 	End If
 
 EndSub
@@ -517,9 +527,9 @@ Dim SFC_SPC7110_SRAM_MODEL[3]=[
 
 'JRA PAT用（Flash）
 Dim SFC_JRA_SRAM_MODEL[3]=[
-	&H105000,
+	&HC00000,
 	&H010000,
-	&H001000,
+	&H008000,
 	RST or CE
 ] As DWord
 
@@ -539,6 +549,9 @@ Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
 
 	Elseif info->ROMType = SFC_MAP_SA1 Then
 		GetSramModel=SFC_SA1_SRAM_MODEL
+
+	Elseif info->isFlashSave Then
+		GetSramModel=SFC_JRA_SRAM_MODEL
 
 	Elseif info->isLoROM Then
 		GetSramModel=SFC_LoROM_SRAM_MODEL
@@ -626,7 +639,7 @@ Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	Dim bankCount As DWord
 	Dim lastDumpSize AS DWord
 	Dim buf As BytePtr
-debug
+
 	sraminfo=GetSramModel(info)
 
 	if sraminfo->ctrlBus And SRAM_CTRL_SA1 Then

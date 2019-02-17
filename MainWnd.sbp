@@ -94,7 +94,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 
 	Dim i AS Long, buf[100] AS Byte
 	Dim tmp AS DWord
-	For i=0 To 6
+	For i=0 To 7
 		tmp=&H80 << i
 		SendMessage(MWnd(ROM_SIZE),CB_ADDSTRING,0,sprintfStr("%dKB [%dMbit]",(tmp) As DWord, (tmp*8)/(1024) As DWord) )
 		tmp=&H02 << i
@@ -440,6 +440,8 @@ Sub SaveIniFile()
 	Tmp=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
 	if Tmp <= 0 Then Tmp=DEFAULT_DUMP_SIZE
 	WritePrivateProfileString(ProgramName,"DumpBufferSize",Str$(Tmp),INIFILE_PATH)
+	
+	WritePrivateProfileString(ProgramName,"RxTimeoutMargine",Str$(HKAC_RX_TIMEOUT_MARGIN),INIFILE_PATH)
 EndSub
 
 Sub MainWnd_CommandButton3_Click()
@@ -872,11 +874,17 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
 							(info->ROMSize/1024) As DWord, (info->ROMSize*8)/(1024^2) As DWord))
 	endif
-
 	if info->SRAMSize =0 Then
 		SetWindowText(MWnd(SRAM_SIZE),"None")		
 	Else
-		SetWindowText(MWnd(SRAM_SIZE),Str$(info->SRAMSize/1024)+"KB ["+Str$((info->SRAMSize*8)/(1024))+"Kbit]")
+		Dim FLASH_TEXT AS BytePtr
+		if info->isFlashSave Then
+			FLASH_TEXT="[FLASH]"
+		Else
+			FLASH_TEXT=""
+		End If
+		SetWindowText(MWnd(SRAM_SIZE),sprintfStr("%dKB [%dKbit]%s",
+							(info->SRAMSize/1024) As DWord, (info->SRAMSize*8)/(1024) As DWord,FLASH_TEXT))
 	endif
 
 	SetCheckBox(MWnd(CB_MANUAL),bManual)
@@ -899,7 +907,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		DBM(ex"Version : "+Str$(info->Version/10+1.0))
 		if info->hasExtraHeader Then
 			'DBM("Extra Header Found.")
-			DBM(sprintfStr("MakerID : [%02X] %s", info->MakerCode, info->MakerName))
+			DBM(sprintfStr("MakerID : [%c%c] %s", info->MakerCode , info->MakerCode >> 8, info->MakerName))
 			DBMN("GameCode: SHVC-"): DBM(info->GameCode)
 		End If
 
@@ -908,7 +916,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 
 		DBM("")
 		if info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
-
+		if info->isFlashSave Then DBM(ex"Save Flash detected.\r\n")
 	End If
 EndSub	
 

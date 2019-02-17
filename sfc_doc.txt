@@ -217,6 +217,9 @@ SFメモリ
 
 マリオRPG
 104.9mA
+
+-------------------------
+JRA PAT、起動時にChip IDを取得してる
 */
 
 
@@ -227,6 +230,6 @@ TODO: リファクタリング
 	SRAMのMEMORY_MODELをROMにも
 	ROM　START
 	ROM　MODEL（LO/Hi)
-	
+
 
 */
