@@ -30,8 +30,8 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
  * [OK] S-DD1
  * [OK] SA-1
  * [OK] SPC7110
+ * [OK] ST018 (SFC側ROMのみ, ST018の内部ROMは未対応)
  * [NG] CX4
- * [NG] ST01x
   
 SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。
 [SA-1カートリッジの接続方法はこちら](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Detect-the-SA-1-Cartridge)  

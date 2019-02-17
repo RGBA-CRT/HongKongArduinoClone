@@ -467,6 +467,14 @@ End Sub
 Sub MainWnd_CommandButton4_Click()
 	Dim path As BytePtr
 
+	Dim info As SFC_CART_INFO
+	GetDumpConfig(info)
+	
+	if info.isFlashSave Then
+		ErrMes(hMainWnd,"フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。","未実装",0)
+		if GetKeyState(VK_ESCAPE) And &H80 = 0 Then		exitsub
+	End If
+
 #ifndef _DEBUG
 	path=LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm")
 	if path=0 Then ExitSub
@@ -479,8 +487,6 @@ Sub MainWnd_CommandButton4_Click()
 
 #endif
 	if MessageBox(hMainWnd,ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？",ProgramName+" - SRAM write",MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
-	Dim info As SFC_CART_INFO
-	GetDumpConfig(info)
 	WriteSRAM(hCOM,VarPtr(info),path)
 #ifndef _DEBUG
 	free(path)
