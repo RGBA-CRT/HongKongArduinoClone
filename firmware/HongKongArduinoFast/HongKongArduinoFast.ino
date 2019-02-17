@@ -10,7 +10,7 @@
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '3'
+#define FIRMWARE_VERSION '3' // FWのAPIが変わったらインクリメント
 
 //クロック回路有効
 #define _ENABLE_CIC
@@ -146,19 +146,6 @@ inline void setFF(byte ch, byte b)
   PORTB |= 0b00001000 << ch;
 }
 
-void setDatadir_cart(byte DATADIR) {
-  if (DATADIR == INPUT)
-    BB_DIR_INPUT(); //busbuffer dir
-  else
-    BB_DIR_OUTPUT();
-
-  //busbuffer OE
-  BB_OUT_ENABLE();
-
-  //arduino dbus dir
-  setDataDir(DATADIR);
-}
-
 
 
 //--------------
@@ -217,26 +204,16 @@ inline void readCart(byte isLoROM) {
   word datasize = Serial_readWord();
 
   word goalAdr = address + datasize;
-  digitalWrite(CS, LOW);
   while (1) {
-#if 1
-    //CART_OUTPUT_ENABLE();
+    // CART_OUTPUT_ENABLE();
     setAddress(bank, address, isLoROM);
-    //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+    __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
     serial_send(readData());
-    //CART_OUTPUT_DISABLE();
-    
-#else
-    //serial_send(readbyte_cart(bank, address));
-#endif
-
+    // CART_OUTPUT_DISABLE();
     address++;
     if (address == goalAdr) break; //00:C000-01:0000
   }
 
-
-  CART_OUTPUT_DISABLE();
-  digitalWrite(CS, HIGH);
 }
 
 void writeCart(int isLoROM = false) {
@@ -287,9 +264,9 @@ inline void setCtrlBus(byte b) {
 inline byte readbyte_cart(byte bank, word address) {
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
+  CART_OUTPUT_ENABLE();
 
   setAddress(bank, address, false);
-  CART_OUTPUT_ENABLE();
 
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 

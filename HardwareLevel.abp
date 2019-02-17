@@ -174,6 +174,7 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 	Dim cs AS COMSTAT,readLen AS DWord
 	
 	Do
+		'受信バッファ数取得
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
 			retry++
@@ -188,16 +189,19 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 			WaitForRequest=TRUE
 			ExitDo
 		Else
-			printf("[WaitRequest]Invailed Request : %X[%c]",rsv,rsv)
+			'なぜかここに来て読んだバイト数が0になることがある
+			if dwErrors<>readLen Then
+				printf(ex"[WaitRequest]Invailed Request : %X[%c] <> %X[%c] %d \n",rsv,rsv,requestChar,requestChar,dwErrors)
+			Endif
 		End If
 		Sleep(1)
 		retry++
 		if retry<timedOut_ms Then Continue
 	Loop
 
-	if retry>10 Then
-		printf(ex"[WaitRequest] wait:%d ms ok:%d\n",retry,WaitForRequest)
-	End If
+'	if retry>10 Then
+		printf(ex"[WaitRequest] char:%c wait:%d ms ok:%d\n",requestChar,retry,WaitForRequest)
+'	End If
 End Function
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
@@ -228,6 +232,7 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 
 	Do
+		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
@@ -237,7 +242,7 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	Loop
 	
 	WriteROM=WriteCount
-	
+
 	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
 		DBM("[DBG]Firmware Error!")
 		DBM("書込ルーチン暴走中")

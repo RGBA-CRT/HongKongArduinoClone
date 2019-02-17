@@ -218,3 +218,15 @@ SFメモリ
 マリオRPG
 104.9mA
 */
+
+
+/*
+TODO: リファクタリング
+	ヘッダの構造体を正規化
+	関数の分け方をもう一度考え直そう
+	SRAMのMEMORY_MODELをROMにも
+	ROM　START
+	ROM　MODEL（LO/Hi)
+	
+
+*/

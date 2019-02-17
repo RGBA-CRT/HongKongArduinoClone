@@ -464,7 +464,9 @@ Dim SFC_LoROM_SRAM_MODEL[3]=[
 ] As DWord
 
 Dim SFC_HiROM_SRAM_MODEL[3]=[
-	&H206000,
+'	&H206000,
+'	SUPER DONKEY KONG 2 ‚Í 30:6000h ~
+	&H306000,
 	&H010000,
 	&H002000,
 	RST or CE
@@ -511,6 +513,14 @@ Dim SFC_SPC7110_SRAM_MODEL[3]=[
 	&H010000,
 	&H002000,
 	RST or CE or SRAM_CTRL_SPC7110
+] As DWord
+
+'JRA PAT—piFlashj
+Dim SFC_JRA_SRAM_MODEL[3]=[
+	&H105000,
+	&H010000,
+	&H001000,
+	RST or CE
 ] As DWord
 
 
@@ -616,7 +626,7 @@ Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	Dim bankCount As DWord
 	Dim lastDumpSize AS DWord
 	Dim buf As BytePtr
-
+debug
 	sraminfo=GetSramModel(info)
 
 	if sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
