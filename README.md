@@ -1,5 +1,5 @@
 # HongKongArduinoClone
- 「こーどねーむホンコン with Arduino」を高速化するスケッチとホストプログラム  
+ 「[こーどねーむホンコン with Arduino](http://hongkongarduino.web.fc2.com)」を高速化・高機能化するプロジェクト
 SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
 
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1SS.png "SS")  　
@@ -16,13 +16,6 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 + [こーどねーむ「ホンコン」 with Arduino / Original page](http://hongkongarduino.web.fc2.com)
 + [たにやま氏のリポジトリ / Original repository](https://github.com/SusumuTaniyama/HongKongArduino)
 + [このプログラムについてのページ / My page](http://rgbacrt.seesaa.net/article/435543541.html)
-
-
-## 参考資料 / Referenced documents
- * <http://hongkongarduino.web.fc2.com/archive>  
- * <https://github.com/sanni/cartreader/> 
- * <http://problemkaputt.de/fullsnes.txt>  
-
 
 ## 対応カートリッジについて / Surpported Carts
 対応状況は以下の通りです。
@@ -41,8 +34,9 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
  * [NG] ST01x
   
 SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。
-認識率が低いので認識するまでリトライしてください。ArduinoにACアダプタをつけると安定性が向上します。  
-Dump from SA-1 and SPC7110 needs following Clock Modlue.  
+[SA-1カートリッジの接続方法はこちら](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Detect-the-SA-1-Cartridge)  
+Dump from SA-1 and SPC7110 needs following Clock Modlue.
+[Connection procedure of the SA-1 Cart is here.](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Detect-the-SA-1-Cartridge#stable-connection-method-for-sa-1-cart)  
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
 
 ## 動作環境 / System requirements
@@ -50,7 +44,6 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 + Arduino UNO(ATmega 328P), Arduino NANO(ATmega168)
 + ATmega168の場合、現在のバージョンではｸﾛｯｸﾓｼﾞｭｰﾙの制御プログラムが収まりません。
 + Recommend Serial Converter : CH340
-
 
 ## ダウンロード / Download
 <https://github.com/RGBA-CRT/HongKongArduinoClone/releases>
@@ -83,6 +76,11 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 + 私が制作した部分(Windowsプログラム,　HongKongArduinoFast.ino以外のファイル)はCC0が適応されます。
 [![cc0](https://licensebuttons.net/p/zero/1.0/80x15.png)](http://creativecommons.org/publicdomain/zero/1.0/)  
 
+## 参考資料 / Referenced documents
+ * <http://hongkongarduino.web.fc2.com/archive>  
+ * <https://github.com/sanni/cartreader/> 
+ * <http://problemkaputt.de/fullsnes.txt>  
+ 
 ---
 
 ## 履歴 / History
