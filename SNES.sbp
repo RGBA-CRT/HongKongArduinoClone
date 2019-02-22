@@ -34,7 +34,7 @@ End Enum
 '後の都合のいい処理がしてある。
 '生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
-	Title[21] As Byte		'ゲームタイトル
+	Title[23] As Byte		'ゲームタイトル
 	MapMode As Byte			'FAST+HIROMなど
 	ROMType As Byte			'MapModeの下位4ビット
 	CartType As Byte		'ROM+SRAM+SFXみたいなの
@@ -89,6 +89,7 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 
 	memcpy(VarPtr(info->rawHeader),data,Sizeof(SFC_CART_HEADER))
 
+	'タイトル取得
 	memcpy(info,data->GameTitle,21)
 	if info->Title[i] = 0 Then
 		lstrcpy(info->Title,"CART CONNECTION ERR")
@@ -103,9 +104,25 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	End If
 	info->Title[21]=0
 
+	'SUPER INFOMATION SOCCERのタイトルーオーバランを修正
+	if lstrcmp("SUPER FORMATION SOCCE",info->Title)=0 Then
+		lstrcat(info->Title,"R")
+		data->MapMode=&H20	'Slow LoROM
+	End If
+	'他にもオーバーランがあるようなら、
+	/*
+	if MapMode And &HF0 <> &H20 Then
+		lstrcat(info->Title, Chr$(MapMode))
+		data-> MapMode=&H20
+	Endif
+
+	というようにしよう。
+	*/
+
+
 	info->CartType = data->CartType
-	info->MapMode=data->MapMode
-	info->ROMType=(info->MapMode And &H0F)
+	info->MapMode=data->MapMode 
+	info->ROMType=(data->MapMode And &H0F)
 
 	
 	'拡張（？）ヘッダがあるかチェック
