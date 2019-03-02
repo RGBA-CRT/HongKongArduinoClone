@@ -104,7 +104,7 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	End If
 	info->Title[21]=0
 
-	'SUPER INFOMATION SOCCERのタイトルーオーバランを修正
+	'SUPER FOMATION SOCCERのタイトルーオーバランを修正
 	if lstrcmp("SUPER FORMATION SOCCE",info->Title)=0 Then
 		lstrcat(info->Title,"R")
 		data->MapMode=&H20	'Slow LoROM
