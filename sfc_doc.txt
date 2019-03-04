@@ -219,7 +219,194 @@ SFメモリ
 104.9mA
 
 -------------------------
-JRA PAT、起動時にChip IDを取得してる
+JRA PAT、起動時にChip IDを取得してる]
+
+
+------------------------------------------------
+ ST018 - 解析
+------------------------------------------------
++ STAT.4 === STAT.TransferRequest
++ STAT.0 === STAT.Ready
+
+>>> ブート
+
+//リセット
+Breakpoint 0 hit (83).
+00e71b sta $3804     [003804] A:0000 X:00ff Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:  0 H:127 F: 0	//Ctrl=Normal
+00e71e ldx #$00               A:0000 X:00ff Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:  0 H:128 F: 0
+Breakpoint 0 hit (84).
+00e725 sta $3804     [003804] A:0001 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIzC V:  7 H:128 F: 0	//Ctrl=HardReset
+Breakpoint 0 hit (85).
+00e72f sta $3804     [003804] A:0000 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V: 14 H:129 F: 0	//Ctrl=Normal
+Breakpoint 0 hit (86).
+00efbd lda $3804     [003804] A:7404 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIzC V:142 H: 21 F: 7	//READ STAT
+00efc0 bpl $efd1     [00efd1] A:7485 X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:142 H: 21 F: 7	// なんのチェック？
+00efc2 lda $ff41     [00ff41] A:7485 X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:142 H: 25 F: 7	// 起動確認？
+// ST018のリセット後のSTATUSの様子
+// [00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][00][80][80][80][80][80][80][80][80][80][80]...[AD]
+// 00がリセット中なのでは？
+
+// 多分ここからST018の動作確認？
+Breakpoint 0 hit (87).
+00e895 lda $3804     [003804] A:74f1 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzC V:142 H:119 F: 7	//READ STAT
+00e898 and #$10               A:7485 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzC V:142 H:119 F: 7	// STAT.4
+Breakpoint 0 hit (88).
+00e87a sta $3802     [003802] A:74f1 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:142 H:169 F: 7	//CMD:F1 Status/Test 
+00e87d rts                    A:74f1 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:142 H:171 F: 7	// 
+Breakpoint 0 hit (89).
+00e895 lda $3804     [003804] A:74f1 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:142 H:234 F: 7	//READ STAT
+00e898 and #$10               A:7485 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:142 H:234 F: 7	// STAT.4
+Breakpoint 0 hit (90).
+00e886 lda $3804     [003804] A:74f1 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:142 H:277 F: 7	//READ STAT
+00e889 and #$01               A:7485 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:142 H:277 F: 7	// STAT.0
+Breakpoint 0 hit (91).
+00e88d lda $3800     [003800] A:7401 X:0000 Y:0000 S:1ff9 D:0000 DB:00 nvMXdIzc V:142 H:293 F: 7	//READ DATA?
+00e890 clc                    A:7400 X:0000 Y:0000 S:1ff9 D:0000 DB:00 nvMXdIZc V:142 H:293 F: 7	// --> 00
+
+Breakpoint 0 hit (92).
+00e895 lda $3804     [003804] A:74f2 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:143 H: 47 F: 7	//READ STAT
+00e898 and #$10               A:7485 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:143 H: 47 F: 7	// STAT.4
+Breakpoint 0 hit (93).
+00e87a sta $3802     [003802] A:74f2 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:143 H: 87 F: 7	//CMD:F2 Status/Test
+00e87d rts                    A:74f2 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:143 H: 89 F: 7
+Breakpoint 0 hit (94).
+00e895 lda $3804     [003804] A:74f2 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:143 H:162 F: 7	//READ STAT
+00e898 and #$10               A:7485 X:0000 Y:0000 S:1ff6 D:0000 DB:00 NvMXdIzc V:143 H:162 F: 7	// STAT.4
+Breakpoint 0 hit (95).
+00e886 lda $3804     [003804] A:74f2 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:143 H:205 F: 7	//READ STAT
+00e889 and #$01               A:7485 X:0000 Y:0000 S:1ff9 D:0000 DB:00 NvMXdIzc V:143 H:205 F: 7	// STAT.0
+Breakpoint 0 hit (96).
+00e88d lda $3800     [003800] A:7401 X:0000 Y:0000 S:1ff9 D:0000 DB:00 nvMXdIzc V:143 H:221 F: 7	//READ DATA?
+00e890 clc                    A:7400 X:0000 Y:0000 S:1ff9 D:0000 DB:00 nvMXdIZc V:143 H:221 F: 7	// --> 00
+
+
+
+>>> メニュー画面
+Breakpoint 0 hit (103).
+00e83b lda $3804     [003804] A:ff01 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIzC V:248 H: 91 F:34	//ST018起動確認
+00e83e bpl $e839     [00e839] A:ff85 X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:248 H: 91 F:34	// 0チェック
+Breakpoint 0 hit (104).
+00e84e sta $3804     [003804] A:ff00 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:248 H:118 F:34	//Ctrl=Normal
+00e851 lda #$00               A:ff00 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:248 H:120 F:34	
+Breakpoint 0 hit (105).
+00e859 sta $3804     [003804] A:ffff X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:255 H:123 F:34	//Ctrl=SoftReset
+Breakpoint 0 hit (106).
+00e864 sta $3804     [003804] A:ff00 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:  0 H:127 F:35	//Ctrl=Normal
+Breakpoint 0 hit (107).
+00e86d lda $3804     [003804] A:ff00 X:0000 Y:0000 S:1ffd D:0000 DB:00 nvMXdIZC V:  7 H:129 F:35	//ST018起動確認
+00e870 bpl $e86d     [00e86d] A:ff85 X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:  7 H:129 F:35
+00e872 rts                    A:ff85 X:0000 Y:0000 S:1ffd D:0000 DB:00 NvMXdIzC V:  7 H:133 F:35
+
+
+
+
+>>> 対局画面(bsnes HLE)
+Breakpoint 0 hit (54).
+00e895 lda $3804     [003804] A:00aa X:000a Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzc V:  3 H:293 F:30	//READ STAT
+00e898 and #$10               A:0085 X:000a Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzc V:  3 H:293 F:30	// STAT.4
+00e89a beq $e89f     [00e89f] A:0000 X:000a Y:0009 S:1ff1 D:0000 DB:00 nvMXdIZc V:  3 H:297 F:30
+Breakpoint 0 hit (55).
+00e87a sta $3802     [003802] A:00aa X:000a Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  3 H:333 F:30	//WRITE CMD
+00e87d rts                    A:00aa X:000a Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  3 H:334 F:30	// 
+Breakpoint 0 hit (56).
+00e895 lda $3804     [003804] A:00aa X:000a Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzc V:  4 H: 56 F:30	//READ STAT
+00e898 and #$10               A:0085 X:000a Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzc V:  4 H: 56 F:30	// STAT.4
+Breakpoint 0 hit (57).
+00e886 lda $3804     [003804] A:00aa X:000a Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  4 H: 99 F:30	//READ STAT
+00e889 and #$01               A:0085 X:000a Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  4 H: 99 F:30	// STAT.0
+Breakpoint 0 hit (58).
+00e88d lda $3800     [003800] A:0001 X:000a Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  4 H:115 F:30	//READ DATA from ST018
+00e890 clc                    A:00e0 X:000a Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  4 H:115 F:30	// ↑謎, return e0
+
+//------------ 多分1サイクル ------------------
+
+Breakpoint 0 hit (59).
+00e895 lda $3804     [003804] A:0024 X:0000 Y:0009 S:1ff1 D:0000 DB:00 nvMXdIzC V:  4 H:235 F:30	//READ STAT
+00e898 and #$10               A:0085 X:0000 Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzC V:  4 H:235 F:30	// STAT.4
+Breakpoint 0 hit (60).
+00e87a sta $3802     [003802] A:0024 X:0000 Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  4 H:276 F:30	//WRITE DATA 0x24
+00e87d rts                    A:0024 X:0000 Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  4 H:277 F:30
+Breakpoint 0 hit (61).
+00e895 lda $3804     [003804] A:0024 X:0000 Y:0009 S:1ff1 D:0000 DB:00 nvMXdIzc V:  4 H:334 F:30	//READ STAT
+00e898 and #$10               A:0085 X:0000 Y:0009 S:1ff1 D:0000 DB:00 NvMXdIzc V:  4 H:334 F:30	// STAT.4
+Breakpoint 0 hit (62).
+00e886 lda $3804     [003804] A:0024 X:0000 Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H: 37 F:30	//READ STAT
+00e889 and #$01               A:0085 X:0000 Y:0009 S:1ff4 D:0000 DB:00 NvMXdIzc V:  5 H: 37 F:30	// STAT.0
+Breakpoint 0 hit (63).
+00e88d lda $3800     [003800] A:0001 X:0000 Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H: 53 F:30	//READ DATA from ST018
+00e890 clc                    A:0060 X:0000 Y:0009 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H: 53 F:30	// return 60?
+
+
+Breakpoint 0 hit (64).
+00e895 lda $3804     [003804] A:0028 X:0001 Y:0008 S:1ff1 D:0000 DB:00 nvMXdIzC V:  5 H:169 F:30	//READ STAT
+00e898 and #$10               A:0085 X:0001 Y:0008 S:1ff1 D:0000 DB:00 NvMXdIzC V:  5 H:169 F:30    // STAT.4
+Breakpoint 0 hit (65).                                                                              
+00e87a sta $3802     [003802] A:0028 X:0001 Y:0008 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H:210 F:30    //WRITE DATA 0x28
+00e87d rts                    A:0028 X:0001 Y:0008 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H:211 F:30    
+Breakpoint 0 hit (66).                                                                              
+00e895 lda $3804     [003804] A:0028 X:0001 Y:0008 S:1ff1 D:0000 DB:00 nvMXdIzc V:  5 H:269 F:30    //READ STAT
+00e898 and #$10               A:0085 X:0001 Y:0008 S:1ff1 D:0000 DB:00 NvMXdIzc V:  5 H:269 F:30    // STAT.4
+Breakpoint 0 hit (67).                                                                              
+00e886 lda $3804     [003804] A:0028 X:0001 Y:0008 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H:312 F:30    //READ STAT
+00e889 and #$01               A:0085 X:0001 Y:0008 S:1ff4 D:0000 DB:00 NvMXdIzc V:  5 H:312 F:30    // STAT.0
+Breakpoint 0 hit (68).                                                                              
+00e88d lda $3800     [003800] A:0001 X:0001 Y:0008 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H:327 F:30    //READ DATA from ST018
+00e890 clc                    A:005f X:0001 Y:0008 S:1ff4 D:0000 DB:00 nvMXdIzc V:  5 H:327 F:30    // return 5f?
+
+
+Breakpoint 0 hit (69).                                                                              
+00e895 lda $3804     [003804] A:002c X:0002 Y:0007 S:1ff1 D:0000 DB:00 nvMXdIzC V:  6 H: 93 F:30	//READ STAT
+00e898 and #$10               A:0085 X:0002 Y:0007 S:1ff1 D:0000 DB:00 NvMXdIzC V:  6 H: 93 F:30    // STAT.4
+Breakpoint 0 hit (70).                                                                              
+00e87a sta $3802     [003802] A:002c X:0002 Y:0007 S:1ff4 D:0000 DB:00 nvMXdIzc V:  6 H:134 F:30    //WRITE DATA 0x2c
+00e87d rts                    A:002c X:0002 Y:0007 S:1ff4 D:0000 DB:00 nvMXdIzc V:  6 H:145 F:30    
+Breakpoint 0 hit (71).                                                                              
+00e895 lda $3804     [003804] A:002c X:0002 Y:0007 S:1ff1 D:0000 DB:00 nvMXdIzc V:  6 H:203 F:30    //READ STAT
+00e898 and #$10               A:0085 X:0002 Y:0007 S:1ff1 D:0000 DB:00 NvMXdIzc V:  6 H:203 F:30    // STAT.4
+Breakpoint 0 hit (72).                                                                              
+00e886 lda $3804     [003804] A:002c X:0002 Y:0007 S:1ff4 D:0000 DB:00 nvMXdIzc V:  6 H:246 F:30    //READ STAT
+00e889 and #$01               A:0085 X:0002 Y:0007 S:1ff4 D:0000 DB:00 NvMXdIzc V:  6 H:246 F:30    // STAT.0
+Breakpoint 0 hit (73).                                                                              
+00e88d lda $3800     [003800] A:0001 X:0002 Y:0007 S:1ff4 D:0000 DB:00 nvMXdIzc V:  6 H:262 F:30    //READ DATA from ST018
+00e890 clc                    A:005e X:0002 Y:0007 S:1ff4 D:0000 DB:00 nvMXdIzc V:  6 H:262 F:30    // return 5e?
+
+
+Breakpoint 0 hit (74).
+00e895 lda $3804     [003804] A:0030 X:0003 Y:0006 S:1ff1 D:0000 DB:00 nvMXdIzC V:  7 H: 27 F:30	//READ STAT
+00e898 and #$10               A:0085 X:0003 Y:0006 S:1ff1 D:0000 DB:00 NvMXdIzC V:  7 H: 27 F:30    // STAT.4
+Breakpoint 0 hit (75).                                                                              
+00e87a sta $3802     [003802] A:0030 X:0003 Y:0006 S:1ff4 D:0000 DB:00 nvMXdIzc V:  7 H: 68 F:30    //WRITE DATA 0x30
+00e87d rts                    A:0030 X:0003 Y:0006 S:1ff4 D:0000 DB:00 nvMXdIzc V:  7 H: 69 F:30    
+Breakpoint 0 hit (76).                                                                              
+00e895 lda $3804     [003804] A:0030 X:0003 Y:0006 S:1ff1 D:0000 DB:00 nvMXdIzc V:  7 H:127 F:30    //READ STAT
+00e898 and #$10               A:0085 X:0003 Y:0006 S:1ff1 D:0000 DB:00 NvMXdIzc V:  7 H:127 F:30    // STAT.4
+Breakpoint 0 hit (77).                                                                              
+00e886 lda $3804     [003804] A:0030 X:0003 Y:0006 S:1ff4 D:0000 DB:00 nvMXdIzc V:  7 H:180 F:30    //READ STAT
+00e889 and #$01               A:0085 X:0003 Y:0006 S:1ff4 D:0000 DB:00 NvMXdIzc V:  7 H:180 F:30    // STAT.0
+Breakpoint 0 hit (78).                                                                              
+00e88d lda $3800     [003800] A:0001 X:0003 Y:0006 S:1ff4 D:0000 DB:00 nvMXdIzc V:  7 H:196 F:30    //READ DATA from ST018
+00e890 clc                    A:005d X:0003 Y:0006 S:1ff4 D:0000 DB:00 nvMXdIzc V:  7 H:196 F:30    // return 5d?
+
+
+///////////////////////////////////
+80:E717  E2 30		SEP	#$30		; AXY:8
+80:E719  A9 00		LDA	#$00		; 
+80:E71B  8D 04 38	STA	$3804		; ST018 Control/Status
+80:E71E  A2 00		LDX	#$00		; A:00
+80:E720  CA		DEX					; A:FF 
+80:E721  D0 FD		BNE	$E720		; if A=0; continue
+80:E723  A9 01		LDA	#$01		; 
+80:E725  8D 04 38	STA	$3804		; ST018 Control/Status
+80:E728  A2 00		LDX	#$00		; 
+80:E72A  CA		DEX			; 
+80:E72B  D0 FD		BNE	$E72A		; 
+80:E72D  A9 00		LDA	#$00		; 
+80:E72F  8D 04 38	STA	$3804		; ST018 Control/Status
+80:E732  A2 00		LDX	#$00		; 
+80:E734  CA		DEX			; 
+80:E735  D0 FD		BNE	$E734		; 
+80:E737  60		RTS			; 
+
 */
 
 

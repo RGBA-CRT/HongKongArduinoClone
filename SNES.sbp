@@ -598,7 +598,7 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 	sraminfo=GetSramModel(info)
 
 	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-			SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
+		SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
 	End If
 
 	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
@@ -607,8 +607,8 @@ Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
 
 	DBM("Dumping SRAM...")
 	DBM("SramSize = "+Str$(info->SRAMSize/1024)+"KB")
-	DBM("bankSize ="+Str$(sraminfo->bankSize/1024)+"KB")
-	DBM("bankCount="+Str$(bankCount))
+	DBM("bankSize = "+Str$(sraminfo->bankSize/1024)+"KB")
+	DBM("bankCount= "+Str$(bankCount))
 
 	SendControl(hSerial,sraminfo->ctrlBus or WE)
 

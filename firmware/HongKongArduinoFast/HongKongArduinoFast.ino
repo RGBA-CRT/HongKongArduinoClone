@@ -253,6 +253,118 @@ void writeCart(int isLoROM = false) {
   //  Serial.println("WRITE_END");
 }
 
+// wait STAT.4とWAIT STAT.0の２関数に分けて、トレース実行と動作を合わせよう。
+inline bool waitSt018() {
+  //while ((readbyte_cart(0x00, 0x3804) & 0x11) != 0x01) {
+  byte stat;
+  while (1) {
+    stat = readbyte_cart(0x00, 0x3804);
+    if ((stat & 0x11) == 0x01)break;
+  }
+
+}
+inline bool waitSt018_2() {
+  //while ((readbyte_cart(0x00, 0x3804) & 0x11) != 0x01) {
+  byte stat;
+  while (1) {
+    stat = readbyte_cart(0x00, 0x3804);
+    Serial.write('[');
+    send_hexdump(stat);
+    Serial.write(']');
+    if ((stat & 0x11) == 0x01)break;
+  }
+  Serial.write(';');
+
+}
+inline byte hex2ascii(byte hex) {
+  return (hex < 0xA) ? hex + '0' : hex - 0xA + 'A';
+}
+
+void send_hexdump(byte hex) {
+  Serial.write(hex2ascii((hex >> 4) & 0x0f));
+  Serial.write(hex2ascii(hex & 0x0f));
+}
+
+byte st018_command(byte cmd) {
+  //wait for ready
+  waitSt018_2();
+
+  // status check
+  writebyte_cart(0x00, 0x3804, cmd);
+
+  // check return
+  byte ret =  st018_readData();
+
+  Serial.print("\r\nST018 CMD-");
+  send_hexdump(cmd);
+  Serial.print(" RET:");
+  send_hexdump(ret);
+
+  return ret;
+}
+
+void st018_printStatus() {
+  byte stat = readbyte_cart(0x00, 0x3804);
+  Serial.print(" STAT:");
+  send_hexdump(stat);
+  Serial.print("\r\n");
+}
+
+byte st018_readData() {
+  waitSt018();
+  return readbyte_cart(0x00, 0x3800);
+}
+
+void st018_biosDump() {
+  digitalWrite(CS, LOW);
+
+  setupCloclGen(true, false, true, false);
+  delay(50);
+
+  // reset
+  /*
+  Serial.print("RST:0x00\r\n");
+  writebyte_cart(0x00, 0x3804, 0x00);
+
+  waitSt018();
+  Serial.print("RST:0x01\r\n");
+  delay(50);
+  writebyte_cart(0x00, 0x3804, 0x01);
+
+  waitSt018();
+  Serial.print("RST:0x00\r\n");
+  delay(50);
+  writebyte_cart(0x00, 0x3804, 0x00);
+*/
+
+  readbyte_cart(0x00, 0x3802);
+
+  //F1 Status/Test (if response.bit2=1, receive 2 error bytes)
+  if (st018_command(0xF1) & 0x04) {
+    Serial.print(" ERR ");
+    send_hexdump(st018_readData());
+    send_hexdump(st018_readData());
+  }
+  st018_printStatus();
+
+  //F2 Status/Test (if response<>00h, receive 2 error bytes)
+  if (st018_command(0xF2) != 0x00) {
+    Serial.print(" ERR ");
+    send_hexdump(st018_readData());
+    send_hexdump(st018_readData());
+  }
+  st018_printStatus();
+
+  // debug cmd
+  st018_command(0xF3);
+
+  for (byte i = 0; i < 32; i++) {
+    if ((i % 16) == 0)Serial.write('\n');
+    send_hexdump(st018_readData());
+    Serial.write(' ');
+  }
+}
+
 inline void setCtrlBus(byte b) {
   digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
   digitalWrite(CS , (b & 0b0010) ? HIGH : LOW);
@@ -270,6 +382,8 @@ inline byte readbyte_cart(byte bank, word address) {
 
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
   byte ret = readData();
 
   CART_OUTPUT_DISABLE();
@@ -278,11 +392,12 @@ inline byte readbyte_cart(byte bank, word address) {
 
 //　/WRとかをちゃんと制御して書き込む
 void writebyte_cart(byte bank, word address, byte data) {
-  setAddress(bank, address, false);        setData(data);
-
+  CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
-  CART_OUTPUT_DISABLE();
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  setAddress(bank, address, false);        setData(data);
+
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_WRITE_ENABLE();
@@ -312,8 +427,8 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
   // Adafruit Clock Generator
   ENABLE_I2C();
   haveClockModule = clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
-/*  clockgen.pll_reset(SI5351_PLLA);
-  clockgen.pll_reset(SI5351_PLLB);*/
+  /*  clockgen.pll_reset(SI5351_PLLA);
+    clockgen.pll_reset(SI5351_PLLB);*/
   if (haveClockModule) {
     clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
     clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
@@ -329,9 +444,9 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
     clockgen.output_enable(SI5351_CLK0, clk1_en);
     clockgen.output_enable(SI5351_CLK1, clk2_en);
     clockgen.output_enable(SI5351_CLK2, clk3_en);
- /*   clockgen.set_clock_invert(SI5351_CLK0, 1);
-    clockgen.set_clock_invert(SI5351_CLK1, 1);
-    clockgen.set_clock_invert(SI5351_CLK2, 1);*/
+    /*   clockgen.set_clock_invert(SI5351_CLK0, 1);
+       clockgen.set_clock_invert(SI5351_CLK1, 1);
+       clockgen.set_clock_invert(SI5351_CLK2, 1);*/
   }
   DISABLE_I2C();
 }
@@ -354,13 +469,13 @@ void setup()
   digitalWrite(CK, LOW);
 
   digitalWrite(DIR, LOW); // 入力
-  
+
   digitalWrite(OE, HIGH);
   digitalWrite(CS, HIGH);
   digitalWrite(WE, HIGH);
   digitalWrite(RST, LOW);
-  
-  
+
+
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
   setDataDir(OUTPUT);
@@ -546,6 +661,10 @@ void loop() {
         Serial.write(FIRMWARE_ID);
         Serial.write((char)FIRMWARE_VERSION);
 
+      } break;
+
+    case 'z': {
+        st018_biosDump();
       } break;
   }
 }
