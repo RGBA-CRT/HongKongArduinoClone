@@ -256,57 +256,21 @@ void writeCart(int isLoROM = false) {
 // wait STAT.4とWAIT STAT.0の２関数に分けて、トレース実行と動作を合わせよう。
 inline bool st018_transferWait() {
   while ((readbyte_cart(0x00, 0x3804) & 0x10) != 0x00) {
-    /* Serial.write('[');
-      send_hexdump( readbyte_cart(0x00, 0x3804));
-      Serial.write(']');*/
   }
-  /* Serial.write('[');
-    send_hexdump( readbyte_cart(0x00, 0x3804));
-    Serial.write(']');
-    Serial.write(';');
-    Serial.write('\n');*/
+
 }
 inline bool st018_readyWait() {
   byte waitCount = 0;
   while ((readbyte_cart(0x00, 0x3804) & 0x01) != 0x01) {
-    /*  Serial.write('(');
-      send_hexdump( readbyte_cart(0x00, 0x3804));
-      Serial.write(')');*/
     waitCount++;
-    if (waitCount > 128) {
+    if (waitCount > 253) {
       Serial.write('(');
       send_hexdump( readbyte_cart(0x00, 0x3804));
       Serial.write(')');
     }
+    delayMicroseconds(100);
   }
-  /* Serial.write('(');
-    send_hexdump( readbyte_cart(0x00, 0x3804));
-    Serial.write(')');
-    Serial.write(';');
-    Serial.write('\n');*/
 }
-/*
-  inline bool waitSt018() {
-  //while ((readbyte_cart(0x00, 0x3804) & 0x11) != 0x01) {
-  byte stat;
-  while (1) {
-    stat = readbyte_cart(0x00, 0x3804);
-    if ((stat & 0x11) == 0x01)break;
-  }
-
-  }
-  inline bool waitSt018_2() {
-  //while ((readbyte_cart(0x00, 0x3804) & 0x11) != 0x01) {
-  byte stat;
-  while (1) {
-    stat = readbyte_cart(0x00, 0x3804);
-    Serial.write('[');
-    send_hexdump(stat);
-    Serial.write(']');
-    if ((stat & 0x11) == 0x01)break;
-  }
-  Serial.write(';');
-  }*/
 inline byte hex2ascii(byte hex) {
   return (hex < 0xA) ? hex + '0' : hex - 0xA + 'A';
 }
@@ -355,60 +319,75 @@ inline byte st018_readData() {
   return readbyte_cart(0x00, 0x3800);
 }
 
-void st018_biosDump() {
-  digitalWrite(CS, HIGH);
-
+void st018_reset() {
   // reset
   writebyte_cart(0x00, 0x3804, 0x00);  delayMicroseconds(100);
   writebyte_cart(0x00, 0x3804, 0xff);  delayMicroseconds(100);
   writebyte_cart(0x00, 0x3804, 0x00);  delayMicroseconds(100);
-  //Serial.print("RST;");
 
   //STATが0以外になるまで待つ
-  while (readbyte_cart(0x00, 0x3804) == 0x00) {
-    //Serial.write('{');
-    send_hexdump(readbyte_cart(0x00, 0x3804));
-    //Serial.write('}');
-  }
-  //Serial.print("RST-WAIT;");
+  while (readbyte_cart(0x00, 0x3804) == 0x00) ;
+
+  Serial.print("RST;");
+}
+
+bool st018_biosDump() {
+  // ROMと違ってI/OポートなのでCSは非アクティブである必要がある
+  digitalWrite(CS, HIGH);
+
+  // reset
+  st018_reset();
 
   //F1 Status/Test (if response.bit2=1, receive 2 error bytes)
   st018_command(0xF1);
   if (st018_getReturn() & 0x04) {
     Serial.print(" ERR ");
-    //send_hexdump(st018_readData());
-    //send_hexdump(st018_readData());
+    return false;
   }
 
   //F2 Status/Test (if response<>00h, receive 2 error bytes)
   st018_command(0xF2);
   if (st018_getReturn() != 0x00) {
     Serial.print(" ERR ");
-    //send_hexdump(st018_readData());
-    //send_hexdump(st018_readData());
+    return false;
   }
 
   // debug cmd
   st018_command(0xF3);
-
-  for (byte j = 0; j < 128; j++) {
-    for (word i = 0; i < 1024; i++) {
-      if ((i % 16) == 0)Serial.write('\n');
-      send_hexdump(st018_readData());
+  Serial.write('\n');
+#define ST018_LOOP_1 32 //128
+#define ST018_LOOP_2 16  //1024
+  byte tbuf[16];
+  for (byte j = 0; j < ST018_LOOP_1; j++) {
+    for (word i = 0; i < ST018_LOOP_2; i++) {
+      /*if ((i % 16) == 0)Serial.write('\n');
+        send_hexdump(st018_readData());
+        Serial.write(' ');*/
+      tbuf[i] = st018_readData();
+      send_hexdump(tbuf[i]);
       Serial.write(' ');
     }
+    for (word i = 0; i < ST018_LOOP_2; i++) {
+      if (tbuf[i] < 32 || tbuf[i] > 128)
+        tbuf[i] = '.';
+      Serial.write(tbuf[i]);
+
+    }
+    Serial.write('\n');
     delay(100);
   }
 
   Serial.print("CMD F3 END\n\n");
-  st018_command(0xA1);  st018_getReturn();  st018_getReturn();
-  st018_command(0xA2);  st018_getReturn();  st018_getReturn();
+
+  st018_reset();
+
+  st018_command(0xA1);  st018_getReturn();
+  st018_command(0xA2);  st018_getReturn();
   st018_command(0xF5);  st018_getReturn();  st018_getReturn();
   st018_command(0xF6);  st018_getReturn();  st018_getReturn();
-  Serial.print("ODD\n\n");
-  
-    st018_getReturn();  st018_getReturn();  st018_getReturn();
 
+  st018_command(0xF1); st018_getReturn();
+  return true;
 }
 
 inline void setCtrlBus(byte b) {
@@ -418,15 +397,14 @@ inline void setCtrlBus(byte b) {
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
+
+
 // /REを制御して読み込む
 inline byte readbyte_cart(byte bank, word address) {
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_OUTPUT_ENABLE();
 
   setAddress(bank, address, false);
-
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  CART_OUTPUT_ENABLE();
 
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
@@ -438,16 +416,11 @@ inline byte readbyte_cart(byte bank, word address) {
 
 //　/WRとかをちゃんと制御して書き込む
 void writebyte_cart(byte bank, word address, byte data) {
-  CART_OUTPUT_DISABLE();
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  BB_DIR_OUTPUT();
   setAddress(bank, address, false);        setData(data);
 
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
+  BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
-
+  CART_OUTPUT_DISABLE();
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_WRITE_ENABLE();
