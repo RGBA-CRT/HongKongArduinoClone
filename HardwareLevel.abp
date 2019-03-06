@@ -115,7 +115,6 @@ EndSub
 'コントロールバスはいじらないので手動でやる必要あり
 Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
 	Dim cmd[7] AS Byte
-	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
 
 	if isLoROM Then
@@ -139,10 +138,22 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
 	dwReadByte=0
 
+	ReadROM=ReceiveFromReader(hSerial, data, size)
+	
+	printf(ex"%03X:%X/%X bytes received.\n",address,ReadROM,size)
+EndFunction
+
+Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long
+	Dim ReadByte As DWord	
+	Dim dwReadByte As DWord
+	if TimeoutMul <= 1.0 Then
+		TimeoutMul=1.0
+	End If
+
 	'デフォルトのリトライ回数(=タイムアウトのms)
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
 	Dim HKAC_HW_RETRY As DWord
-	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL + HKAC_RX_TIMEOUT_MARGIN
+	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN
 	printf(ex"論理転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
@@ -158,20 +169,21 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 			Continue
 		End If
 
-		if ReadFile(hSerial,(data)+offset + ReadByte, cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
+		if ReadFile(hSerial,(data) + ReadByte, cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
 		ReadByte+=dwReadByte
 	
 		if ReadByte >= size Then exitdo
 	Loop
 
-	printf(ex"%03X:%X/%X bytes recived %d/%d\n",address,ReadByte,size,retry,HKAC_HW_RETRY)
+	printf(ex"retry %03d/%03d ",retry,HKAC_HW_RETRY)
 
-	ReadROM=ReadByte
-EndFunction
+	ReceiveFromReader=ReadByte
+End Function
 
 Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWord) AS BOOL
 	Dim dwErrors AS DWord,retry AS DWord,rsv AS Byte
 	Dim cs AS COMSTAT,readLen AS DWord
+
 	
 	Do
 		'受信バッファ数取得
@@ -343,9 +355,8 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 		End If
 	End If
 	
-	if msg=TRUE Then 
-		DBMN("FirmwareID : ") 
-		DBM(rsv) 
+	if msg=TRUE Then
+		DBM(sprintfStr("FirmwareID : %s%c",rsv,FwVer))
 	End If
 End Function
 
@@ -394,3 +405,38 @@ Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)(isLoROM AS BOOL)
 	printf(ex"[CMD_%c]%02X%04X = %X\n",cmd[0],bank,address,val)
 End Sub
 
+
+Function ST018_BiosDump(hSerial AS HANDLE,data AS BytePtr)(progress AS *ProgressCallback) As Long
+	Dim cmd[7] AS Byte
+	Dim dwReadByte As DWord
+
+	cmd[0]=Asc("z")
+
+	WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+	dwReadByte=0
+	
+	cmd[0]=Asc("C")
+
+	Do
+		if WaitForRequest(hSerial,GetByte("S"),1000) = TRUE Then ExitDo
+	Loop
+	
+
+	if progress<>NULL Then progress->Init(160)
+
+	Const BIOS_BUFFER_SIZE = 1024
+	Dim ReadByteSum AS DWord, i AS Long
+	For i=0 To 159
+		dwReadByte = ReceiveFromReader(hSerial, data + ReadByteSum, BIOS_BUFFER_SIZE, 2)
+		if dwReadByte <> BIOS_BUFFER_SIZE Then
+			printf("[BIOS DUMP] TRANSFER ERROR")
+		Endif
+		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n",i*BIOS_BUFFER_SIZE,dwReadByte,BIOS_BUFFER_SIZE)
+		ReadByteSum = ReadByteSum + dwReadByte
+		WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+
+		if progress<>NULL Then progress->Step(1)
+	Next i
+
+	if progress<>NULL Then progress->Exit()
+EndFunction

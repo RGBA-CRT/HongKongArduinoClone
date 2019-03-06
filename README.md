@@ -30,10 +30,12 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
  * [OK] S-DD1
  * [OK] SA-1
  * [OK] SPC7110
- * [OK] ST018 (SFC側ROMのみ, ST018の内部ROMは未対応)
+ * [OK] ST018 (Game ROM, BIOS[Program, Data]に対応)
  * [NG] CX4
   
-SA-1とSPC7110は以下のクロックモジュール回路を追加すると吸い出せるようになります。
+「クロックモジュール回路」を追加すると以下のことができるようになります。
+ * SA-1 ROM Dump, SRAM Read, SRAM Write
+ * SPC7110 Dump, SRAM Read, SRAM Write
 [SA-1カートリッジの接続方法はこちら](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Detect-the-SA-1-Cartridge)  
 Dump from SA-1 and SPC7110 needs following Clock Modlue.
 [Connection procedure of the SA-1 Cart is here.](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Detect-the-SA-1-Cartridge#stable-connection-method-for-sa-1-cart)  
@@ -65,8 +67,7 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 
 ## 開発環境 / Dev Environment
 + OS : Windows 7 x64
-+ Arduino : Aitendo製のArduino UNO互換機（ATMega328P 16MHz
-+ ArduinoIDE : ver1.6.6
++ Arduino : Arduino UNO（ATMega328P 16MHz + CH340）
 + Language：[ActiveBasic4](https://www.activebasic.com/) + [RGBALib](https://github.com/RGBA-CRT/RGBALib)
 
 ## ライセンス / Licenses

@@ -84,6 +84,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SPC7110 HiROM" As Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"Special LoROM" As Long)
 	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"SF MEMORY MX15001" As Long)
+	SendMessage(MWnd(MAPPING),CB_ADDSTRING,0,"LoROM + ST018" As Long)
 	
     SendMessage(MWnd(EditBox1),WM_SETFONT,CreateFont(-12,0,0,0,400,0,0,0,SHIFTJIS_CHARSET,OUT_RASTER_PRECIS,0,DEFAULT_QUALITY,FIXED_PITCH,"ＭＳ ゴシック") As DWord ,TRUE)
 	SendMessage(hMainWnd,WM_SETICON,ICON_SMALL,LoadImage(GetModuleHandle(0),IDI_ICON1 As BytePtr,IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR) As Long)
@@ -715,7 +716,8 @@ Function getSelectedMapMode() AS Byte
 		SFC_MAP_ExHiROM, _
 		SFC_MAP_SPC7110, _
 		SFC_MAP_SpLoROM, _
-		SFC_MAP_SF_MENU _
+		SFC_MAP_SF_MENU, _
+		SFC_MAP_ST018 _
 	] As Byte, idx As Long
 
 	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE_NUM
@@ -747,7 +749,7 @@ EndSub
 
 'MapMode (20 SrowRom LoROMのやつ）のGUI用関数
 Function MapModeToComboboxIndex(mapMode As Byte) As Long
-	Dim mapTable[SFC_MAP_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0, &HF1] As Byte
+	Dim mapTable[SFC_MAP_TYPE_NUM]=[ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0, &HF1, &HF2] As Byte
 	Dim romMap As Byte
 	Dim i As Long
 
@@ -854,7 +856,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 			Select Case (info->CartType And &H0F) As DWord
 				Case &H03 : lstrcat(CartChip,"+CX4")
 				Case &H05
-					if info->ROMType=SFC_MAP_LoROM Then
+					if info->isLoROM Then
 						lstrcat(CartChip,"+ST018+RAM+BAT")
 					Else
 						lstrcat(CartChip,"+SPC7110+RAM+BAT")
@@ -1045,10 +1047,14 @@ Sub MainWnd_CommandButton12_Click()
 End Sub
 
 Sub MainWnd_CommandButton15_Click()
-	DBM("SA-1 ﾊﾞﾝｸｲﾆｼｬﾗｲｽﾞ")
-		SA1_Init()
-		SA1_BankCtrl(hCOM,0)
-		SA1_DeInit()
+	Dim out AS File
+	Dim buf AS BytePtr
+	out.openFile("st018.bin",GENERIC_WRITE)
+	buf=calloc(1024*165)
+	ST018_BiosDump(hCOM,buf)
+	out.write(buf,1024*160+&H200)
+	out.close()
+	free(buf)
 End Sub
 
 Sub MainWnd_CommandButton13_Click()
@@ -1086,13 +1092,24 @@ End Sub
 
 
 Sub MainWnd_MAPPING_SelChange()
-	SetCheckBox(MWnd(CB_MANUAL),TRUE)
+	Dim SelectedMapMode AS Long
+	SelectedMapMode=getSelectedMapMode()
 
-	if getSelectedMapMode()=SFC_MAP_SF_MENU Then
+	if SelectedMapMode=SFC_MAP_SF_MENU Then
 		ShowWindow(MWnd(CommandButton14),SW_SHOW)
 	Else
 		ShowWindow(MWnd(CommandButton14),SW_HIDE)
 	End If
+
+	if SelectedMapMode=SFC_MAP_ST018 Then
+		ShowWindow(MWnd(CommandButton17),SW_SHOW)
+	Else
+		ShowWindow(MWnd(CommandButton17),SW_HIDE)
+	End If
+
+
+	'いじったらマニュアルチェックを付ける
+	SetCheckBox(MWnd(CB_MANUAL),TRUE)
 End Sub
 
 Sub MainWnd_CheckBox1_Click()
@@ -1263,3 +1280,45 @@ Sub MainWnd_CommandButton7_Click()
 	SetCartRegister(adr>>16,adr And &HFFFF,data,	NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
 	
 End Sub
+
+Sub MainWnd_CommandButton17_Click()
+	Dim pc AS *ProgressCallback
+	pc=New ProgressCallback()
+
+	Dim out AS File
+	Dim buf AS BytePtr
+	out.openFile("st018.bin",GENERIC_WRITE)
+	buf=calloc(1024*165)
+	ST018_BiosDump(hCOM,buf,pc)
+	out.write(buf,1024*160)
+	out.close()
+	free(buf)
+
+	delete pc
+End Sub
+
+Class ProgressCallback
+Private
+	Max AS Long
+	Now AS Long
+Public
+	Sub Init(Max AS Word) 
+		SendMessage(MWnd(hProg), PBM_SETPOS, 0, 0 )
+		SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,Max As Word))
+		this.Now=0
+		this.Max=Max
+	End Sub
+
+	Sub Step(step AS Long)
+		SendMessage(MWnd(hProg), PBM_SETSTEP,step,0)
+		SendMessage(MWnd(hProg),PBM_STEPIT,0,0)
+		Now = Now + step
+		
+		SetWindowText(MWnd(Static7),Str$(Int(Now/Max*100))+"%")
+	End Sub
+
+	Sub Exit()
+		SendMessage(MWnd(hProg), PBM_SETPOS, 0, 0 )
+		SetWindowText(MWnd(Static7),"100%")
+	End Sub
+End Class

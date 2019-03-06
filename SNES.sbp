@@ -17,7 +17,7 @@ Const DEFAULT_CTRLBUS = &H0C	'RST WE
 Const HiROM_START_ADR=&HC00000
 Const HIROM_SRAM_BANKSIZE = 1024*8
 
-Const SFC_MAP_TYPE_NUM = 8
+Const SFC_MAP_TYPE_NUM = 9
 Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	SFC_MAP_LoROM = 0
 	SFC_MAP_HiROM = 1
@@ -28,6 +28,7 @@ Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	'ここから特殊処理をしないと判定できないマッパ
 	SFC_MAP_SpLoROM = &HF0 '衛星対応カートリッジでかつLoROMで3MBのもの
 	SFC_MAP_SF_MENU = &HF1 'SFメモリカートリッジ
+	SFC_MAP_ST018 = &HF2
 End Enum
 
 'スーファミヘッダから取得した情報
@@ -196,6 +197,10 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 	if info->MakerCode=&H4A45 Then
 		info->isFlashSave=TRUE
 		info->SRAMSize=(128*1024) AS DWord
+	End If
+
+	if info->CartType = &HF5 And info->isLoROM Then
+		info->ROMType=SFC_MAP_ST018
 	End If
 
 EndSub
