@@ -311,14 +311,13 @@ void st018_memread(byte cmd, byte n_kb) {
       Serial.write(st018_readData());
     }
 
-    // nKB毎に指示を待つ
-    if ((j % 1) == 0) {
-      while (Serial.available() < 1);
+    // 1KB毎に指示を待つ
+    while (Serial.available() < 1);
 
-      // 'e' = Cancel
-      if (Serial.read() == 'e')
-        break;
-    }
+    // 'e' = Cancel
+    if (Serial.read() == 'e')
+      break;
+
   }
 }
 

@@ -154,7 +154,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
 	Dim HKAC_HW_RETRY As DWord
 	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN
-	printf(ex"論理転送時間：%dms\t",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
+	printf(ex"論理転送時間：%dms  ",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
@@ -324,15 +324,30 @@ Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
 
 		Elseif FwVer<FIRMWARE_VERSION Then
 			if msg=FALSE Then CheckFirmware=FALSE:ExitFunction
-			if MessageBox(hMainWnd,ex"ファームウェアバージョンが不一致です\nファームウェアアップデートをしてください。\nArduino : ver "+Chr$(FwVer)+ex"\nRequest : ver "+Chr$(FIRMWARE_VERSION)+ex"\n\n続行しますか？","FirmwareVersion mismatch",MB_YESNO or MB_ICONWARNING) = IDYES Then
+			if MessageBox(hMainWnd,
+				 sprintfStr(ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\nDevice：v%c\nHost：v%c\n\n続行しますか？",
+					FwVer,
+					FIRMWARE_VERSION
+				 ),
+				 "Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
+
 				CheckFirmware=TRUE
 			Else
 				CheckFirmware=FALSE
 			End If
 		Else
-			Const HKAF_FC2_ERRMES=ex"高いバージョンのファームウェアが検出されました。\r\nこのプログラムを最新版に更新してください。\r\n"
-			if msg=TRUE Then MessageBox(hMainWnd,HKAF_FC2_ERRMES,"情報",MB_ICONINFORMATION)
-			DBM(HKAF_FC2_ERRMES)
+			if msg=TRUE Then 
+				MessageBox(hMainWnd,
+					sprintfStr(ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nArduino : FW.v%c\nRequest : FW.v%c",
+						FwVer,
+						FIRMWARE_VERSION
+					),"Detected higher number of Firmware version",
+					MB_ICONINFORMATION
+				)
+
+			End If
+
+			DBM("FW ver mismatch")
 			CheckFirmware=TRUE
 		End If
 	Else
@@ -406,37 +421,40 @@ Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)(isLoROM AS BOOL)
 End Sub
 
 
-Function ST018_BiosDump(hSerial AS HANDLE,data AS BytePtr)(progress AS *ProgressCallback) As Long
-	Dim cmd[7] AS Byte
+Function ST018_BiosDump(hSerial AS HANDLE,data AS BytePtr)(progress AS *ProgressCallback) As BOOL
 	Dim dwReadByte As DWord
-
-	cmd[0]=Asc("z")
-
-	WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+	
+	WriteFile(hSerial,"z",1,VarPtr(dwReadByte),ByVal NULL)
 	dwReadByte=0
 	
-	cmd[0]=Asc("C")
-
-	Do
-		if WaitForRequest(hSerial,GetByte("S"),1000) = TRUE Then ExitDo
-	Loop
-	
-
 	if progress<>NULL Then progress->Init(160)
 
-	Const BIOS_BUFFER_SIZE = 1024
+	if WaitForRequest(hSerial,GetByte("S"),2000) = FALSE Then Goto *SBD_ERR
+
+	Const ST018_BIOS_TRANSFER_SIZE = (1024) AS DWord
 	Dim ReadByteSum AS DWord, i AS Long
 	For i=0 To 159
-		dwReadByte = ReceiveFromReader(hSerial, data + ReadByteSum, BIOS_BUFFER_SIZE, 2)
-		if dwReadByte <> BIOS_BUFFER_SIZE Then
-			printf("[BIOS DUMP] TRANSFER ERROR")
+		dwReadByte = ReceiveFromReader(hSerial, data + ReadByteSum, ST018_BIOS_TRANSFER_SIZE, 4)
+		if dwReadByte <> ST018_BIOS_TRANSFER_SIZE Then
+			printf(ex"[BIOS DUMP] TRANSFER ERROR %X/%X\n",dwReadByte, ST018_BIOS_TRANSFER_SIZE)
+			Goto *SBD_ERR
 		Endif
-		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n",i*BIOS_BUFFER_SIZE,dwReadByte,BIOS_BUFFER_SIZE)
+		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n",i*ST018_BIOS_TRANSFER_SIZE,dwReadByte,ST018_BIOS_TRANSFER_SIZE)
 		ReadByteSum = ReadByteSum + dwReadByte
-		WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+
+		'Continue 送信
+		WriteFile(hSerial,"c",1,VarPtr(dwReadByte),ByVal NULL)
 
 		if progress<>NULL Then progress->Step(1)
 	Next i
+	
+	if progress<>NULL Then progress->Final()
+	ST018_BiosDump=TRUE
+	ExitFunction
 
-	if progress<>NULL Then progress->Exit()
+*SBD_ERR
+	if progress<>NULL Then progress->Final()
+
+	'キャンセル送信
+	WriteFile(hSerial,"e",1,VarPtr(dwReadByte),ByVal NULL)
 EndFunction

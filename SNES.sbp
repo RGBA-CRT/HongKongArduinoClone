@@ -325,7 +325,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		OutFile(hout,buf,DUMP_BUFFER_SIZE)
 
 		'バッファのチェックサム計算
-		bufChecksum=CalcChkSum(buf,DUMP_BUFFER_SIZE)
+		bufChecksum=SnesCheckSum(buf,DUMP_BUFFER_SIZE)
 
 		'3MBの時はラスト8Mbitを再加算
 		if DumpAddress>=1024*1024*2 Then
@@ -446,7 +446,6 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	DBM("")
 EndSub
 
-'チェックサム計算
 Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	Dim i As Long,someCount As DWord,last As Byte
 	For i=0 To size
@@ -462,11 +461,12 @@ Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	checkContiguous=TRUE
 End Function
 
-Function CalcChkSum(data As BytePtr,length As DWord) As DWord
+'チェックサム計算
+Function SnesCheckSum(data As BytePtr,length As DWord) As DWord
 	Dim i As DWord
-	CalcChkSum=0
+	SnesCheckSum=0
 	Do
-		CalcChkSum += data[i]
+		SnesCheckSum += data[i]
 		if i => length-1 Then ExitDo
 		i++
 	Loop

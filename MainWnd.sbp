@@ -331,11 +331,14 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(CommandButton1),NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CommandButton2),NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CommandButton3),NOT(isEnable) And &H01)
-	EnableWindow(MWnd(CommandButton4),NOT(isEnable) And &H01)	
+	EnableWindow(MWnd(CommandButton4),NOT(isEnable) And &H01)
+	EnableWindow(MWnd(CommandButton17),NOT(isEnable) And &H01)	
 
 	EnableWindow(MWnd(MAPPING),NOT(isEnable) And &H01)	
 	EnableWindow(MWnd(ROM_SIZE),NOT(isEnable) And &H01)	
 	EnableWindow(MWnd(SRAM_SIZE),NOT(isEnable) And &H01)	
+	EnableWindow(MWnd(CB_MANUAL),NOT(isEnable) And &H01)	
+	
 	if Mode=STATUS_DUMPING Then 
 		EnableWindow(MWnd(CommandButton5),FALSE)
 	Else
@@ -1047,14 +1050,7 @@ Sub MainWnd_CommandButton12_Click()
 End Sub
 
 Sub MainWnd_CommandButton15_Click()
-	Dim out AS File
-	Dim buf AS BytePtr
-	out.openFile("st018.bin",GENERIC_WRITE)
-	buf=calloc(1024*165)
-	ST018_BiosDump(hCOM,buf)
-	out.write(buf,1024*160+&H200)
-	out.close()
-	free(buf)
+
 End Sub
 
 Sub MainWnd_CommandButton13_Click()
@@ -1179,6 +1175,7 @@ Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 
 	CharLower(str)
 
 	Do 
+		'文字列の終了チェック
 		if str[ci]=0 Then ExitDo
 
 		'数値に入る前の処理
@@ -1281,19 +1278,79 @@ Sub MainWnd_CommandButton7_Click()
 	
 End Sub
 
-Sub MainWnd_CommandButton17_Click()
-	Dim pc AS *ProgressCallback
-	pc=New ProgressCallback()
+Const ST018_BIOS_SIZE = 160*1024 As DWord
+Const ST018_BIOS_PRG_SIZE = 128*1024 As DWord
+Const ST018_BIOS_DAT_SIZE =  32*1024 As DWord
+Const ST018_BIOS_NAME_COMBINED = "st018.rom"
+Const ST018_BIOS_NAME_PROGRAM  = "st018.program.rom"
+Const ST018_BIOS_NAME_DATA     = "st018.data.rom"
+Const ST018_CHECKSUM = &HEAE5DA
 
+Sub MainWnd_CommandButton17_Click()
 	Dim out AS File
 	Dim buf AS BytePtr
-	out.openFile("st018.bin",GENERIC_WRITE)
-	buf=calloc(1024*165)
-	ST018_BiosDump(hCOM,buf,pc)
-	out.write(buf,1024*160)
-	out.close()
-	free(buf)
+	Dim pPath AS BytePtr
+	Dim path aS FilePath
+	Dim pc AS *ProgressCallback
 
+	pPath=SaveDialogCalloc(ex"ST018 ROM Image File(*.rom)\0*.rom\0Binaly Image(*.bin)\0*.bin\0すべてのファイル(*.*)\0*.*\0\0","rom",ST018_BIOS_NAME_COMBINED)
+	if pPath=NULL Then ExitSub
+	path.SetPath(pPath)
+
+	buf=calloc(ST018_BIOS_SIZE)
+	pc=New ProgressCallback()
+
+	DBMN("ST018 BIOS Dumping")
+
+	'BIOSダンプ
+	if ST018_BiosDump(hCOM,buf,pc)=FALSE Then
+		ErrMes(hMainWnd,"st018.romの吸出しに失敗しました。","st018.rom dumping failed.",0)
+		Goto *BIOSDUMP_EXIT
+	End If
+
+	Dim checksum AS DWord
+	checksum=SnesCheckSum(buf,ST018_BIOS_SIZE)
+	DBM(sprintfStr(ex"CheckSum  : %08X\r\nActualSum : %08X",ST018_CHECKSUM,checksum))
+	if ST018_CHECKSUM=checksum Then
+		DBM(ex"Checksum OK.\r\n")
+		MessageBeep(MB_ICONASTERISK)
+	Else
+		DBM(ex"Checksum NG.\r\nデータが破損しています。\r\nリトライしてください。\r\n")
+		MessageBeep(MB_ICONHAND)
+	End If
+	
+	'PROGRAM+DATA結合データを出力（st018.rom）
+	if out.openFile(path.GetPath(),GENERIC_WRITE)=FALSE Then
+		DBM("I/Oエラー")
+		Goto *BIOSDUMP_EXIT
+	Endif
+	out.write(buf,ST018_BIOS_SIZE)
+	out.close()
+	DBM(path.GetFileName())
+
+	'st018.program.romを出力
+	path.PopDir()
+	path.PushFile(ST018_BIOS_NAME_PROGRAM)
+
+	out.openFile(path.GetPath(),GENERIC_WRITE)
+	out.write(buf,ST018_BIOS_PRG_SIZE)
+	out.close()
+
+	DBM(ST018_BIOS_NAME_PROGRAM)
+
+	'st018.data.romを出力
+	path.PopDir()
+	path.PushFile(ST018_BIOS_NAME_DATA)
+
+	out.openFile(path.GetPath(),GENERIC_WRITE)
+	out.write(buf+ST018_BIOS_PRG_SIZE,ST018_BIOS_DAT_SIZE)
+	out.close()
+	DBM(ST018_BIOS_NAME_DATA)
+
+	DBM(ex"saved.\r\n")
+
+*BIOSDUMP_EXIT
+	free(buf)
 	delete pc
 End Sub
 
@@ -1301,24 +1358,39 @@ Class ProgressCallback
 Private
 	Max AS Long
 	Now AS Long
+	hProgress As HANDLE
 Public
 	Sub Init(Max AS Word) 
-		SendMessage(MWnd(hProg), PBM_SETPOS, 0, 0 )
-		SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,Max As Word))
+		hProgress=MWnd(hProg)
 		this.Now=0
 		this.Max=Max
+
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,Max As Word))
+
+		SetDlgEnable(STATUS_DUMPING)
+
 	End Sub
 
 	Sub Step(step AS Long)
-		SendMessage(MWnd(hProg), PBM_SETSTEP,step,0)
-		SendMessage(MWnd(hProg),PBM_STEPIT,0,0)
-		Now = Now + step
-		
-		SetWindowText(MWnd(Static7),Str$(Int(Now/Max*100))+"%")
+		SendMessage(hProgress, PBM_SETSTEP,step,0)
+		SendMessage(hProgress,PBM_STEPIT,0,0)
+
+		Now = Now + step		
+		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
+
+		DBMN(".")
+
+		PumpMessage()
 	End Sub
 
-	Sub Exit()
-		SendMessage(MWnd(hProg), PBM_SETPOS, 0, 0 )
+	Sub Final()
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+
 		SetWindowText(MWnd(Static7),"100%")
+
+		SetDlgEnable(STATUS_CONNECTED)
+
+		DBM(ex"\r\n")
 	End Sub
 End Class

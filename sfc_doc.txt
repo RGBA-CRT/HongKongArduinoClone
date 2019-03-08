@@ -478,5 +478,7 @@ TODO: リファクタリング
 	ROM　START
 	ROM　MODEL（LO/Hi)
 
+	PROGRESS CALLBACKを使う
+	Chips文字列の生成は関数化する
 
 */
