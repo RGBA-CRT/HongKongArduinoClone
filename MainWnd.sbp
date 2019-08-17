@@ -1050,7 +1050,7 @@ Sub MainWnd_CommandButton12_Click()
 End Sub
 
 Sub MainWnd_CommandButton15_Click()
-
+	MainWnd_CommandButton17_Click()
 End Sub
 
 Sub MainWnd_CommandButton13_Click()

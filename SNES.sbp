@@ -29,6 +29,7 @@ Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	SFC_MAP_SpLoROM = &HF0 '衛星対応カートリッジでかつLoROMで3MBのもの
 	SFC_MAP_SF_MENU = &HF1 'SFメモリカートリッジ
 	SFC_MAP_ST018 = &HF2
+	SFC_MAP_ST010 = &HF3
 End Enum
 
 'スーファミヘッダから取得した情報
@@ -57,7 +58,7 @@ Type SFC_CART_INFO
 	rawHeader As SFC_CART_HEADER
 EndType
 
-
+' Raw ROM-Header (FFB0h～)
 Type Align(1) SFC_CART_HEADER
 	MakerCode 	AS Word	'未使用のこともある
 	GameCode	AS DWord
@@ -201,6 +202,12 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 
 	if info->CartType = &HF5 And info->isLoROM Then
 		info->ROMType=SFC_MAP_ST018
+	End If
+
+	' ST010
+	if info->CartType = &HF6 Then
+		info->ROMType  = SFC_MAP_ST010
+		info->SRAMSize = 4 * 1024
 	End If
 
 EndSub
@@ -547,6 +554,13 @@ Dim SFC_SPC7110_SRAM_MODEL[3]=[
 	RST or CE or SRAM_CTRL_SPC7110
 ] As DWord
 
+Dim SFC_ST010_SRAM_MODEL[3]=[
+	&H680000,
+	&H010000,
+	&H001000,
+	RST
+] As DWord
+
 'JRA PAT用（Flash）
 Dim SFC_JRA_SRAM_MODEL[3]=[
 	&HC00000,
@@ -571,6 +585,9 @@ Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
 
 	Elseif info->ROMType = SFC_MAP_SA1 Then
 		GetSramModel=SFC_SA1_SRAM_MODEL
+
+	Elseif info->ROMType = SFC_MAP_ST010 Then
+		GetSramModel=SFC_ST010_SRAM_MODEL
 
 	Elseif info->isFlashSave Then
 		GetSramModel=SFC_JRA_SRAM_MODEL
