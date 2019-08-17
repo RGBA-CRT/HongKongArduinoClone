@@ -158,4 +158,5 @@ Function getLicenceString(code AS DWord) aS BytePtr
 		'printf(ex"[%d][%d]%s\n",i,SFC_Licences[i].id,SFC_Licences[i].str)
 	Next
 	getLicenceString="(unknown)"
+	
 End Function

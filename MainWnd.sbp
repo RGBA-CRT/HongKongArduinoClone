@@ -864,7 +864,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 					Else
 						lstrcat(CartChip,"+SPC7110+RAM+BAT")
 					endif
-				Case &H0A6
+				Case &H06
 					if info->ROMSize=&H100000 Then
 						lstrcat(CartChip,"+ST010")
 					Else
@@ -1145,126 +1145,7 @@ Function HKAC_GetWindowInt(hWnd AS HWND) AS Long
 	free(str)
 End Function
 
-'(文字列, 変換結果を入れるところ, 基数, 1024か1000か)
-Function rcAsciiToInt(_str AS BytePtr,result_num AS *Long)(_base AS DWord,b1024 AS BOOL) AS BOOL
-	Dim ci AS DWord, ni AS DWord 'char index, num index
-	Dim fNegative AS BOOL, fFixedBase AS BOOL
-	Dim base AS DWord, siZoom AS DWord
-	Dim num AS DWord
-	Dim state AS DWord
-	Dim str As BytePtr
 
-	'基数
-	'引数のbaseが0だとAuto, それ以外は固定, 最大１６まで
-	if _base=<1 Then	
-		base = 10
-	Else 
-		base=_base
-		fFixedBase=TRUE
-	End If
-
-	'si接頭辞があるときに、1000で計算するか1024で計算するか
-	if b1024 Then
-		siZoom=1024
-	Else
-		siZoom=1000
-	End If
-
-	str=calloc(lstrlen(_str)+4)
-	lstrcpy(str,_str)
-	CharLower(str)
-
-	Do 
-		'文字列の終了チェック
-		if str[ci]=0 Then ExitDo
-
-		'数値に入る前の処理
-		if state=0 Then
-			if str[ci] = &H2D Then
-				fNegative=TRUE
-				ci++
-				continue
-			Else if str[ci] = &H30 then
-				'16進 0x
-				if str[ci+1]=&H78 Then
-					base=16
-					ci+=2
-					continue
-
-				'2進 0b
-				Else if str[ci+1]=&H62 Then
-					base=2 
-					ci+=2
-					continue
-				End If
-			End If
-
-			'数値だったら数値解析ステートに移る
-			if (str[ci] >= &H30 And str[ci] <= &H39) or _
-				(base=16 And (str[ci] >= &H61 And str[ci] <= &H66)) Then					
-				state++
-
-				'固定基数なのに変わってたらアウト
-				if fFixedBase And (base <> _base) Then Goto *rcATOI_ERRNUM
-			Else 
-				ci++
-				continue
-			End If
-		End If
-
-		'数値処理
-		if state=1 Then
-			if (str[ci] >= &H30 And str[ci] <= &H39) Then
-				if (str[ci]-&H30) => base Then Goto *rcATOI_ERRNUM
-				num=num * base
-				num=num + str[ci]-&H30
-			Elseif (base=16 And (str[ci] >= &H61 And str[ci] <= &H66)) Then
-				num = num * base 
-				num = num + str[ci]-&H61 +10 
-			Else 
-				state++
-			Endif
-		End If
-
-		'SI 接頭辞処理
-		if state=2 Then 
-			Select Case str[ci]
-				Case &H6B
-					num*=siZoom
-				Case &H6D
-					num*=siZoom*siZoom
-				Case &H67
-					num*=siZoom*siZoom*siZoom
-				Case &H74 
-					num*=siZoom*siZoom*siZoom*siZoom
-			End Select
-			ci++
-			state++
-		End If
-
-		if state=3 Then 
-			if isSameBin(str+ci,"bit",3) Then
-				num=num/8
-			End If
-			state++
-		End If
-
-		if state=4 Then ExitDo
-
-		ci++
-
-	Loop
-
-	if fNegative Then	num*=-1
-	printf(ex"str = %s\nfNegative = %d\nbase = %d\nnum = %d\nnum = 0x%X\nnum = %dK\n\n",str,fNegative,base,num,num,num/siZoom)
-
-	rcAsciiToInt=TRUE
-	SetDWord(result_num,num)
-	ExitFunction
-
-*rcATOI_ERRNUM
-	rcAsciiToInt=FALSE
-End Function
 
 Sub MainWnd_CommandButton7_Click()
 

@@ -18,7 +18,7 @@ WINDOW:MainWnd
     ITEM      = ComList,79,45,99,215,"",&H50210502,&H00000000,3
     ITEM      = Static3,13,80,60,13,"ROM Title : ",&H50000000,&H00000000,11
     ITEM      = Static4,13,103,60,13,"Mapping : ",&H50000000,&H00000000,11
-    ITEM      = Static5,13,128,60,13,"Cart Cips : ",&H50000000,&H00000000,11
+    ITEM      = Static5,13,128,70,13,"Cart Chips : ",&H50000000,&H00000000,11
     ITEM      = CART_CIPS,79,125,157,21,"",&H50000880,&H00000200,4
     ITEM      = Static6,13,155,60,13,"ROM Size : ",&H50000000,&H00000000,11
     ITEM      = Static8,13,182,58,13,"RAM Size : ",&H50000000,&H00000000,11
