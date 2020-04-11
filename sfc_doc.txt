@@ -482,3 +482,54 @@ TODO: リファクタリング
 	Chips文字列の生成は関数化する
 
 */
+
+/*
+# 通信速度
++ 通信速度の測定
++ ボーレートと転送ブロックサイズはINIファイルから変更可能
+
+## Arduino UNO with CH340
++ aitendo びんぼうでいいの
+
+### baudrate:1Mbps
++ 転送ブロックサイズ：16KB 0x10000
+	+ エラー: 0回
+	+ 論理転送時間：528ms  retry 1122/1320 C0000:10000/10000 bytes received.
+	+ Dumping...............
+	+ Time  : 17831ms
+	+ Speed : 58806byte/sec
+
++ 転送ブロックサイズ：8KB 0x8000
+	+ エラー: 0回
+	+ 論理転送時間：266ms  retry 560/665 38000:8000/8000 bytes received.
+	+ Dumping...............................
+	+ Time  : 17940ms
+	+ Speed : 58449byte/sec
+	
++ 転送ブロックサイズ：4KB 0x4000
+	+ エラー: 0回
+	+ 論理転送時間：134ms  retry 280/337 AC000:4000/4000 bytes received.
+	+ Dumping...............................................................
+	+ Time  : 17986ms
+	+ Speed : 58299byte/sec
+	
+### baudrate: 2Mbps
++ 転送ブロックサイズ：1KB
+	+ エラー: 90回
+	+ 論理転送時間：8ms  retry 019/020 FE400:400/400 bytes received.
+	+ Time  : 23026ms
+	+ Speed : 45538byte/sec
+	
++ 転送ブロックサイズ：512byte
+	+ エラー：70回
+	+ 論理転送時間：6ms  retry 010/015 FEE00:200/200 bytes received.
+	+ Time  : 27457ms
+	+ Speed : 38189byte/sec
+
++ 転送ブロックサイズ：256byte
+	+ エラー：86回
+	+ 論理転送時間：4ms  retry 006/012 FEC00:100/100 bytes received.
+	+ Time  : 34835ms
+	+ Speed : 30101byte/sec
+	
+*/	

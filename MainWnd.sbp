@@ -588,7 +588,7 @@ Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 		MoveWindow(hMainWnd,0,0,475,330,TRUE)
 		AllocConsole()
 		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
-		printf("Welcome to debug mode")
+		printf(ex"Welcome to debug console\n")
 	Endif
 
 End Sub

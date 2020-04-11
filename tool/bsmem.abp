@@ -41,18 +41,18 @@ Print
 Dim file AS File, cmd AS CommandLine
 
 #IFDEF _DEBUG
-file.openFile("..\bsdump.bs",GENERIC_READ)
+	file.openFile("..\bsdump.bs",GENERIC_READ)
 #ELSE
-if cmd.GetCount() < 2 then
-	Print "usage: bsmem mempack_dump.bs"
-	end
-End If
+	if cmd.GetCount() < 2 then
+		Print "usage: bsmem mempack_dump.bs"
+		end
+	End If
 
-
-if file.openFile(DelDQ(cmd.GetCmd(1)),GENERIC_READ)= FALSE Then
-	Print "open error"
-	end
-End If
+	printf(ex"File: %s\n", cmd.GetCmd(1))
+	if file.openFile(DelDQ(cmd.GetCmd(1)),GENERIC_READ)= FALSE Then
+		Print "open error"
+		end
+	End If
 #ENDIF
 /*Dim buf AS BytePtr
 buf=calloc(file.length())

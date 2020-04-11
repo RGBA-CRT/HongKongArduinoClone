@@ -29,7 +29,7 @@ const ID_DLG_TAB = &H1001
 Dim INIFILE_PATH AS BytePtr
 
 
-#define DEBUG_BUILD
+'#define DEBUG_BUILD
 #ifdef DEBUG_BUILD
 #console
 #else

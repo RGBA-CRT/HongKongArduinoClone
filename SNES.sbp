@@ -273,7 +273,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	'設定ファイル読み込み
 	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
 	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
-	if DUMP_BUFFER_SIZE <= 0 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
+	if DUMP_BUFFER_SIZE < 1 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
 
 	'特殊系のセットアップ
 	if info->ROMType=SFC_MAP_SA1 And info->isBSX Then
@@ -296,6 +296,11 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 			ExitSub
 		End If
 		SPC7110_PrintBanks(hCOM)
+
+	Elseif info->CartType=&HF3 Then
+		DBM("CX4 for ROCKMAN X2")
+		SetCartRegister(0, &H7f52, 0)
+
 	End If
 
 	'UI系
@@ -306,6 +311,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 
 	'ダンプバッファの作成	
 	buf=calloc(DUMP_BUFFER_SIZE+12)
+	lstrcpy(buf,"<<UNUSED??>>")
 	hout=OpenFile(Path,GENERIC_WRITE)
 
 	DBM("(Pless Esc to Cancel)")
@@ -443,8 +449,9 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	SetWindowText(MWnd(Static7),"100%")
 	SetDlgEnable(STATUS_CONNECTED)
 
-	CloseHandle(hout)
+	
 	free(buf)
+	CloseHandle(hout)
 
 	SetAddress(hCOM,0,FALSE)
 
