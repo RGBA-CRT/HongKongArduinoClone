@@ -25,26 +25,26 @@ Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As L
 	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
 
 	'デバイス切断接続メッセージ
-	if dwMsg=WM_DEVICECHANGE Then
-		if DlgStatus=STATUS_CLOSED Then
+	If dwMsg=WM_DEVICECHANGE Then
+		If DlgStatus=STATUS_CLOSED Then
 			'接続されていなかったら
 			ListUpComPort(GetDlgItem(hMainWnd,ComList))
 
 		Else if DlgStatus=STATUS_CONNECTED Then
 			'Arduinoが抜けてないかチェック
-			if CheckFirmware(hCOM,FALSE)=FALSE Then
+			If CheckFirmware(hCOM,FALSE)=FALSE Then
 				DisconnectDevice()
 				DBM("Device disconnected.")
-			End if
+			End If
 		
 		End If
 	Else if dwMsg=WM_COMMAND then
 		'アクセラレータキー経由だと、ActiveBasicのEventCallに引っかからないので、アクセラレータフラグを消す
 		'printf(ex"WM_COMMAND nofty=%X %X\n",wParam>>16,lParam)
-		if lParam=NULL Then wParam = wParam And &HFFFeFFFF
+		If lParam=NULL Then wParam = wParam And &HFFFeFFFF
 
 		'タブストップの処理（手動）
-		if wParam=ID_DLG_TAB Then  
+		If wParam=ID_DLG_TAB Then  
 			SetFocus( GetNextDlgTabItem(hMainWnd,  GetFocus(), FALSE))
 			ExitFunction
 		End If
@@ -60,7 +60,7 @@ Function MWnd(DlgItem As Long) As HWND
 End Function
 
 Sub MainWnd_Destroy()
-	if hCOM<>0 Then CloseHandle(hCOM)
+	If hCOM<>0 Then CloseHandle(hCOM)
 
 	HongKongArduinoClone_DestroyObjects()
 	PostQuitMessage(0)
@@ -106,7 +106,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	
 	Dim baudrate As DWord
 	baudrate = GetPrivateProfileInt(ProgramName, "BaudRate", DEFAULT_BAUDRATE, INIFILE_PATH)
-	if baudrate = 0 Then baudrate = DEFAULT_BAUDRATE
+	If baudrate = 0 Then baudrate = DEFAULT_BAUDRATE
 	
 #IFDEF _DEBUG
 	MoveWindow(hMainWnd, 0, 0, 475, 330, TRUE)
@@ -136,40 +136,40 @@ Sub ListUpComPort(Wnd As HWND)
 	dim QDD_BUFSIZE As DWord
 
 	QDD_BUFSIZE=GetPrivateProfileInt(ProgramName,"QDDSize",DEFAULT_QDD_BUFSIZE,INIFILE_PATH)
-	if QDD_BUFSIZE<1024 Then 
+	If QDD_BUFSIZE<1024 Then 
 		QDD_BUFSIZE=DEFAULT_QDD_BUFSIZE
 		DBM("QDD size fixed.")
 		WritePrivateProfileString(ProgramName,"QDDSize",Str$(QDD_BUFSIZE),INIFILE_PATH)
-	End if
+	End If
 
 	SendMessage(Wnd,CB_RESETCONTENT,0,0)
 
 	buf=calloc(QDD_BUFSIZE)
-	if QueryDosDevice(NULL,buf,QDD_BUFSIZE) = 0 Then 
+	If QueryDosDevice(NULL,buf,QDD_BUFSIZE) = 0 Then 
 		SendMessage(Wnd,CB_ADDSTRING,0,"Error!" As Long)
 		p=GetLastError()
 		DBM(ex"COM Port Listup Error!\r\nCode."+Str$(p))
-		if p=122 Then
+		If p=122 Then
 			ErrMes(hMainWnd,ex"デバイスリストバッファのサイズが小さすぎます\n"+INIFILE_NAME+"を開き、QDDSizeの右辺の値を増やしてください。","QueryDosDevice Error",0)
-		End if
+		End If
 		Goto *LUCP_EXIT
-	End if	
+	End If	
 	Do
-		if win_strncmp(buf+p,"COM",3)=TRUE Then
+		If win_strncmp(buf+p,"COM",3)=TRUE Then
 			SendMessage(Wnd,CB_ADDSTRING,0,(buf+p) As Long)
 			C++
-		End if
+		End If
 		While buf[p]<>0
 			p++
 		WEnd
 		p++
-		if buf[p+1]=0 Then Exitdo	'ダブルNULLで終了
+		If buf[p+1]=0 Then Exitdo	'ダブルNULLで終了
 	Loop
 
 *LUCP_EXIT
 	free(buf)
 
-	if C=0 then SendMessage(Wnd,CB_ADDSTRING,0,"None" As Long)
+	If C=0 then SendMessage(Wnd,CB_ADDSTRING,0,"None" As Long)
 
 	'最後に選択されたポートを選ぶ
 	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
@@ -178,7 +178,7 @@ Sub ListUpComPort(Wnd As HWND)
 
 	'探す
 	lastDeviceIdx=SendMessage(Wnd,CB_FINDSTRINGEXACT,-1,lastDevice As DWord)
-	if lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
+	If lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
 
 	'セットする
 	SendMessage(Wnd,CB_SETCURSEL,lastDeviceIdx,0)
@@ -192,7 +192,7 @@ Sub DBM(Text As BytePtr)
 	LastPos = GetWindowTextLength(hEB)
 	
 	'10KBを超えてたらログをクリア
-	if LastPos>1024 * 10 Then
+	If LastPos>1024 * 10 Then
 		'1KB残す
 		Dim txt AS BytePtr
 		txt = calloc(LastPos + 1)
@@ -222,15 +222,15 @@ Sub MainWnd_CommandButton5_Click()
 	'設定保存
 	SaveIniFile()
 	
-	if hCOM = 0 then
+	If hCOM = 0 then
 		'接続
 		Dim txCom As BytePtr, rate As DWord
 		
 		rate = GetDlgItemInt(hMainWnd, EditBox6, NULL, FALSE)
-		if rate = 0 Then
+		If rate = 0 Then
 			ErrMes(hMainWnd, "ボーレートが不正です。", "Invalid baud rate", 0)
 			ExitSub
-		end if
+		End If
 		
 		txCom = GetWndTextMalloc(GetDlgItem(hMainWnd, ComList))
 		DBM("Connect to " + MakeStr(txCom))
@@ -238,7 +238,7 @@ Sub MainWnd_CommandButton5_Click()
 		'bufferlen
 		Dim bufferSize AS DWord
 		bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
-		if bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
+		If bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
 		
 		'connect and reset ボーレート
 		hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
@@ -249,7 +249,7 @@ Sub MainWnd_CommandButton5_Click()
 		hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
 		
 		
-		if hCOM = NULL Then
+		If hCOM = NULL Then
 			ErrMes(hMainWnd, MakeStr(txCom) + ex"への接続に失敗しました。", "Connection failed", 0, GetLastError())
 			DBM("Serial connection Failed.")
 			hCOM = 0
@@ -257,17 +257,17 @@ Sub MainWnd_CommandButton5_Click()
 			ExitSub
 		Else
 			DBM(ex"Connection Stage1 OK.\r\n")
-		End if
+		End If
 		free(txCom)
 		
 		SetWindowText(MWnd(CommandButton5), "&Close")
 		SetDlgEnable(STATUS_CONNECTED)
 		
 		'正常なデータ通信を確立(できるようになるまでリトライ）
-		if CheckFirmware(hCOM, TRUE) = FALSE Then
+		If CheckFirmware(hCOM, TRUE) = FALSE Then
 			'	ErrMes(hMainWnd,"指定されたデバイスはHongKoongArduinoではありません。",0,0)
 			goto * HKAF_CON_ERR
-		End if
+		End If
 		DBM(ex"Connection Stage2 OK.\r\n")
 		
 		'ボーレート変更コマンド送信
@@ -276,7 +276,7 @@ Sub MainWnd_CommandButton5_Click()
 		
 		'変更後の正常なデータ通信を確立
 		DBM("changeing baudrate...")
-		if CheckFirmware(hCOM, FALSE) = FALSE Then
+		If CheckFirmware(hCOM, FALSE) = FALSE Then
 			DBM("invailde baudrate")
 			goto * HKAF_CON_ERR
 		End If
@@ -289,7 +289,7 @@ Sub MainWnd_CommandButton5_Click()
 	Else
 		'切断
 		DisconnectDevice()		
-	End if
+	End If
 	
 	ExitSub
 *HKAF_CON_ERR
@@ -302,7 +302,7 @@ Sub MainWnd_CommandButton5_Click()
 End Sub
 
 Sub DisconnectDevice()
-	if hCOM = 0 Then ExitSub
+	If hCOM = 0 Then ExitSub
 	CloseHandle(hCOM)
 	hCOM = 0
 	SetWindowText(MWnd(CommandButton5), "&Connect")
@@ -315,17 +315,17 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	'ボタンの有効/無効セット
 	
 	Dim isEnable As Long
-	if Mode = STATUS_CONNECTED Or Mode = STATUS_DUMPING then
+	If Mode = STATUS_CONNECTED Or Mode = STATUS_DUMPING then
 		isEnable = FALSE
 	Else Mode = STATUS_CLOSED Then
 		isEnable = TRUE
-	End if
+	End If
 	EnableWindow(MWnd(ComList), isEnable)
 	EnableWindow(MWnd(EditBox6), isEnable)
 	EnableWindow(MWnd(Static9), isEnable)
 	EnableWindow(MWnd(Static10), isEnable)
 	
-	if Mode = STATUS_DUMPING Then isEnable = NOT(isEnable) And &H01
+	If Mode = STATUS_DUMPING Then isEnable = NOT(isEnable) And &H01
 	
 	EnableWindow(MWnd(CommandButton1), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CommandButton2), NOT(isEnable) And &H01)
@@ -338,11 +338,11 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(SRAM_SIZE), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CB_MANUAL), NOT(isEnable) And &H01)
 	
-	if Mode = STATUS_DUMPING Then
+	If Mode = STATUS_DUMPING Then
 		EnableWindow(MWnd(CommandButton5), FALSE)
 	Else
 		EnableWindow(MWnd(CommandButton5), TRUE)
-	End if
+	End If
 	
 	DlgStatus = Mode
 End Sub
@@ -404,7 +404,7 @@ Sub MainWnd_CommandButton2_Click()
 
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", info.Title)
-	if path=0 Then ExitSub
+	If path=0 Then ExitSub
 #else
 	path="dump.sfc"
 #endif
@@ -437,11 +437,11 @@ Sub SaveIniFile()
 	WritePrivateProfileString(ProgramName, "MaxContinue", Str$(Tmp), INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "QDDSize", DEFAULT_QDD_BUFSIZE, INIFILE_PATH)
-	if Tmp = 0 Then Tmp = DEFAULT_QDD_BUFSIZE
+	If Tmp = 0 Then Tmp = DEFAULT_QDD_BUFSIZE
 	WritePrivateProfileString(ProgramName, "QDDSize", Str$(Tmp), INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
-	if Tmp <= 0 Then Tmp = DEFAULT_DUMP_SIZE
+	If Tmp <= 0 Then Tmp = DEFAULT_DUMP_SIZE
 	WritePrivateProfileString(ProgramName, "DumpBufferSize", Str$(Tmp), INIFILE_PATH)
 	
 	WritePrivateProfileString(ProgramName, "RxTimeoutMargine", Str$(HKAC_RX_TIMEOUT_MARGIN), INIFILE_PATH)
@@ -454,7 +454,7 @@ Sub MainWnd_CommandButton3_Click()
 	GetDumpConfig(info)
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",info.Title)
-	if path=0 Then ExitSub
+	If path=0 Then ExitSub
 #else
 	path="dump.srm"
 #endif
@@ -473,23 +473,23 @@ Sub MainWnd_CommandButton4_Click()
 	Dim info As SFC_CART_INFO
 	GetDumpConfig(info)
 	
-	if info.isFlashSave Then
+	If info.isFlashSave Then
 		ErrMes(hMainWnd, "フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "未実装", 0)
-		if GetKeyState(VK_ESCAPE) And &H80 = 0 Then exitsub
+		If GetKeyState(VK_ESCAPE) And &H80 = 0 Then exitsub
 	End If
 	
 #ifndef _DEBUG
 	path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
-	if path = 0 Then ExitSub
+	If path = 0 Then ExitSub
 #else
-	if GetKeyState(VK_ESCAPE) And &H80 Then
+	If GetKeyState(VK_ESCAPE) And &H80 Then
 		path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
 	Else
 		path = "write.srm"
 	End If
 #endif
 
-	if MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
+	If MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
 	WriteSRAM(hCOM, VarPtr(info), path)
 
 #ifndef _DEBUG
@@ -511,7 +511,7 @@ Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As ByteP
 	tOfn.Flags = OFN_OVERWRITEPROMPT
 	tOfn.lpstrDefExt = StrPtr(ext)'"wav"
 	tOfn.lpstrFile = calloc(MAX_PATH + 10)
-	if defFileName<>0 Then lstrcpy(tOfn.lpstrFile, defFileName)
+	If defFileName<>0 Then lstrcpy(tOfn.lpstrFile, defFileName)
 	
 	'ファイルオープンダイアログを表示する
 	If GetSaveFileName(tOfn) = 0 Then
@@ -557,7 +557,7 @@ End Sub
 
 'リードテスト
 Sub MainWnd_CommandButton6_Click()
-	if hCOM = 0 Then ExitSub
+	If hCOM = 0 Then ExitSub
 	Dim data As BytePtr, adr As DWord
 	data = calloc(&H10000)
 	adr = GetDlgItemHex(MWnd(EditBox2))
@@ -584,19 +584,19 @@ End Sub
 
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 	'ESC+マウス中ボタンダブルクリックでテストモード
-	if GetCancelKey() Then 
+	If GetCancelKey() Then 
 		MoveWindow(hMainWnd,0,0,475,330,TRUE)
 		AllocConsole()
 		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
 		printf(ex"Welcome to debug console\n")
-	End if
+	End If
 
 End Sub
 
 
 
 Sub MainWnd_CommandButton8_Click()
-	if hCOM=0 Then ExitSub
+	If hCOM=0 Then ExitSub
 	Dim ctrl As Byte
 	ctrl=(GetCheckBox(MWnd(CheckBox2))<<3 or GetCheckBox(MWnd(CheckBox3))<<2 or _
 		GetCheckBox(MWnd(CheckBox4))<<1 or GetCheckBox(MWnd(CheckBox5))) As Byte
@@ -612,7 +612,7 @@ Sub MainWnd_CommandButton9_Click()
 		MainWnd_CommandButton1_Click()
 		Sleep(300)
 		PumpMessage()
-		if GetKeyState(VK_ESCAPE) And &H80 Then ExitDo
+		If GetKeyState(VK_ESCAPE) And &H80 Then ExitDo
 	Loop
 End Sub
 
@@ -635,11 +635,11 @@ Sub SetRomInfoToDlg_FromROM()
 	SetCheckBox(MWnd(CB_MANUAL),FALSE)
 
 	'BSスロットがあればBSMWndを出す
-	if cartInfo.isBSX Then
+	If cartInfo.isBSX Then
 		BSM_open()
 
 		Dim idx AS Long
-		if cartInfo.CartType=&HE5 Then
+		If cartInfo.CartType=&HE5 Then
 			idx=BSM_SLOT_BIOS
 		Elseif cartInfo.ROMType=SFC_MAP_LoROM or cartInfo.ROMType=SFC_MAP_SpLoROM then
 			idx=BSM_SLOT_SpLoROM
@@ -657,9 +657,9 @@ Sub SetRomInfoToDlg_FromROM()
 		BSM_close()
 	End If
 	
-	if cartInfo.ROMType=SFC_MAP_SF_MENU Then
+	If cartInfo.ROMType=SFC_MAP_SF_MENU Then
 		SFM_open()
-	End if	
+	End If	
 
 	SetCheckBox(MWnd(CheckBox7),hasClockModule(hCOM))
 
@@ -700,7 +700,7 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 '	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
 	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
 
-	if ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
+	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info.Title,"[ERR]通信エラー")
 		SetCartInfo(VarPtr(info),TRUE)
 		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
@@ -731,14 +731,14 @@ Function getSelectedMapMode() AS Long
 End Function
 Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 	'LoROM/HiROMの選択とMAD1のチェック取得
-	if GetCheckBox(MWnd(CB_MANUAL)) Then
+	If GetCheckBox(MWnd(CB_MANUAL)) Then
 		info.ROMType = getSelectedMapMode()
 		'		info.MapMode = (info.MapMode And &HF0) or info.ROMType
 		info.ROMSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info.SRAMSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
 		printf(ex"custom rom size = %d\n", (info.ROMSize / 1024 / 1024) AS DWord)
 		
-		if info.ROMType = SFC_MAP_LoROM or info.ROMType = SFC_MAP_SpLoROM or info.ROMType = SFC_MAP_SF_MENU Then
+		If info.ROMType = SFC_MAP_LoROM or info.ROMType = SFC_MAP_SpLoROM or info.ROMType = SFC_MAP_SF_MENU Then
 			info.AddrOffset = 0
 			info.isLoROM = TRUE
 		Else
@@ -758,7 +758,7 @@ Function MapModeToComboboxIndex(mapMode As SFC_MAP_TYPE) As Long
 	romMap = mapMode As Byte
 	
 	For i = 0 To SFC_MAP_TYPE_NUM
-		if mapTable[i] = romMap Then
+		If mapTable[i] = romMap Then
 			MapModeToComboboxIndex = i
 			ExitFor
 		End If
@@ -766,7 +766,7 @@ Function MapModeToComboboxIndex(mapMode As SFC_MAP_TYPE) As Long
 End Function
 
 Function GetRomSpeedString(mapMode As Byte) As BytePtr
-	if (mapMode And &H20) Then
+	If (mapMode And &H20) Then
 		GetRomSpeedString = "Fast"
 	Else
 		GetRomSpeedString = "Slow"
@@ -831,20 +831,20 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+BAT")
 		Case &H03 
 			lstrcat(CartChip,"+SA-1+RAM")
-			if info->CartType = &H34 Then
+			If info->CartType = &H34 Then
 			Elseif info->CartType = &H35 then
 				 lstrcat(CartChip,"+BAT")
 			Else
 				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End if
+			End If
 		Case &H04
 			lstrcat(CartChip,"+SDD1+")
-			if (info->CartType And &H0F) = 3 Then
+			If (info->CartType And &H0F) = 3 Then
 			Elseif info->CartType = &H45 then
 				 lstrcat(CartChip,"RAM+BAT")
 			Else
 				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End if
+			End If
 		Case &H05 : lstrcat(CartChip,"S-RTC+RAM+BAT")
 		Case &H0E 
 			Select Case info->CartType And &H0F
@@ -857,17 +857,17 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 			Select Case (info->CartType And &H0F) As DWord
 				Case &H03 : lstrcat(CartChip,"+CX4")
 				Case &H05
-					if info->isLoROM Then
+					If info->isLoROM Then
 						lstrcat(CartChip,"+ST018+RAM+BAT")
 					Else
 						lstrcat(CartChip,"+SPC7110+RAM+BAT")
-					End if
+					End If
 				Case &H06
-					if info->ROMSize=&H100000 Then
+					If info->ROMSize=&H100000 Then
 						lstrcat(CartChip,"+ST010")
 					Else
 						lstrcat(CartChip,"+ST011")
-					End if
+					End If
 				Case &H09 : lstrcat(CartChip,"+SPC7110+RAM+BAT+RTC")
 				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
 			End Select
@@ -877,28 +877,28 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 
 	SetWindowText(MWnd(CART_CIPS),CartChip)
 	
-	if info->ROMSize =0 Then
+	If info->ROMSize =0 Then
 		SetWindowText(MWnd(ROM_SIZE),"None")		
 	Else
 		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
 							(info->ROMSize/1024) As DWord, (info->ROMSize*8/(1024^2)) As DWord))
-	End if
-	if info->SRAMSize =0 Then
+	End If
+	If info->SRAMSize =0 Then
 		SetWindowText(MWnd(SRAM_SIZE),"None")		
 	Else
 		Dim FLASH_TEXT AS BytePtr
-		if info->isFlashSave Then
+		If info->isFlashSave Then
 			FLASH_TEXT="[FLASH]"
 		Else
 			FLASH_TEXT=""
 		End If
 		SetWindowText(MWnd(SRAM_SIZE),sprintfStr("%dKB [%dKbit]%s",
 			(info->SRAMSize/1024) As DWord, (info->SRAMSize*8/1024) As DWord, FLASH_TEXT As DWord))
-	End if
+	End If
 
 	SetCheckBox(MWnd(CB_MANUAL),bManual)
 	
-	if bMessageOutput Then	
+	If bMessageOutput Then	
 		DBMN("Chips: ")
 		wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
 		DBM(CartChip)
@@ -923,7 +923,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		End Select
 
 		DBM(ex"Version : "+Str$(info->Version/10+1.0))
-		if info->hasExtraHeader Then
+		If info->hasExtraHeader Then
 			'DBM("Extra Header Found.")
 			DBM(sprintfStr("MakerID : [%c%c] %s", _
 				info->MakerCode As DWord, (info->MakerCode >> 8) As DWord, info->MakerName As DWord))
@@ -934,17 +934,17 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		DBM("CheckSum2(rev) : "+Hex$(info->CheckSum2))
 
 		DBM("")
-		if info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
-		if info->isFlashSave Then DBM(ex"Save Flash detected.\r\n")
+		If info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
+		If info->isFlashSave Then DBM(ex"Save Flash detected.\r\n")
 	End If
 End Sub	
 
 Function GetCheckBox(Ctrl As HWND) As Byte
-	if SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
+	If SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
 		GetCheckBox=TRUE
 	Else
 		GetCheckBox=FALSE
-	End if
+	End If
 End Function
 
 Function SetCheckBox(Ctrl As HWND,bValue As BOOL) As Byte
@@ -1014,7 +1014,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	DragFinish(hDrop)
 	
 	Dim file AS File, header As SFC_CART_HEADER, cartInfo AS SFC_CART_INFO
-	if file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
+	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
 	
 	'ヘッダ位置候補 HiROM,LoROM,HiROM(ヘッダ付き),LoROM(ヘッダ付き)
 	Dim headerAdrs[4] = [&HFFB0, &H7FB0, &HFFB0 + &H200, &H7FB0 + &H200] AS DWord
@@ -1022,12 +1022,12 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 		file.setFilePtr(headerAdrs[i])
 		file.read(VarPtr(header), SFC_SPEC_HEADER_SIZE)
 		
-		if isSnesHeader(VarPtr(header)) = TRUE Then ExitFor
+		If isSnesHeader(VarPtr(header)) = TRUE Then ExitFor
 	Next i
 	
 	file.close()
 	
-	if isSnesHeader(VarPtr(header)) = FALSE Then
+	If isSnesHeader(VarPtr(header)) = FALSE Then
 		DBM(ex"ROM Header not found!\r\n")
 		MessageBeep(MB_ICONEXCLAMATION)
 		ExitSub
@@ -1072,12 +1072,12 @@ End Sub
 Dim MW_bMove AS BOOL
 
 Sub MainWnd_Move(x As Integer, y As Integer)
-	if MW_bMove = TRUE Then ExitSub
+	If MW_bMove = TRUE Then ExitSub
 	
-	if hSFMem<>NULL then
+	If hSFMem<>NULL then
 		MoveChildWindow(hMainWnd, hSFMem)
-	End if
-	if hBSMem<>NULL Then
+	End If
+	If hBSMem<>NULL Then
 		MoveChildWindow(hMainWnd, hBSMem)
 	End If
 End Sub
@@ -1099,13 +1099,13 @@ Sub MainWnd_MAPPING_SelChange()
 	Dim SelectedMapMode AS Long
 	SelectedMapMode = getSelectedMapMode()
 	
-	if SelectedMapMode = SFC_MAP_SF_MENU Then
+	If SelectedMapMode = SFC_MAP_SF_MENU Then
 		ShowWindow(MWnd(CommandButton14), SW_SHOW)
 	Else
 		ShowWindow(MWnd(CommandButton14), SW_HIDE)
 	End If
 	
-	if SelectedMapMode = SFC_MAP_ST018 Then
+	If SelectedMapMode = SFC_MAP_ST018 Then
 		ShowWindow(MWnd(CommandButton17), SW_SHOW)
 	Else
 		ShowWindow(MWnd(CommandButton17), SW_HIDE)
@@ -1121,7 +1121,7 @@ Sub MainWnd_CheckBox1_Click()
 End Sub
 
 Function GetCancelKey() AS BOOL
-	if (GetKeyState(VK_ESCAPE) And &H80) And (fWindowActive = TRUE) Then
+	If (GetKeyState(VK_ESCAPE) And &H80) And (fWindowActive = TRUE) Then
 		GetCancelKey = TRUE
 	Else
 		GetCancelKey = FALSE
@@ -1129,7 +1129,7 @@ Function GetCancelKey() AS BOOL
 End Function
 
 Sub MainWnd_Activate(state As Integer, minimized As Integer)
-	if state = WA_INACTIVE Then
+	If state = WA_INACTIVE Then
 		fWindowActive = FALSE
 	Else
 		fWindowActive = TRUE
@@ -1183,7 +1183,7 @@ Sub MainWnd_CommandButton17_Click()
 	Dim pc AS * ProgressCallback
 	
 	pPath = SaveDialogCalloc(ex"ST018 ROM Image File(*.rom)\0*.rom\0Binaly Image(*.bin)\0*.bin\0すべてのファイル(*.*)\0*.*\0\0", "rom", ST018_BIOS_NAME_COMBINED)
-	if pPath = NULL Then ExitSub
+	If pPath = NULL Then ExitSub
 	path.SetPath(pPath)
 	
 	buf = calloc(ST018_BIOS_SIZE)
@@ -1192,7 +1192,7 @@ Sub MainWnd_CommandButton17_Click()
 	DBMN("ST018 BIOS Dumping")
 	
 	'BIOSダンプ
-	if ST018_BiosDump(hCOM, buf, pc) = FALSE Then
+	If ST018_BiosDump(hCOM, buf, pc) = FALSE Then
 		ErrMes(hMainWnd, "st018.romの吸出しに失敗しました。", "st018.rom dumping failed.", 0)
 		Goto * BIOSDUMP_EXIT
 	End If
@@ -1200,7 +1200,7 @@ Sub MainWnd_CommandButton17_Click()
 	Dim checksum AS DWord
 	checksum = SnesCheckSum(buf, ST018_BIOS_SIZE)
 	DBM(sprintfStr(ex"CheckSum  : %08X\r\nActualSum : %08X", ST018_CHECKSUM, checksum))
-	if ST018_CHECKSUM = checksum Then
+	If ST018_CHECKSUM = checksum Then
 		DBM(ex"Checksum OK.\r\n")
 		MessageBeep(MB_ICONASTERISK)
 	Else
@@ -1209,10 +1209,10 @@ Sub MainWnd_CommandButton17_Click()
 	End If
 	
 	'PROGRAM+DATA結合データを出力（st018.rom）
-	if out.openFile(path.GetPath(), GENERIC_WRITE) = FALSE Then
+	If out.openFile(path.GetPath(), GENERIC_WRITE) = FALSE Then
 		DBM("I/Oエラー")
 		Goto * BIOSDUMP_EXIT
-	End if
+	End If
 	out.write(buf, ST018_BIOS_SIZE)
 	out.close()
 	DBM(path.GetFileName())

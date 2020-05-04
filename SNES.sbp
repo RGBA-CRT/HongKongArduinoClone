@@ -288,197 +288,189 @@ Sub SA1_BankCtrl(hSerial As HANDLE, startBank As Long)
 	SetCartRegister(&H00, &H2223, startBank + 3, FALSE)
 End Sub
 
+
 'ROMの吸出し
-Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
-	Dim MAX_CONTINUE=DEFAULT_CONTINUE As DWord
-	Dim DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE As DWord
+
+Sub DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr)
+	Dim MAX_CONTINUE = DEFAULT_CONTINUE As DWord
+	Dim DUMP_BUFFER_SIZE = DEFAULT_DUMP_SIZE As DWord
 	Dim DumpAddress As DWord, offset As DWord, ret As DWord
-	Dim CheckSum=0 As DWord,bufChecksum As DWord
-	Dim bBankChanged=FALSE As BOOL	'8MBitBank
-
-	Dim buf As BytePtr,nowSize As DWord,Size As DWord,bRomType As Byte
-	Dim hout As HANDLE,C As Long	'コンテニューカウンタ
-	Dim lt As DWord,time As DWord
-
+	Dim CheckSum = 0 As DWord, bufChecksum As DWord
+	Dim bBankChanged = FALSE As BOOL '8MBitBank
+	
+	Dim buf As BytePtr, nowSize As DWord, Size As DWord, bRomType As Byte
+	Dim hout As HANDLE, C As Long 'コンテニューカウンタ
+	Dim lt As DWord, time As DWord
+	
 	'アドレス系準備
-	offset=info->AddrOffset	'固定
-	DumpAddress=offset	'インクリメントしていく
-	Size=info->ROMSize
-	SendControl(hCOM,DEFAULT_CTRLBUS)
-
+	offset = info->AddrOffset '固定
+	DumpAddress = offset 'インクリメントしていく
+	Size = info->ROMSize
+	SendControl(hCOM, DEFAULT_CTRLBUS)
+	
 	'設定ファイル読み込み
-	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
-	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
-	If DUMP_BUFFER_SIZE < 1 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
-
+	MAX_CONTINUE = GetPrivateProfileInt(ProgramName, "MaxContinue", DEFAULT_CONTINUE, INIFILE_PATH)
+	DUMP_BUFFER_SIZE = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	If DUMP_BUFFER_SIZE < 1 Then DUMP_BUFFER_SIZE = DEFAULT_DUMP_SIZE
+	
 	'特殊系のセットアップ
-	If info->ROMType=SFC_MAP_SA1 And info->isBSX Then
+	If info->ROMType = SFC_MAP_SA1 And info->isBSX Then
 		'バス釣りのときだけ実行する処理（判定がザルなようであれば修正）
-/*		SA1_Init()
-		SA1_BankCtrl(hCOM,0)
+		/* SA1_Init()
+		SA1_BankCtrl(hCOM, 0)
 		DBM("バス釣り用SA1初期化処理実行")
-*/
-	ElseIf info->ROMType=SFC_MAP_SDD1 Then
-		SDD1_SetBanks(hCOM,0)
+		*/
+	ElseIf info->ROMType = SFC_MAP_SDD1 Then
+		SDD1_SetBanks(hCOM, 0)
 		SDD1_PrintBanks(hCOM)
-
-		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
-
-	ElseIf info->ROMType=SFC_MAP_SPC7110 Then
+		
+		DUMP_BUFFER_SIZE = DEFAULT_DUMP_SIZE '0x400000で必ず止まる必要が有るため
+		
+	ElseIf info->ROMType = SFC_MAP_SPC7110 Then
 		DBM("Checking SPC7110...")
-		If SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
-			SPC7110_SetBanks(hCOM,0,FALSE) = FALSE Then
-			ErrMes(hMainWnd,ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。","SPC7110 Bank Control Error",0)
+		If SPC7110_SetBanks(hCOM, 1, FALSE) = FALSE or _
+							SPC7110_SetBanks(hCOM, 0, FALSE) = FALSE Then
+			ErrMes(hMainWnd, ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。", "SPC7110 Bank Control Error", 0)
 			ExitSub
 		End If
 		SPC7110_PrintBanks(hCOM)
-
-	ElseIf info->ROMType=SFC_MAP_CX4_2DC0N Then
+		
+	ElseIf info->ROMType = SFC_MAP_CX4_2DC0N Then
 		DBM("CX4 for ROCKMAN X2")
-
+		
 		' https://sd2snes.de/files/cx4_notes.txt
 		/*
 		$7f52: ROM configuration select
-		   LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
-				  1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
+		       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
+		              1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
 
-		   HiROM: 0: 2x  8Mbit (A20 switches)
-				  1: 2x 16Mbit (A21 switches)
+		       HiROM: 0: 2x  8Mbit (A20 switches)
+		              1: 2x 16Mbit (A21 switches)
 		*/
 		' Set ROM configuration to 2xROM (8Mx2)
 		SetCartRegister(0, &H7f52, 0)
-
-	ElseIf info->ROMType=SFC_MAP_CX4_1DC0N Then
+		
+	ElseIf info->ROMType = SFC_MAP_CX4_1DC0N Then
 		DBM("CX4 for ROCKMAN X3")
-
+		
 		' Set ROM configuration to 1xROM (16Mx1)
 		SetCartRegister(0, &H7f52, 1)
-
+		
 	End If
-
+	
 	'UI系
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
-	SendMessage(MWnd(hProg), PBM_SETRANGE,0,MAKELONG(0,(Size/DUMP_BUFFER_SIZE) As Word))
-	SendMessage(MWnd(hProg), PBM_SETSTEP,1,0)
+	SendMessage(MWnd(hProg), PBM_SETRANGE, 0, MAKELONG(0, (Size / DUMP_BUFFER_SIZE) As Word))
+	SendMessage(MWnd(hProg), PBM_SETSTEP, 1, 0)
 	SetDlgEnable(STATUS_DUMPING)
-
-	'ダンプバッファの作成	
-	buf=calloc(DUMP_BUFFER_SIZE+12)
-	lstrcpy(buf,"<<UNUSED??>>")
-	hout=OpenFile(Path,GENERIC_WRITE)
-
+	
+	'ダンプバッファの作成
+	buf = calloc(DUMP_BUFFER_SIZE+12)
+	lstrcpy(buf, "<<UNUSED??>>")
+	hout = OpenFile(Path, GENERIC_WRITE)
+	
 	DBM("(Pless Esc to Cancel)")
 	DBMN("Dumping")
-
-	lt=GetTickCount()
-
+	
+	lt = GetTickCount()
+	
 	Do
 		'ESCキーでキャンセル
 		PumpMessage()
-		If GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto *EXIT_DUMP
-
-		'吸出し＆データチェック
-		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,info->isLoROM)
-		If ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
-		If ret<>DUMP_BUFFER_SIZE Then 
-			DBMN(ex"[x"+Str$(C)+ex"]")
-			C++
-			'If C>MAX_CONTINUE Then DBM("Over retry count.")
-			Continue
-		End If
-
-		'ファイルへ出力
-		OutFile(hout,buf,DUMP_BUFFER_SIZE)
-
-		'バッファのチェックサム計算
-		bufChecksum=SnesCheckSum(buf,DUMP_BUFFER_SIZE)
-
-		'3MBの時はラスト8Mbitを再加算
-		If DumpAddress>=1024*1024*2 Then
-			If info->ROMSize=1024*1024*3 Then
-				bufChecksum+=bufChecksum
-			End If
-		End If
+		If GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto * EXIT_DUMP
 		
-		'チェックサム加算
-		CheckSum+=bufChecksum
-
-		'次のアドレスを計算
-		DumpAddress+=DUMP_BUFFER_SIZE
-		'特殊系のバンク切り替え
-		If info->ROMType=SFC_MAP_SpLoROM Then
-			If DumpAddress-offset=&H200000 Then
-				'吸出しアドレスをバンク80hに飛ばす
-				offset=&H400000		'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
-				DumpAddress=offset
-				Size=&H100000
-
-				DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
+		'吸出し＆データチェック
+		ret = ReadROM(hCOM, buf, 0, DumpAddress, DUMP_BUFFER_SIZE, info->isLoROM)
+		If ret = 0 Then DBM("ERROR!"):Goto * EXIT_DUMP
+			If ret<>DUMP_BUFFER_SIZE Then
+				DBMN(ex"[x" + Str$(C) + ex"]")
+				C + +
+				'If C>MAX_CONTINUE Then DBM("Over retry count.")
+				Continue
 			End If
-
-		Else If DumpAddress-offset=&H400000 Then
-			'4MB超えする時
-			/*If info->ROMType=SFC_MAP_SA1 And info->ROMSize > &H400000 Then
-				If bBankChanged=FALSE Then
-					DBM(ex"\r\n[SA-1]Bank Change: 04h-07h")
-					SA1_BankCtrl(hCOM,4)
-					bBankChanged=TRUE
-					DumpAddress=offset	'アドレスリセット
-				Else
-					ExitDo
+			
+			'ファイルへ出力
+			OutFile(hout, buf, DUMP_BUFFER_SIZE)
+			
+			'バッファのチェックサム計算
+			bufChecksum = SnesCheckSum(buf, DUMP_BUFFER_SIZE)
+			
+			'3MBの時はラスト8Mbitを再加算
+			If DumpAddress>= 1024 * 1024 * 2 Then
+				If info->ROMSize = 1024 * 1024 * 3 Then
+					bufChecksum + = bufChecksum
 				End If
-	
-			Else */If info->ROMType=SFC_MAP_SDD1 Then
-				If bBankChanged=FALSE Then
+			End If
+			
+			'チェックサム加算
+			CheckSum + = bufChecksum
+			
+			'次のアドレスを計算
+			DumpAddress + = DUMP_BUFFER_SIZE
+			'特殊系のバンク切り替え
+			If info->ROMType = SFC_MAP_SpLoROM Then
+				If DumpAddress - offset = &H200000 Then
+					'吸出しアドレスをバンク80hに飛ばす
+					offset = &H400000 'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
+					DumpAddress = offset
+					Size = &H100000
+					
+					DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
+				End If
+				
+			Else If DumpAddress - offset = &H400000 Then
+				'4MB超えする時
+			If info->ROMType = SFC_MAP_SDD1 Then
+				If bBankChanged = FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
 					DBM(ex"\r\n")
-					bBankChanged=TRUE
-					SDD1_SetBanks(hCOM,4)
+					bBankChanged = TRUE
+					SDD1_SetBanks(hCOM, 4)
 					SDD1_PrintBanks(hCOM)
 					DBM(ex"")
-
-					DumpAddress=offset	'アドレスリセット
+					
+					DumpAddress = offset 'アドレスリセット
 				Else
 					'4-7バンクを吸い出し終わったので終了
 					ExitDo
 				End If
-
-			ElseIf info->ROMType=SFC_MAP_SPC7110 Then
-				If bBankChanged=TRUE Then ExitDo
+				
+			ElseIf info->ROMType = SFC_MAP_SPC7110 Then
+				If bBankChanged = TRUE Then ExitDo
 				DBM("")
-				bBankChanged=TRUE
-				SPC7110_SetBanks(hCOM,1,FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
-				DumpAddress=offset+&H300000	'F0:0000からリスタート
-
-			ElseIf info->ROMType=SFC_MAP_ExHiROM Then
+				bBankChanged = TRUE
+				SPC7110_SetBanks(hCOM, 1, FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
+				DumpAddress = offset + &H300000 'F0:0000からリスタート
+				
+			ElseIf info->ROMType = SFC_MAP_ExHiROM Then
 				'わざわざバンク切り替え使わなくてもダンプできるけど一応
-
+				
 				If bBankChanged Then
 					ExitDo
 				Else
-					DumpAddress=&H400000
-					offset=&H400000
+					DumpAddress = &H400000
+					offset = &H400000
 					DBM("[ExHiROM]ROM P1 Bank:40-")
-					bBankChanged=TRUE
+					bBankChanged = TRUE
 				End If
 			End If
-
+			
 		End If
-		If DumpAddress-offset>=Size Then ExitDo
-
+		If DumpAddress - offset>= Size Then ExitDo
+		
 		'進捗表示
-		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
-		SetWindowText(MWnd(Static7),Str$(Int(((DumpAddress-offset)*(bBankChanged+1))/Size*100))+"%")
+		SendMessage(GetDlgItem(hMainWnd, hProg), PBM_STEPIT, 0, 0)
+		SetWindowText(MWnd(Static7), Str$(Int(((DumpAddress - offset) * (bBankChanged + 1)) / Size * 100)) + "%")
 		DBMN(".")
 	Loop
-	time=GetTickCount()-lt
+	time = GetTickCount() - lt
 
-	DBM(ex"\r\nTime  : "+Str$(time)+ex"ms")
-	DBM("Speed : "+Str$(Int(Size/(time/1000)) As Long)+ex"byte/sec\r\n")
+	DBM(ex"\r\nTime  : " + Str$(time) + ex"ms")
+	DBM("Speed : " + Str$(Int(Size / (time / 1000)) As Long) + ex"byte/sec\r\n")
 
-	DBM("HeaderSum:"+Hex$(info->CheckSum2))
-	DBM("ActualSum:"+Hex$(CheckSum And &HFFFF))
-	If info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
+	DBM("HeaderSum:" + Hex$(info->CheckSum2))
+	DBM("ActualSum:" + Hex$(CheckSum And &HFFFF))
+	If info->CheckSum2 = (CheckSum And &HFFFF) and info->CheckSum1 = (not(CheckSum) And &HFFFF) Then
 		DBM(ex"Checksum OK")
 		DBM(ex"Successful!!!")
 	Else
@@ -486,32 +478,27 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 			DBM("Checksum is disabled.")
 		Else
 			DBM(ex"Checksum Error!!!")
-			MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
-				ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
+			MessageBoxf(hMainWnd, "ROM Dump Error", MB_ICONERROR, _
+						ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1, (not(CheckSum) And &HFFFF), info->CheckSum2, (CheckSum And &HFFFF))
 		End If
 	End If
 
 *EXIT_DUMP
 
-/*	If info->ROMType=SFC_MAP_SA1 And info->isBSX Then
-		SA1_BankCtrl(hCOM,0)
-		SA1_DeInit()
-	End If
-*/
 	SendMessage( MWnd(hProg), PBM_SETPOS, 0, 0 )
-	SetWindowText(MWnd(Static7),"100%")
+	SetWindowText(MWnd(Static7), "100%")
 	SetDlgEnable(STATUS_CONNECTED)
 
-	
+
 	free(buf)
 	CloseHandle(hout)
 
-	SetAddress(hCOM,0,FALSE)
+	SetAddress(hCOM, 0, FALSE)
 
 	FlushCom(hCOM)
-	
+
 	DBM("")
-EndSub
+End Sub
 
 Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	Dim i As Long,someCount As DWord,last As Byte
@@ -792,7 +779,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 			'SA-1 SRAM バンク切り替え
 			SetCartRegister(&H00, &H2224, i As Byte , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
-			SetCartRegister(&H00, &H2226, &H80      , FALSE) 'SNES CPU BW-RAM Write Enable (W)
+			SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
 			writeAddr = sraminfo->adr
 		End If
 		DBM(sprintfStr("SRAM %02X:%04X +%04X", writeAddr>>16, writeAddr And &HFFFF, sraminfo->bankSize))
@@ -800,7 +787,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 		SendControl(hSerial, (sraminfo->ctrlBus or WE) As Byte)
 		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
 		
-		i + +
+		i++
 		PumpMessage()
 	Loop
 	
