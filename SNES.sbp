@@ -30,6 +30,8 @@ Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	SFC_MAP_SF_MENU = &HF1 'SFメモリカートリッジ
 	SFC_MAP_ST018 = &HF2
 	SFC_MAP_ST010 = &HF3
+	SFC_MAP_CX4_2DC0N = &HF4
+	SFC_MAP_CX4_1DC0N = &HF5
 End Enum
 
 'スーファミヘッダから取得した情報
@@ -204,6 +206,17 @@ Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
 		info->ROMType=SFC_MAP_ST018
 	End If
 
+	if info->CartType = &HF3 Then
+		if info->Title[9]=GetByte("2") Then
+			info->ROMType=SFC_MAP_CX4_2DC0N
+		Elseif info->Title[9]=GetByte("3") Then
+			info->ROMType=SFC_MAP_CX4_1DC0N
+		Else
+			DBM("[WAN] Failed to detect CX4 ROM Type.")
+			info->ROMType=SFC_MAP_CX4_1DC0N
+		End If
+	End If
+
 	' ST010
 	if info->CartType = &HF6 Then
 		info->ROMType  = SFC_MAP_ST010
@@ -297,9 +310,26 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		End If
 		SPC7110_PrintBanks(hCOM)
 
-	Elseif info->CartType=&HF3 Then
+	Elseif info->ROMType=SFC_MAP_CX4_2DC0N Then
 		DBM("CX4 for ROCKMAN X2")
+
+		' https://sd2snes.de/files/cx4_notes.txt
+		/*
+		$7f52: ROM configuration select
+	       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
+    	          1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
+
+	       HiROM: 0: 2x  8Mbit (A20 switches)
+	              1: 2x 16Mbit (A21 switches)
+		*/
+		' Set ROM configuration to 2xROM (8Mx2)
 		SetCartRegister(0, &H7f52, 0)
+
+	Elseif info->ROMType=SFC_MAP_CX4_1DC0N Then
+		DBM("CX4 for ROCKMAN X3")
+
+		' Set ROM configuration to 1xROM (16Mx1)
+		SetCartRegister(0, &H7f52, 1)
 
 	End If
 
