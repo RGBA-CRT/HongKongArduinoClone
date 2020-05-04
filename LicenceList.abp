@@ -141,22 +141,22 @@ Type SNES_LICENCE_CODE
 	str aS BytePtr
 End Type
 
-Dim SFC_Licences AS *SNES_LICENCE_CODE
-SFC_Licences=SNES_LICENCE_LIST AS *SNES_LICENCE_CODE
+Dim SFC_Licences AS * SNES_LICENCE_CODE
+SFC_Licences = SNES_LICENCE_LIST AS * SNES_LICENCE_CODE
 
 Function getLicenceString(code AS DWord) aS BytePtr
 	'codeをビッグエンディアンにする（リストがBEなので）
-	code=(code>>8 or code<<8) And &HFFFF
-
+	code = (code>>8 or code<<8) And &HFFFF
+	
 	Dim i as Long
 	for i = 0 to SNES_LICENCE_LIST_NUM
-		if SFC_Licences[i].str=NULL Then ExitFor
-		if SFC_Licences[i].id=code Then
-			getLicenceString=SFC_Licences[i].str
+		if SFC_Licences[i].str = NULL Then ExitFor
+		if SFC_Licences[i].id = code Then
+			getLicenceString = SFC_Licences[i].str
 			ExitFunction
-		Endif
+		End if
 		'printf(ex"[%d][%d]%s\n",i,SFC_Licences[i].id,SFC_Licences[i].str)
 	Next
-	getLicenceString="(unknown)"
+	getLicenceString = "(unknown)"
 	
 End Function

@@ -17,7 +17,7 @@ Const DEFAULT_CTRLBUS = &H0C	'RST WE
 Const HiROM_START_ADR=&HC00000
 Const HIROM_SRAM_BANKSIZE = 1024*8
 
-Const SFC_MAP_TYPE_NUM = 9
+Const SFC_MAP_TYPE_NUM = 11
 Enum SFC_MAP_TYPE	'ヘッダのMapModeの下位4ビット
 	SFC_MAP_LoROM = 0
 	SFC_MAP_HiROM = 1
@@ -39,8 +39,8 @@ End Enum
 '生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
 	Title[23] As Byte		'ゲームタイトル
-	MapMode As Byte			'FAST+HIROMなど
-	ROMType As Byte			'MapModeの下位4ビット
+	isFastRom As BOOL
+	ROMType As Long			'MapModeの下位4ビット
 	CartType As Byte		'ROM+SRAM+SFXみたいなの
 	ROMSize As DWord		'intのromサイズ
 	SRAMSize As DWord		'intのSRAMサイズ
@@ -50,9 +50,9 @@ Type SFC_CART_INFO
 	CheckSum2 As Word		'チェックサムのNOT
 	hasExtraHeader As BOOL	'拡張ヘッダ（FFB0h-FFBFh)があるかどうか
 	diableChecksum As BOOL	'MENU PROGRAMとかBSMC等のチェックサムが無効なものに使う
-	isLoROM As BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTrueになる
+	isLoROM As BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTRUEになる
 	isBSX  As BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
-	isFlashSave AS BOOL		'FLASHセーブかどうか
+	isFlashSave As BOOL		'FLASHセーブかどうか
 	MakerCode As Word		'メーカーコード
 	MakerName As BytePtr	'メーカーコードから出した文字列
 	GameCode[4] As Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
@@ -86,184 +86,207 @@ End Type
 '-----------------
 
 '生のROMヘッダをSFC_CART_INFOに
-Sub SloveCartInfo(data As *SFC_CART_HEADER,info As *SFC_CART_INFO)
+
+Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	'カートリッジのヘッダエリアのデータをSFC_CART_INFOへ格納
-
+	
 	Dim i As Long
-
-	memcpy(VarPtr(info->rawHeader),data,Sizeof(SFC_CART_HEADER))
-
+	
+	memcpy(VarPtr(info->rawHeader), data, Sizeof(SFC_CART_HEADER))
+	
 	'タイトル取得
-	memcpy(info,data->GameTitle,21)
-	if info->Title[i] = 0 Then
-		lstrcpy(info->Title,"CART CONNECTION ERR")
+	memcpy(info, data->GameTitle, 21)
+	If info->Title[i] = 0 Then
+		lstrcpy(info->Title, "CART CONNECTION ERR")
 	Else
 		'右からスペースをNULL文字で埋めル
-		For i=20 To 0 Step -1
-			if info->Title[i] <> &H20 And info->Title[i] <> 0 Then	
-				exitfor
-			Endif
-			info->Title[i]=0
+		For i = 20 To 0 Step -1
+			If info->Title[i] <> &H20 And info->Title[i] <> 0 Then	exitfor
+			info->Title[i] = 0
 		Next i
 	End If
-	info->Title[21]=0
 
-	'SUPER FOMATION SOCCERのタイトルーオーバランを修正
-	if lstrcmp("SUPER FORMATION SOCCE",info->Title)=0 Then
-		lstrcat(info->Title,"R")
-		data->MapMode=&H20	'Slow LoROM
-	End If
-	'他にもオーバーランがあるようなら、
-	/*
-	if MapMode And &HF0 <> &H20 Then
-		lstrcat(info->Title, Chr$(MapMode))
-		data-> MapMode=&H20
-	Endif
-
-	というようにしよう。
-	*/
-
-
+	info->Title[21] = 0
 	info->CartType = data->CartType
-	info->MapMode=data->MapMode 
-	info->ROMType=(data->MapMode And &H0F)
-
+	'	info->MapMode=data->MapMode
+	info->isFastRom = data->MapMode And &H10
 	
-	'拡張（？）ヘッダがあるかチェック
-	info->hasExtraHeader = ( (data->MakerCode>>8 >= &H20) And _
-		(NOT(isSameBin(VarPtr(data->MakerCode),ex"\x00\x00\x00\x00\x00\x00\x00",7))) And _
-		(NOT(isSameBin(VarPtr(data->MakerCode),ex"\xFF\xFF\xFF\xFF\xFF\xFF\xFF",7))) ) And &H01
-
-	if info->hasExtraHeader Then
+	' RomTypeを仮決定。MapModeから判定できない特殊なものは後で決定される
+	Select Case (data->MapMode And &H0F)
+		Case 0
+			info->ROMType = SFC_MAP_LoROM
+		Case 1
+			info->ROMType = SFC_MAP_HiROM
+		Case 2
+			info->ROMType = SFC_MAP_SDD1
+		Case 3
+			info->ROMType = SFC_MAP_SA1
+		Case 5
+			info->ROMType = SFC_MAP_ExHiROM
+		Case &H0A
+			info->ROMType = SFC_MAP_SPC7110
+		Case Else
+			info->ROMType = SFC_MAP_LoROM
+	End Select
+	'	info->ROMType=(data->MapMode And &H0F) As SFC_MAP_TYPE
+	
+	
+	' 拡張（？）ヘッダがあるかチェック
+	' ASCIIコードから外れてたらで判定
+	Dim p As BytePtr
+	p = VarPtr(data->MakerCode)
+	info->hasExtraHeader = TRUE
+	For i = 0 To 5
+		If (p[i] < &H20) Or (p[i] > &H7F) Then
+			info->hasExtraHeader = FALSE
+			ExitFor
+		End If
+	Next i
+	
+	If info->hasExtraHeader Then
 		/*
 		'ヘッダのコードは文字列で来る
 		'code = 下位 or 上位<<4
 		Dim code As Word
-		code=data->MakerCode
-		if code=0 Then code=&H3030
-		code= ((code And &HFF00) -&H3000)>>8 or ( (code And &H0F) + (&H09 * ((code>>6) And &H01)) << 4 )
-		info->MakerCode=code
-*/
-		info->MakerCode=data->MakerCode
-		info->MakerName=getLicenceString(data->MakerCode)
-		lstrcpy(info->GameCode,Dw2Str(info->rawHeader.GameCode))
-		if lstrcmp(info->GameCode,"    ")=0 Then lstrcpy(info->GameCode,"????")
+		code = data->MakerCode
+		If code = 0 Then code = &H3030
+		code = ((code And &HFF00) - &H3000)>>8 Or ( (code And &H0F) + (&H09 * ((code>>6) And &H01)) << 4 )
+		info->MakerCode = code
+		*/
+		info->MakerCode = data->MakerCode
+		info->MakerName = getLicenceString(data->MakerCode)
+		lstrcpy(info->GameCode, Dw2Str(info->rawHeader.GameCode))
+		If lstrcmp(info->GameCode, "	") = 0 Then lstrcpy(info->GameCode, "????")
 	End If
-
-	if data->RomSize<>0 then
-		info->ROMSize=&H0400 << data->RomSize
+	
+	If data->RomSize<>0 Then
+		info->ROMSize = &H0400 << data->RomSize
 	Else
-		info->ROMSize=0
+		info->ROMSize = 0
 	End If
-
-	if data->SramSize<>0 then
+	
+	If data->SramSize<>0 Then
 		info->SRAMSize = &H0400 << data->SramSize
 	Else
-		info->SRAMSize=0
+		info->SRAMSize = 0
 	End If
-
-	if info->ROMType=SFC_MAP_LoROM or info->ROMType=SFC_MAP_SpLoROM or info->ROMType=SFC_MAP_SF_MENU Then
-		info->AddrOffset=0
-		info->isLoROM=TRUE
+	
+	If info->ROMType = SFC_MAP_LoROM Or info->ROMType = SFC_MAP_SpLoROM Or info->ROMType = SFC_MAP_SF_MENU Then
+		info->AddrOffset = 0
+		info->isLoROM = TRUE
 	Else
-		info->AddrOffset=HiROM_START_ADR
-		info->isLoROM=FALSE
+		info->AddrOffset = HiROM_START_ADR
+		info->isLoROM = FALSE
 	End If
-
-
+	
+	
 	info->Country = data->CountryID
 	info->Version = data->Version
 	info->CheckSum1 = data->Checksum1
 	info->CheckSum2 = data->Checksum2
-
+	
 	'SpecialLoROMはLoROMの衛星対応カートリッジで3MB目を吸うときにバンク切り替えが必要
 	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
 	'ここではダビスタ96とサウンドノベルツクールとBSXがヒットするはず。
 	'BSXは1MBなのでバンク切り替え必要なし
-	If info->GameCode[0]=Asc("Z")  And info->GameCode[3]=Asc("J") Then 
-		info->isBSX=TRUE
-		if info->ROMType = SFC_MAP_LoROM Then
-			if info->ROMSize>1024*1024*2 Then
-				info->ROMType=SFC_MAP_SpLoROM
-				info->ROMSize=1024*1024*3
+	If info->GameCode[0] = Asc("Z") And info->GameCode[3] = Asc("J") Then
+		info->isBSX = TRUE
+		If info->ROMType = SFC_MAP_LoROM Then
+			If info->ROMSize>1024 * 1024 * 2 Then
+				info->ROMType = SFC_MAP_SpLoROM
+				info->ROMSize = 1024 * 1024 * 3
 			End If
 		End If
 	End If
-
+	
 	'タイトルがMENU PROGRAMならSFM確定
-	if lstrcmp("MENU PROGRAM",info->Title)=0 Then
-		info->ROMType=SFC_MAP_SF_MENU
-		info->diableChecksum=TRUE
+	If lstrcmp("MENU PROGRAM", info->Title) = 0 Then
+		info->ROMType = SFC_MAP_SF_MENU
+		info->diableChecksum = TRUE
 	End If
-
+	
 	'メーカがEJ（NTT DATA）ならFlashSaveカセット
-	if info->MakerCode=&H4A45 Then
-		info->isFlashSave=TRUE
-		info->SRAMSize=(128*1024) AS DWord
+	If info->MakerCode = &H4A45 Then
+		info->isFlashSave = TRUE
+		info->SRAMSize = (128 * 1024) As DWord
 	End If
-
-	if info->CartType = &HF5 And info->isLoROM Then
-		info->ROMType=SFC_MAP_ST018
+	
+	If info->CartType = &HF5 And info->isLoROM Then
+		info->ROMType = SFC_MAP_ST018
 	End If
-
-	if info->CartType = &HF3 Then
-		if info->Title[9]=GetByte("2") Then
-			info->ROMType=SFC_MAP_CX4_2DC0N
-		Elseif info->Title[9]=GetByte("3") Then
-			info->ROMType=SFC_MAP_CX4_1DC0N
+	
+	If info->CartType = &HF3 Then
+		If info->Title[9] = GetByte("2") Then
+			info->ROMType = SFC_MAP_CX4_2DC0N
+		ElseIf info->Title[9] = GetByte("3") Then
+			info->ROMType = SFC_MAP_CX4_1DC0N
 		Else
 			DBM("[WAN] Failed to detect CX4 ROM Type.")
-			info->ROMType=SFC_MAP_CX4_1DC0N
+			info->ROMType = SFC_MAP_CX4_1DC0N
 		End If
 	End If
-
+	
 	' ST010
-	if info->CartType = &HF6 Then
-		info->ROMType  = SFC_MAP_ST010
+	If info->CartType = &HF6 Then
+		info->ROMType = SFC_MAP_ST010
 		info->SRAMSize = 4 * 1024
 	End If
-
+	
+	
+	'SUPER FOMATION SOCCERのタイトルーオーバランを修正
+	If lstrcmp("SUPER FORMATION SOCCE", info->Title) = 0 Then
+		lstrcat(info->Title, "R")
+		info->ROMType = SFC_MAP_LoROM
+	End If
+	'他にもオーバーランがあるようなら、
+	/*
+	If MapMode And &HF0 <> &H20 Then
+		lstrcat(info->Title, Chr$(MapMode))
+		data-> MapMode = &H20
+		End If
+		
+		というようにしよう。
+		*/
+		
+			
 EndSub
 
-Function isSnesHeader(header As *SFC_CART_HEADER) As BOOL
+Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
 	Dim i As Long
-	For i=0 To 19
-		if header->GameTitle[i] < &H20 Then 
-			if NOT(i>4 And header->GameTitle[i]=0) Then	Goto *ISH_ERR
+	For i = 0 To 19
+		If header->GameTitle[i] < &H20 Then
+			If Not(i>4 And header->GameTitle[i] = 0) Then GoTo * ISH_ERR
 		End If
 	Next i
 	'サイズチェック
-	if header->RomSize > &H0D Then Goto *ISH_ERR	'Over 64Mbit
-	isSnesHeader=TRUE
+	If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
+	isSnesHeader = TRUE
 	ExitFunction
-
+	
 *ISH_ERR
-	isSnesHeader=FALSE
+	isSnesHeader = FALSE
 End Function
-
-
 
 '----------------
 ' ROM Functions
 '----------------
 Sub SA1_Init()
-	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_OVERCLOCKED)
-	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED)
-
+	SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED)
+	SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED)
+	
 	Sleep(500)
 End Sub
+
 Sub SA1_DeInit()
-	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
+	SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL)
 End Sub
 
-
-Sub SA1_BankCtrl(hSerial AS HANDLE,startBank AS Long)
-	SetCartRegister(&H00,&H2220,startBank+0,FALSE)	
-	SetCartRegister(&H00,&H2221,startBank+1,FALSE)	
-	SetCartRegister(&H00,&H2222,startBank+2,FALSE)	
-	SetCartRegister(&H00,&H2223,startBank+3,FALSE)	
+Sub SA1_BankCtrl(hSerial As HANDLE, startBank As Long)
+	SetCartRegister(&H00, &H2220, startBank + 0, FALSE)
+	SetCartRegister(&H00, &H2221, startBank + 1, FALSE)
+	SetCartRegister(&H00, &H2222, startBank + 2, FALSE)
+	SetCartRegister(&H00, &H2223, startBank + 3, FALSE)
 End Sub
-
 
 'ROMの吸出し
 Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
@@ -286,46 +309,46 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	'設定ファイル読み込み
 	MAX_CONTINUE=GetPrivateProfileInt(ProgramName,"MaxContinue",DEFAULT_CONTINUE,INIFILE_PATH)
 	DUMP_BUFFER_SIZE=GetPrivateProfileInt(ProgramName,"DumpBufferSize",DEFAULT_DUMP_SIZE,INIFILE_PATH)
-	if DUMP_BUFFER_SIZE < 1 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
+	If DUMP_BUFFER_SIZE < 1 Then DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE
 
 	'特殊系のセットアップ
-	if info->ROMType=SFC_MAP_SA1 And info->isBSX Then
+	If info->ROMType=SFC_MAP_SA1 And info->isBSX Then
 		'バス釣りのときだけ実行する処理（判定がザルなようであれば修正）
 /*		SA1_Init()
 		SA1_BankCtrl(hCOM,0)
 		DBM("バス釣り用SA1初期化処理実行")
 */
-	Elseif info->ROMType=SFC_MAP_SDD1 Then
+	ElseIf info->ROMType=SFC_MAP_SDD1 Then
 		SDD1_SetBanks(hCOM,0)
 		SDD1_PrintBanks(hCOM)
 
 		DUMP_BUFFER_SIZE=DEFAULT_DUMP_SIZE	'0x400000で必ず止まる必要が有るため
 
-	Elseif info->ROMType=SFC_MAP_SPC7110 Then
+	ElseIf info->ROMType=SFC_MAP_SPC7110 Then
 		DBM("Checking SPC7110...")
-		if SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
+		If SPC7110_SetBanks(hCOM,1,FALSE) = FALSE or _
 			SPC7110_SetBanks(hCOM,0,FALSE) = FALSE Then
 			ErrMes(hMainWnd,ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。","SPC7110 Bank Control Error",0)
 			ExitSub
 		End If
 		SPC7110_PrintBanks(hCOM)
 
-	Elseif info->ROMType=SFC_MAP_CX4_2DC0N Then
+	ElseIf info->ROMType=SFC_MAP_CX4_2DC0N Then
 		DBM("CX4 for ROCKMAN X2")
 
 		' https://sd2snes.de/files/cx4_notes.txt
 		/*
 		$7f52: ROM configuration select
-	       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
-    	          1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
+		   LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
+				  1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
 
-	       HiROM: 0: 2x  8Mbit (A20 switches)
-	              1: 2x 16Mbit (A21 switches)
+		   HiROM: 0: 2x  8Mbit (A20 switches)
+				  1: 2x 16Mbit (A21 switches)
 		*/
 		' Set ROM configuration to 2xROM (8Mx2)
 		SetCartRegister(0, &H7f52, 0)
 
-	Elseif info->ROMType=SFC_MAP_CX4_1DC0N Then
+	ElseIf info->ROMType=SFC_MAP_CX4_1DC0N Then
 		DBM("CX4 for ROCKMAN X3")
 
 		' Set ROM configuration to 1xROM (16Mx1)
@@ -352,17 +375,17 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 	Do
 		'ESCキーでキャンセル
 		PumpMessage()
-		if GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto *EXIT_DUMP
+		If GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto *EXIT_DUMP
 
 		'吸出し＆データチェック
 		ret=ReadROM(hCOM,buf, 0, DumpAddress, DUMP_BUFFER_SIZE,info->isLoROM)
-		if ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
-		if ret<>DUMP_BUFFER_SIZE Then 
+		If ret=0 Then DBM("ERROR!"):Goto *EXIT_DUMP
+		If ret<>DUMP_BUFFER_SIZE Then 
 			DBMN(ex"[x"+Str$(C)+ex"]")
 			C++
-			'if C>MAX_CONTINUE Then DBM("Over retry count.")
+			'If C>MAX_CONTINUE Then DBM("Over retry count.")
 			Continue
-		endif
+		End If
 
 		'ファイルへ出力
 		OutFile(hout,buf,DUMP_BUFFER_SIZE)
@@ -371,8 +394,8 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		bufChecksum=SnesCheckSum(buf,DUMP_BUFFER_SIZE)
 
 		'3MBの時はラスト8Mbitを再加算
-		if DumpAddress>=1024*1024*2 Then
-			if info->ROMSize=1024*1024*3 Then
+		If DumpAddress>=1024*1024*2 Then
+			If info->ROMSize=1024*1024*3 Then
 				bufChecksum+=bufChecksum
 			End If
 		End If
@@ -383,20 +406,20 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 		'次のアドレスを計算
 		DumpAddress+=DUMP_BUFFER_SIZE
 		'特殊系のバンク切り替え
-		if info->ROMType=SFC_MAP_SpLoROM Then
-			if DumpAddress-offset=&H200000 Then
+		If info->ROMType=SFC_MAP_SpLoROM Then
+			If DumpAddress-offset=&H200000 Then
 				'吸出しアドレスをバンク80hに飛ばす
 				offset=&H400000		'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
 				DumpAddress=offset
 				Size=&H100000
 
 				DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
-			Endif
+			End If
 
-		Else if DumpAddress-offset=&H400000 Then
+		Else If DumpAddress-offset=&H400000 Then
 			'4MB超えする時
-			/*if info->ROMType=SFC_MAP_SA1 And info->ROMSize > &H400000 Then
-				if bBankChanged=FALSE Then
+			/*If info->ROMType=SFC_MAP_SA1 And info->ROMSize > &H400000 Then
+				If bBankChanged=FALSE Then
 					DBM(ex"\r\n[SA-1]Bank Change: 04h-07h")
 					SA1_BankCtrl(hCOM,4)
 					bBankChanged=TRUE
@@ -405,8 +428,8 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 					ExitDo
 				End If
 	
-			Else */if info->ROMType=SFC_MAP_SDD1 Then
-				if bBankChanged=FALSE Then
+			Else */If info->ROMType=SFC_MAP_SDD1 Then
+				If bBankChanged=FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
 					DBM(ex"\r\n")
 					bBankChanged=TRUE
@@ -420,17 +443,17 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 					ExitDo
 				End If
 
-			Elseif info->ROMType=SFC_MAP_SPC7110 Then
-				if bBankChanged=TRUE Then ExitDo
+			ElseIf info->ROMType=SFC_MAP_SPC7110 Then
+				If bBankChanged=TRUE Then ExitDo
 				DBM("")
 				bBankChanged=TRUE
 				SPC7110_SetBanks(hCOM,1,FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
 				DumpAddress=offset+&H300000	'F0:0000からリスタート
 
-			Elseif info->ROMType=SFC_MAP_ExHiROM Then
+			ElseIf info->ROMType=SFC_MAP_ExHiROM Then
 				'わざわざバンク切り替え使わなくてもダンプできるけど一応
 
-				if bBankChanged Then
+				If bBankChanged Then
 					ExitDo
 				Else
 					DumpAddress=&H400000
@@ -441,7 +464,7 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 			End If
 
 		End If
-		if DumpAddress-offset>=Size Then ExitDo
+		If DumpAddress-offset>=Size Then ExitDo
 
 		'進捗表示
 		SendMessage(GetDlgItem(hMainWnd,hProg),PBM_STEPIT,0,0)
@@ -455,22 +478,22 @@ Sub DumpFullROM(info As *SFC_CART_INFO,Path As BytePtr)
 
 	DBM("HeaderSum:"+Hex$(info->CheckSum2))
 	DBM("ActualSum:"+Hex$(CheckSum And &HFFFF))
-	if info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
+	If info->CheckSum2=(CheckSum And &HFFFF) and info->CheckSum1=(not(CheckSum) And &HFFFF) Then
 		DBM(ex"Checksum OK")
 		DBM(ex"Successful!!!")
 	Else
-		if info->diableChecksum Then
+		If info->diableChecksum Then
 			DBM("Checksum is disabled.")
 		Else
 			DBM(ex"Checksum Error!!!")
 			MessageBoxf(hMainWnd,"ROM Dump Error",MB_ICONERROR, _
 				ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1,(not(CheckSum) And &HFFFF),info->CheckSum2,(CheckSum And &HFFFF))
 		End If
-	Endif
+	End If
 
 *EXIT_DUMP
 
-/*	if info->ROMType=SFC_MAP_SA1 And info->isBSX Then
+/*	If info->ROMType=SFC_MAP_SA1 And info->isBSX Then
 		SA1_BankCtrl(hCOM,0)
 		SA1_DeInit()
 	End If
@@ -493,10 +516,10 @@ EndSub
 Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	Dim i As Long,someCount As DWord,last As Byte
 	For i=0 To size
-		if last=adr[i] Then
-			/*if last<>0 Then*/ someCount++	'0連続はよくあるので除外
+		If last=adr[i] Then
+			/*If last<>0 Then*/ someCount++	'0連続はよくあるので除外
 			
-			if someCount=>&H1000 Then DBM(Hex$(last)+"fill"):ExitFunction
+			If someCount=>&H1000 Then DBM(Hex$(last)+"fill"):ExitFunction
 		Else
 			someCount=0
 		End If
@@ -511,7 +534,7 @@ Function SnesCheckSum(data As BytePtr,length As DWord) As DWord
 	SnesCheckSum=0
 	Do
 		SnesCheckSum += data[i]
-		if i => length-1 Then ExitDo
+		If i => length-1 Then ExitDo
 		i++
 	Loop
 End Function
@@ -521,7 +544,7 @@ End Function
 ' SRAM Functions
 '---------------------------
 
-Const SRAM_CTRL_SA1     = &H01000000
+Const SRAM_CTRL_SA1	 = &H01000000
 Const SRAM_CTRL_SPC7110 = &H02000000
 
 Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
@@ -607,202 +630,206 @@ Dim SFC_JRA_SRAM_MODEL[3]=[
 ] As DWord
 
 
-Function GetSramModel(info AS *SFC_CART_INFO) AS *SFC_SRAM_MODEL
-	if info->CartType = &HE5 Then
-		GetSramModel=SFC_BSX_SRAM_MODEL
+Function GetSramModel(info As *SFC_CART_INFO) As *SFC_SRAM_MODEL
+	Dim model As *DWord
+	If info->CartType = &HE5 Then
+		model = SFC_BSX_SRAM_MODEL
 
-	Elseif info->ROMType = SFC_MAP_SDD1 Then
-		GetSramModel=SFC_SDD1_SRAM_MODEL
+	ElseIf info->ROMType = SFC_MAP_SDD1 Then
+		model = SFC_SDD1_SRAM_MODEL
 
-	Elseif info->ROMType = SFC_MAP_SPC7110 Then
-		GetSramModel=SFC_SPC7110_SRAM_MODEL
+	ElseIf info->ROMType = SFC_MAP_SPC7110 Then
+		model = SFC_SPC7110_SRAM_MODEL
 
-	Elseif info->ROMType = SFC_MAP_ExHiROM Then
-		GetSramModel=SFC_ExHiROM_SRAM_MODEL
+	ElseIf info->ROMType = SFC_MAP_ExHiROM Then
+		model = SFC_ExHiROM_SRAM_MODEL
 
-	Elseif info->ROMType = SFC_MAP_SA1 Then
-		GetSramModel=SFC_SA1_SRAM_MODEL
+	ElseIf info->ROMType = SFC_MAP_SA1 Then
+		model = SFC_SA1_SRAM_MODEL
 
-	Elseif info->ROMType = SFC_MAP_ST010 Then
-		GetSramModel=SFC_ST010_SRAM_MODEL
+	ElseIf info->ROMType = SFC_MAP_ST010 Then
+		model = SFC_ST010_SRAM_MODEL
 
-	Elseif info->isFlashSave Then
-		GetSramModel=SFC_JRA_SRAM_MODEL
+	ElseIf info->isFlashSave Then
+		model = SFC_JRA_SRAM_MODEL
 
-	Elseif info->isLoROM Then
-		GetSramModel=SFC_LoROM_SRAM_MODEL
+	ElseIf info->isLoROM Then
+		model = SFC_LoROM_SRAM_MODEL
 
 	Else
-		GetSramModel=SFC_HiROM_SRAM_MODEL
-
+		model = SFC_HiROM_SRAM_MODEL
 	End If
+
+	GetSramModel = model As *SFC_SRAM_MODEL
 End Function
 
-Sub DumpSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
-	dim fout As File
-
-	if info->SRAMSize=0 Then DBM("SRAM Size is zero."):ExitSub
-
-	if fout.openFile(FileName,GENERIC_WRITE) = FALSE Then
-		DBM("Cannot open file! "+MakeStr(FileName))
-		ErrMes(hMainWnd,"SRAMを保存できませんでした。","File I/O Error",0,GetLastError())
+Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, FileName As BytePtr)
+	Dim fout As File
+	
+	If info->SRAMSize = 0 Then
+		DBM("SRAM Size is zero.")
 		ExitSub
-	Endif
-
-	Dim sraminfo As *SFC_SRAM_MODEL
-	Dim bankCount As DWord
-	Dim lastDumpSize AS DWord
-	Dim buf As BytePtr
-
-	sraminfo=GetSramModel(info)
-
-	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
 	End If
-
-	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
-	lastDumpSize=info->SRAMSize - bankCount*sraminfo->bankSize
-	buf=calloc(sraminfo->bankSize)
-
+	
+	If fout.openFile(FileName, GENERIC_WRITE) = FALSE Then
+		DBM("Cannot open file! " + MakeStr(FileName))
+		ErrMes(hMainWnd, "SRAMを保存できませんでした。", "File I/O Error", 0, GetLastError())
+		ExitSub
+	End If
+	
+	Dim sraminfo As * SFC_SRAM_MODEL
+	Dim bankCount As DWord
+	Dim lastDumpSize As DWord
+	Dim buf As BytePtr
+	
+	sraminfo = GetSramModel(info)
+	
+	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
+	End If
+	
+	bankCount = Int(info->SRAMSize / sraminfo->bankSize)
+	lastDumpSize = info->SRAMSize - bankCount * sraminfo->bankSize
+	buf = calloc(sraminfo->bankSize)
+	
 	DBM("Dumping SRAM...")
-	DBM("SramSize = "+Str$(info->SRAMSize/1024)+"KB")
-	DBM("bankSize = "+Str$(sraminfo->bankSize/1024)+"KB")
-	DBM("bankCount= "+Str$(bankCount))
-
-	SendControl(hSerial,sraminfo->ctrlBus or WE)
-
-	Dim i As Long,readAddr AS DWord
+	DBM("SramSize = " + Str$(info->SRAMSize / 1024) + "KB")
+	DBM("bankSize = " + Str$(sraminfo->bankSize / 1024) + "KB")
+	DBM("bankCount= " + Str$(bankCount))
+	
+	SendControl(hSerial, (sraminfo->ctrlBus Or WE) As Byte)
+	
+	Dim i As Long, readAddr As DWord
 	Do
-		if i => bankCount Then ExitDo
-		if GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):Goto *EXIT_SRAM_DUMP
-
-		readAddr= sraminfo->adr + i*sraminfo->bankStep
-		DBM(sprintfStr("SRAM %02X:%04X +%04X",readAddr>>16,readAddr And &HFFFF,sraminfo->bankSize))
+		If i = > bankCount Then ExitDo
+		If GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):GoTo *EXIT_SRAM_DUMP
 		
-		SendControl(hSerial,sraminfo->ctrlBus or WE)
+		readAddr = sraminfo->adr + i * sraminfo->bankStep
+		DBM(sprintfStr("SRAM %02X:%04X +%04X", readAddr>>16, readAddr And &HFFFF, sraminfo->bankSize))
+		
+		SendControl(hSerial, (sraminfo->ctrlBus Or WE) As Byte)
 		ReadROM(hSerial, buf, 0, readAddr, sraminfo->bankSize, FALSE)
-		fout.write(buf,sraminfo->bankSize)
+		fout.write(buf, sraminfo->bankSize)
 		i++
 		PumpMessage()
 	Loop
 	
-	if lastDumpSize > 0 Then
-		DBM(sprintfStr("LastSRAM %02X:%04X +%04X",i+sraminfo->adr>>16,sraminfo->adr And &HFFFF,lastDumpSize))
-		ReadROM(hSerial,buf, 0, sraminfo->adr + i*sraminfo->bankStep, lastDumpSize,FALSE)
-		fout.write(buf,lastDumpSize)
+	If lastDumpSize > 0 Then
+		DBM(sprintfStr("LastSRAM %02X:%04X +%04X", i + sraminfo->adr>>16, sraminfo->adr And &HFFFF, lastDumpSize))
+		ReadROM(hSerial, buf, 0, sraminfo->adr + i * sraminfo->bankStep, lastDumpSize, FALSE)
+		fout.write(buf, lastDumpSize)
 	End If
 	
 	DBM(ex"SRAM dumping successful!!!\r\n")
-
+	
 *EXIT_SRAM_DUMP
-	if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-			SPC7110_SetBanks(hCOM,0,FALSE)	'SRAM ENABLE
+	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM ENABLE
 	End If
-
-	SendControl(hSerial,DEFAULT_CTRLBUS)
-
+	
+	SendControl(hSerial, DEFAULT_CTRLBUS)
+	
 	fout.close()
 	free(buf)
-
+		
 End Sub
 
 'Writing SA-1 SRAM routine is based on sanni's cartreader.
-Sub WriteSRAM(hSerial As HANDLE,info As *SFC_CART_INFO,FileName As BytePtr)
-	Dim fin AS File
 
+Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
+	Dim fin As File
+	
 	'諸計算
-	Dim sraminfo As *SFC_SRAM_MODEL
+	Dim sraminfo As * SFC_SRAM_MODEL
 	Dim bankCount As DWord
-	Dim lastDumpSize AS DWord
+	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
-
-	sraminfo=GetSramModel(info)
-
-	if sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
+	
+	sraminfo = GetSramModel(info)
+	
+	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SA-1レジスタセットアップ
-		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register 
+		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register
 		Sleep(500)
-		SetCartRegister(&H00,&H2224,&H00,FALSE)	'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
-		SetCartRegister(&H00,&H2226,&H80,FALSE)	'SNES CPU BW-RAM Write Enable (W)
-		SetCartRegister(&H00,&H2228,&H00,FALSE)	'BW-RAM Write-Protected Area (W)
+		SetCartRegister(&H00, &H2224, &H00, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
 		Sleep(100)
-
-		'書き込み用のメモリモデルを持ってくる
-		sraminfo=SFC_SA1_WRITE_SRAM_MODEL
-
-	Else if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM,0,TRUE)	'SRAM ENABLE
-	End If
-
-	bankCount=Int(info->SRAMSize / sraminfo->bankSize)
-	lastDumpSize=info->SRAMSize - bankCount*sraminfo->bankSize
-	buf=calloc(info->SRAMSize)
-
-	DBM("Writing SRAM...")
-	DBM("SramSize = "+Str$(info->SRAMSize/1024)+"KB")
-	DBM("bankSize = "+Str$(sraminfo->bankSize/1024)+"KB")
-	DBM("bankCount= "+Str$(bankCount))
-
-	'バッファ生成	
-	if fin.openFile(FileName,GENERIC_READ) = FALSE Then
-		DBM("Cannot open file! "+MakeStr(FileName))
-		ErrMes(hMainWnd,"SRAMファイルが開けませんでした。","File Open Error",0,GetLastError())
-		ExitSub
-	Endif
-	fin.read(buf,info->SRAMSize)
-	fin.close()
-
-	'ライト開始
-	SendControl(hSerial,sraminfo->ctrlBus or OE)
-
-	Dim i AS DWord, writeAddr AS DWord
-	Do
-		if i => bankCount Then ExitDo
-
-		writeAddr= sraminfo->adr + i*sraminfo->bankStep
-		if  sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
-			'SA-1 SRAM バンク切り替え
-			SetCartRegister(&H00,&H2224,i   ,FALSE)	'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
-			SetCartRegister(&H00,&H2226,&H80,FALSE)	'SNES CPU BW-RAM Write Enable (W)
-			writeAddr= sraminfo->adr
-		End If
-		DBM(sprintfStr("SRAM %02X:%04X +%04X",writeAddr>>16,writeAddr And &HFFFF,sraminfo->bankSize))
 		
-		SendControl(hSerial,sraminfo->ctrlBus or WE)
-		WriteROM(hSerial, buf + i*sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
-
-		i++
+		'書き込み用のメモリモデルを持ってくる
+		sraminfo = SFC_SA1_WRITE_SRAM_MODEL As * SFC_SRAM_MODEL
+		
+	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
+	End If
+	
+	bankCount = Int(info->SRAMSize / sraminfo->bankSize)
+	lastDumpSize = info->SRAMSize - bankCount * sraminfo->bankSize
+	buf = calloc(info->SRAMSize)
+	
+	DBM("Writing SRAM...")
+	DBM("SramSize = " + Str$(info->SRAMSize / 1024) + "KB")
+	DBM("bankSize = " + Str$(sraminfo->bankSize / 1024) + "KB")
+	DBM("bankCount= " + Str$(bankCount))
+	
+	'バッファ生成
+	If fin.openFile(FileName, GENERIC_READ) = FALSE Then
+		DBM("Cannot open file! " + MakeStr(FileName))
+		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
+		ExitSub
+	End If
+	fin.read(buf, info->SRAMSize)
+	fin.close()
+	
+	'ライト開始
+	SendControl(hSerial, (sraminfo->ctrlBus or OE) As Byte)
+	
+	Dim i As DWord, writeAddr As DWord
+	Do
+		If i = > bankCount Then ExitDo
+		
+		writeAddr = sraminfo->adr + i * sraminfo->bankStep
+		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
+			'SA-1 SRAM バンク切り替え
+			SetCartRegister(&H00, &H2224, i As Byte , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+			SetCartRegister(&H00, &H2226, &H80      , FALSE) 'SNES CPU BW-RAM Write Enable (W)
+			writeAddr = sraminfo->adr
+		End If
+		DBM(sprintfStr("SRAM %02X:%04X +%04X", writeAddr>>16, writeAddr And &HFFFF, sraminfo->bankSize))
+		
+		SendControl(hSerial, (sraminfo->ctrlBus or WE) As Byte)
+		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
+		
+		i + +
 		PumpMessage()
 	Loop
 	
-	if lastDumpSize > 0 Then
-		DBM(sprintfStr("LastSRAM %02X:%04X +%04X",i+sraminfo->adr>>16,sraminfo->adr And &HFFFF,lastDumpSize))
-		WriteROM(hSerial,buf + i*sraminfo->bankSize, 0, sraminfo->adr + i*sraminfo->bankStep, lastDumpSize,FALSE)
+	If lastDumpSize > 0 Then
+		DBM(sprintfStr("LastSRAM %02X:%04X +%04X", i + sraminfo->adr>>16, sraminfo->adr And &HFFFF, lastDumpSize))
+		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, sraminfo->adr + i * sraminfo->bankStep, lastDumpSize, FALSE)
 	End If
 	
-	if sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
+	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SRAMを最後まで書き込んだ後、何故かSRAMの先頭バイトが0x00になってしまうので再度書き込み
-		SetCartRegister(&H00, &H2224, 0   , FALSE)	'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
-		SetCartRegister(&H00, &H2226, &H80, FALSE)	'SNES CPU BW-RAM Write Enable (W)
-		SetCartRegister(&H00, sraminfo->adr, buf[0], FALSE)	'Rewrite First Byte
-
+		SetCartRegister(&H00, &H2224, 0   , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+		SetCartRegister(&H00, sraminfo->adr As Word, buf[0], FALSE) 'Rewrite First Byte
+		
 		'CPUクロックを停止してフィニッシュ
-		SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)
-
-	Else if sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM,0,FALSE)	'SRAM DISABLE
-
+		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL)
+		
+	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
+		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
+		
 	End If
-
-	SendControl(hSerial,DEFAULT_CTRLBUS)
+	
+	SendControl(hSerial, DEFAULT_CTRLBUS)
 	free(buf)
 	DBM(ex"SRAM writing successful!!!\r\n")
 	
-	SetAddress(hSerial,&H000000 ,FALSE)
-
+	SetAddress(hSerial, &H000000 , FALSE)
+	
 End Sub
-
-
 
 
 '------------------------------
@@ -811,33 +838,32 @@ End Sub
 
 'SDD1のバンクをセットアップ
 'SNESバンクC0, D0, E0, F0にbankStartから始まるROMバンク(1MByteごと)を割り当て
-Sub SDD1_SetBanks(hCOM As HANDLE,bankStart As Long)
+Sub SDD1_SetBanks(hCOM As HANDLE, bankStart As Long)
 	Dim buf[3] As Byte, i As Long
-	DBM(sprintfStr("Setting S-DD1 bank %d-%d...",bankStart,bankStart+3))
-
-	For i=0 To 3
-		buf[i] = (bankStart+i) As Byte
+	DBM(sprintfStr("Setting S-DD1 bank %d-%d...", bankStart, bankStart + 3))
+	
+	For i = 0 To 3
+		buf[i] = (bankStart + i) As Byte
 	Next i
-
-	SendControl(hCOM,RST or OE)
-	WriteROM(hCOM,buf,0,&H004804,4,FALSE)
-	SendControl(hCOM,DEFAULT_CTRLBUS)
+	
+	SendControl(hCOM, RST Or OE)
+	WriteROM(hCOM, buf, 0, &H004804, 4, FALSE)
+	SendControl(hCOM, DEFAULT_CTRLBUS)
 End Sub
 
 '現在のSDD1のバンク設定をGUIに出力
+
 Sub SDD1_PrintBanks(hCOM As HANDLE)
 	Dim buf[3] As Byte, i As Long
-
-	SendControl(hCOM,DEFAULT_CTRLBUS)
-	ReadROM(hCOM,buf,0,&H004804,4,FALSE)
-			
-	For i=0 To 3
-		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d",&HC+i,&HC+i,buf[i]))
+	
+	SendControl(hCOM, DEFAULT_CTRLBUS)
+	ReadROM(hCOM, buf, 0, &H004804, 4, FALSE)
+	
+	For i = 0 To 3
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d", &HC + i, &HC + i, buf[i]))
 	Next i
-
+	
 End Sub
-
-
 
 Const SNES_SPC7110_VBANKS_COUNT = 3
 Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2
@@ -845,11 +871,11 @@ Const SNES_SPC7110_MMC_ADR = &H4830
 Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As BOOL
 	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
 
-	if bSRAM_Enable Then
+	If bSRAM_Enable Then
 		DBM("[SPC7110]SRAM Enable")
 	Else
 		DBM("[SPC7110]SRAM Disable")
-	Endif 
+	End If 
 
 	'RESET
 	SendControl(hCOM,WE or CE or OE)
@@ -861,38 +887,36 @@ Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As B
 	buf[0]=(bSRAM_Enable<<7) As Byte
 	buf[4]=&H03 '3バンク変更する
 
-	SendControl(hCOM,RST or CE or OE)
-	WriteROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
-	SendControl(hCOM,DEFAULT_CTRLBUS)
-	ReadROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
+	SendControl(hCOM, RST or CE or OE)
+	WriteROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
+	SendControl(hCOM, DEFAULT_CTRLBUS)
+	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
 
 	'check bank
 	SPC7110_SetBanks=TRUE
 	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
-		if buf[i+1] <> bank+i Then SPC7110_SetBanks=FALSE :	ExitFor
+		If buf[i+1] <> bank+i Then SPC7110_SetBanks=FALSE :	ExitFor
 	Next i
 
-	if SPC7110_SetBanks=FALSE Then
+	If SPC7110_SetBanks=FALSE Then
 		DBM("bank change failed")
 	End If
 End Function
 
 Sub SPC7110_PrintBanks(hCOM As HANDLE)
-	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long '	SendControl(hCOM,RST or WE)
+	SendControl(hCOM, DEFAULT_CTRLBUS)
+	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
 
-'	SendControl(hCOM,RST or WE)
-	SendControl(hCOM,DEFAULT_CTRLBUS)
-	ReadROM(hCOM,buf,0,SNES_SPC7110_MMC_ADR,SNES_SPC7110_MMC_REG_SIZE,FALSE)
-	
-	if buf[0] And &H80 Then 
+	If buf[0] And &H80 Then
 		DBM("SRAM-ENABLE")
 	Else
 		DBM("SRAM-DISABLE")
 	End If
 
-	For i=1 To SNES_SPC7110_VBANKS_COUNT
-		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d",&HC+i,&HC+i,buf[i]))
+	For i = 1 To SNES_SPC7110_VBANKS_COUNT
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d", & HC + i, & HC + i, buf[i]))
 	Next i
 
-	DBM("Logical-MaxBank : "+Str$(buf[4]))
+	DBM("Logical-MaxBank : " + Str$(buf[4]))
 End Sub

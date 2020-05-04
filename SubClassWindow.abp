@@ -6,8 +6,9 @@
 '-----------------------------
 Const WM_CTLCOLOR=&H0019
 Const cb_ctrl_count = 2
+Typedef WndProcFunc = *Function(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT 
 Dim cb_ctrl_hWnds[cb_ctrl_count] AS HWND
-Dim cb_old_proc[cb_ctrl_count] As *Function(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+Dim cb_old_proc[cb_ctrl_count] As WndProcFunc
 Dim cb_bgBrush AS HBRUSH
 Dim txtColor AS DWord
 Const cb_bgColor = COLOR_3DFACE
@@ -17,68 +18,69 @@ Dim hAccel AS HANDLE
 
 Sub RegisterSubClass()
 	'サブクラス化するウィンドウを記述
-	cb_ctrl_hWnds[0]=MWnd(ROM_SIZE)
-	cb_ctrl_hWnds[1]=MWnd(SRAM_SIZE)
-	cb_ctrl_hWnds[2]=MWnd(MAPPING)
-
+	cb_ctrl_hWnds[0] = MWnd(ROM_SIZE)
+	cb_ctrl_hWnds[1] = MWnd(SRAM_SIZE)
+	cb_ctrl_hWnds[2] = MWnd(MAPPING)
+	
 	'サブクラス化する
 	Dim i AS Long
-	For i=0 to cb_ctrl_count
-		cb_old_proc[i] = GetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC)
-		SetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC, AddressOf(cb_proc))
+	For i = 0 to cb_ctrl_count
+		cb_old_proc[i] = GetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC) As WndProcFunc
+		SetWindowLong(cb_ctrl_hWnds[i], GWL_WNDPROC, AddressOf(cb_proc) As Long)
 	Next i
-
-	cb_bgBrush=CreateSolidBrush(GetSysColor(cb_bgColor))
-	txtColor=GetSysColor(COLOR_WINDOWTEXT)
+	
+	cb_bgBrush = CreateSolidBrush(GetSysColor(cb_bgColor))
+	txtColor = GetSysColor(COLOR_WINDOWTEXT)
 End Sub
 
-Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+Function cb_proc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As LRESULT
 	'メッセージ処理
-	if dwMsg=WM_CTLCOLORLISTBOX or dwMsg=WM_CTLCOLOREDIT Then
-		SetBkMode(wParam, TRANSPARENT)
-		SetTextColor(wParam, txtColor)
-		cb_proc= cb_bgBrush 
+	if dwMsg = WM_CTLCOLORLISTBOX or dwMsg = WM_CTLCOLOREDIT Then
+		SetBkMode(wParam As HDC, TRANSPARENT)
+		SetTextColor(wParam As HDC, txtColor)
+		cb_proc = cb_bgBrush As LRESULT
 		ExitFunction
 	End If
-
+	
 	'デフォルトウィンドウプロシージャを呼ぶ
 	Dim i AS Long
-	for i=0 to cb_ctrl_count
-		if hWnd=cb_ctrl_hWnds[i] Then
-			cb_proc=CallWindowProc(cb_old_proc[i],hWnd,dwMsg,wParam,lParam)
-			exitfor
-		Endif
+	For i = 0 to cb_ctrl_count
+		if hWnd = cb_ctrl_hWnds[i] Then
+			cb_proc = CallWindowProc(cb_old_proc[i], hWnd, dwMsg, wParam, lParam)
+			ExitFor
+		EndIf
 	Next i
 End Function
 
+
 Sub RegistAcceleratorKey()
 	Dim accel[5] as ACCEL
-	accel[0].fVirt=FVIRTKEY or FALT
-	accel[0].key=GetByte("C")
-	accel[0].cmd=CommandButton5
-
-	accel[1].fVirt=FVIRTKEY or FALT
-	accel[1].key=GetByte("G")
-	accel[1].cmd=CommandButton1
-
-	accel[2].fVirt=FVIRTKEY or FALT
-	accel[2].key=GetByte("R")
-	accel[2].cmd=CommandButton2
-
-	accel[3].fVirt=FVIRTKEY or FALT
-	accel[3].key=GetByte("S")
-	accel[3].cmd=CommandButton3
-
-	accel[4].fVirt=FVIRTKEY or FALT
-	accel[4].key=GetByte("W")
-	accel[4].cmd=CommandButton4
-
-	accel[5].fVirt=FVIRTKEY
-	accel[5].key=VK_TAB
-	accel[5].cmd=ID_DLG_TAB
-
-	hAccel=CreateAcceleratorTable(accel, 6)
-	if hAccel=NULL then
+	accel[0].fVirt = FVIRTKEY or FALT
+	accel[0].key = GetByte("C")
+	accel[0].cmd = CommandButton5
+	
+	accel[1].fVirt = FVIRTKEY or FALT
+	accel[1].key = GetByte("G")
+	accel[1].cmd = CommandButton1
+	
+	accel[2].fVirt = FVIRTKEY or FALT
+	accel[2].key = GetByte("R")
+	accel[2].cmd = CommandButton2
+	
+	accel[3].fVirt = FVIRTKEY or FALT
+	accel[3].key = GetByte("S")
+	accel[3].cmd = CommandButton3
+	
+	accel[4].fVirt = FVIRTKEY or FALT
+	accel[4].key = GetByte("W")
+	accel[4].cmd = CommandButton4
+	
+	accel[5].fVirt = FVIRTKEY
+	accel[5].key = VK_TAB
+	accel[5].cmd = ID_DLG_TAB
+	
+	hAccel = CreateAcceleratorTable(accel, 6)
+	if hAccel = NULL then
 		DBM("Accelerator regist failed.")
 	End If
 End Sub

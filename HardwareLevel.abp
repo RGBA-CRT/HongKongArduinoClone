@@ -2,44 +2,44 @@
 
 Function GetComBaudrate(hSerial AS HANDLE) AS DWord
 	Dim dcb As DCB_SETTING
-	GetCommState(hSerial,dcb)
-	GetComBaudrate=dcb.BaudRate
+	GetCommState(hSerial, dcb)
+	GetComBaudrate = dcb.BaudRate
 End Function
 
-Function SetComTimeOut(hSerialPort AS HANDLE,TimeOut AS DWord) AS Byte
+Function SetComTimeOut(hSerialPort AS HANDLE, TimeOut AS DWord) AS Byte
 	Dim ct AS COMMTIMEOUTS
-	ct.ReadIntervalTimeout=TimeOut		'連続受信タイムアウト
-	ct.ReadTotalTimeoutConstant=TimeOut	'Constant+Multiplier*バイト数＝タイムアウト
-	ct.ReadTotalTimeoutMultiplier=20
-	ct.WriteTotalTimeoutConstant=TimeOut
-	ct.WriteTotalTimeoutMultiplier=20
+	ct.ReadIntervalTimeout = TimeOut '連続受信タイムアウト
+	ct.ReadTotalTimeoutConstant = TimeOut 'Constant+Multiplier*バイト数＝タイムアウト
+	ct.ReadTotalTimeoutMultiplier = 20
+	ct.WriteTotalTimeoutConstant = TimeOut
+	ct.WriteTotalTimeoutMultiplier = 20
+	
+	SetCommTimeouts(hSerialPort, VarPtr(ct))
+End Function
 
-	SetCommTimeouts(hSerialPort,VarPtr(ct))
-EndFunction
-
-Sub ChangeComBaudrate(hSerial AS HANDLE,rate AS DWord)
+Sub ChangeComBaudrate(hSerial AS HANDLE, rate AS DWord)
 	Dim dcb As DCB_SETTING
-	GetCommState(hSerial,dcb)
-	dcb.BaudRate = rate		'転送速度の指定
-	SetCommState(hSerial,dcb)
-
+	GetCommState(hSerial, dcb)
+	dcb.BaudRate = rate '転送速度の指定
+	SetCommState(hSerial, dcb)
+	
 	FlushCom(hSerial)
-
-	GetCommState(hSerial,dcb)
+	
+	GetCommState(hSerial, dcb)
 End Sub
 
-Sub ChangeBaudrate(hSerial AS HANDLE,rate AS DWord)
+Sub ChangeBaudrate(hSerial AS HANDLE, rate AS DWord)
 	'Arduinoレート変更コマンド送信
-	Dim cmd[5] AS Byte,dwAB AS DWord
-	cmd[0]=Asc("b")
-	memcpy(cmd+1,VarPtr(rate),4)
-
-	if WriteFile(hSerial,cmd,5,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>5 Then DBM("BC_ERR "+Str$(GetLastError()))
+	Dim cmd[5] AS Byte, dwAB AS DWord
+	cmd[0] = Asc("b")
+	memcpy(cmd + 1, VarPtr(rate), 4)
+	
+	if WriteFile(hSerial, cmd, 5, VarPtr(dwAB), ByVal NULL) = FALSE or dwAB<>5 Then DBM("BC_ERR " + Str$(GetLastError()))
 	FlushFileBuffers(hSerial)
 	FlushCom(hSerial)
-
+	
 	'PC側レート変更
-	ChangeComBaudrate(hSerial,rate)
+	ChangeComBaudrate(hSerial, rate)
 End Sub
 
 Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuffer AS DWord) AS HANDLE
@@ -63,7 +63,7 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 		outBuffer=GetLastError()
 		DBM("Init com error")
 		debug
-	End If
+	End  If
 
 	FlushCom(hSerial)
 
@@ -80,7 +80,7 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 '	DBM("baudrate="+Str$(rate)+"bps")
 	
 	OpenComPort=hSerial
-EndFunction
+End Function
 
 'RST OE WE CS などを制御
 Sub SendControl(hSerial AS HANDLE,b AS Byte)
@@ -88,7 +88,7 @@ Sub SendControl(hSerial AS HANDLE,b AS Byte)
 	cmd[0]=Asc("c")
 	cmd[1]=b
 	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError()))
-EndSub
+End Sub
 
 'アドレスセット
 Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
@@ -101,7 +101,7 @@ Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
 		cmd[0]=Asc("a")
 	Else
 		cmd[0]=Asc("A")
-	Endif
+	End if
 
 	'[1-3] アドレス(ビッグエンディアン)
 	cmd[1] = (address >>  0) AS Byte
@@ -109,7 +109,7 @@ Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
 	cmd[3] = (address >> 16) AS Byte
 
 	WriteFile(hSerial,cmd,4,VarPtr(dwReadByte),ByVal NULL)
-EndSub
+End Sub
 
 'カートリッジからのデータ受信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
@@ -121,7 +121,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		cmd[0]=Asc("r")	'LoROM	
 	Else
 		cmd[0]=Asc("R")	'HiROM
-	Endif
+	End if
 
 	cmd[1] = (address >>  0) AS Byte
 	cmd[2] = (address >>  8) AS Byte
@@ -131,7 +131,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		DBM("ReadROM()で不正なサイズが指定されました")
 		debug
 		'size=&HFFFF
-	Endif
+	End if
 
 	cmd[4] = (size >>   0) AS Byte
 	cmd[5] = (size >>   8) AS Byte
@@ -141,19 +141,19 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	ReadROM=ReceiveFromReader(hSerial, data, size)
 	
 	printf(ex"%03X:%X/%X bytes received.\n",address,ReadROM,size)
-EndFunction
+End Function
 
 Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long
 	Dim ReadByte As DWord	
 	Dim dwReadByte As DWord
 	if TimeoutMul <= 1.0 Then
 		TimeoutMul=1.0
-	End If
+	End  If
 
 	'デフォルトのリトライ回数(=タイムアウトのms)
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
 	Dim HKAC_HW_RETRY As DWord
-	HKAC_HW_RETRY = (size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN
+	HKAC_HW_RETRY = ((size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN) AS DWord
 	printf(ex"論理転送時間：%dms  ",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
@@ -167,7 +167,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 			retry++
 			if retry Mod 100 Then Sleep(1)
 			Continue
-		End If
+		End  If
 
 		if ReadFile(hSerial,(data) + ReadByte, cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
 		ReadByte+=dwReadByte
@@ -194,7 +194,7 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 			readLen=0
 		Else
 			readLen=1
-		End If
+		End  If
 
 		ReadFile(hSerial,VarPtr(rsv),readLen ,VarPtr(dwErrors),ByVal NULL)
 		if rsv=requestChar Then 
@@ -204,8 +204,8 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 			'なぜかここに来て読んだバイト数が0になることがある
 			if dwErrors<>readLen Then
 				printf(ex"[WaitRequest]Invailed Request : %X[%c] <> %X[%c] %d \n",rsv,rsv,requestChar,requestChar,dwErrors)
-			Endif
-		End If
+			End if
+		End  If
 		Sleep(1)
 		retry++
 		if retry<timedOut_ms Then Continue
@@ -213,7 +213,7 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 
 '	if retry>10 Then
 		printf(ex"[WaitRequest] char:%c wait:%d ms ok:%d\n",requestChar,retry,WaitForRequest)
-'	End If
+'	End  If
 End Function
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
@@ -227,7 +227,7 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 		cmd[0]=Asc("w")
 	Else
 		cmd[0]=Asc("W")
-	Endif
+	End if
 
 	cmd[1] = (address >>  0) AS Byte
 	cmd[2] = (address >>  8) AS Byte
@@ -258,203 +258,206 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
 		DBM("[DBG]Firmware Error!")
 		DBM("書込ルーチン暴走中")
-	EndIf
-EndFunction
+	End If
+End Function
 
 Enum HKAC_CLOCK_STATE
 	HKAC_CLOCK_NORMAL  		 = &H35,
 	HKAC_CLOCK_CPU_ENABLED   = &H37,
 	HKAC_CLOCK_CPU_OVERCLOCKED = &H3f,
-	HKAC_CLOCK_DISABLED      = &H30
+	HKAC_CLOCK_DISABLED	  = &H30
 End Enum
 
-Sub SetCPU_Clock(hSerial AS HANDLE,flag AS HKAC_CLOCK_STATE)
+Sub SetCPU_Clock(hSerial AS HANDLE, flag AS HKAC_CLOCK_STATE)
 	Dim dwWB AS DWord
 	Dim cmd[1] AS Byte
-
-	cmd[0]=Asc("g")
-	cmd[1]=flag
-
-	WriteFile(hSerial,cmd, 2,VarPtr(dwWB) , ByVal NULL)
-
-	ReadFile(hSerial,cmd,1,VarPtr(dwWB),ByVal NULL)
 	
-	printf(ex"ClockOutput: %d, %d, %d, oc:%d ret:%X dwAB:%d\n",(flag And 1),(flag And 2)>>1,(flag And 4)>>2,(flag And 8)>>3,cmd[0],dwWB)
+	cmd[0] = GetByte("g")
+	cmd[1] = flag as Byte
+	
+	WriteFile(hSerial, cmd, 2, VarPtr(dwWB) , ByVal NULL)
+	
+	ReadFile(hSerial, cmd, 1, VarPtr(dwWB), ByVal NULL)
+	
+	printf(ex"ClockOutput: %d, %d, %d, oc:%d ret:%X dwAB:%d\n", (flag And 1), (flag And 2)>>1, (flag And 4)>>2, (flag And 8)>>3, cmd[0], dwWB)
 End Sub
 
 
 Function hasClockModule(hSerial AS HANDLE) AS BOOL
 	Dim dwWB AS DWord
 	Dim cmd[1] AS Byte
-
-	cmd[0]=Asc("G")
-
-	WriteFile(hSerial,cmd, 2,VarPtr(dwWB) , ByVal NULL)
-
-	ReadFile(hSerial,cmd,1,VarPtr(dwWB),ByVal NULL)
-	if cmd[0]=&H31 Then
-		hasClockModule=TRUE
+	
+	cmd[0] = Asc("G")
+	
+	WriteFile(hSerial, cmd, 2, VarPtr(dwWB) , ByVal NULL)
+	
+	ReadFile(hSerial, cmd, 1, VarPtr(dwWB), ByVal NULL)
+	if cmd[0] = &H31 Then
+		hasClockModule = TRUE
 	Else
-		hasClockModule=FALSE
+		hasClockModule = FALSE
 	End If
 End Function
 
 'Arduinoに書かれているファームをチェック(別のスケッチか識別)
 'msgをFALSEにするとsilentモード
-Function CheckFirmware(hSerial AS HANDLE,msg As BOOL) AS BOOL
-	Dim cmd[2] AS Byte,rsv[10] As byte,FwVer AS Byte,retry AS Long
+Function CheckFirmware(hSerial AS HANDLE, msg As BOOL) AS BOOL
+	Dim cmd[2] AS Byte, rsv[10] As byte, FwVer AS Byte, retry AS Long
 	Dim dwWD As DWord, ioOk AS BOOL
 	Dim cs AS COMSTAT
 	cmd[0] = Asc("v")
 *SEND_VER_CHECK
-	ioOk = WriteFile(hSerial,cmd,1,VarPtr(dwWD),ByVal NULL)
-	ioOk = ioOk And ReadFile(hSerial,rsv, 5 ,VarPtr(dwWD),ByVal NULL)
-	if ioOk=0 Then
+	ioOk = WriteFile(hSerial, cmd, 1, VarPtr(dwWD), ByVal NULL)
+	ioOk = ioOk And ReadFile(hSerial, rsv, 5 , VarPtr(dwWD), ByVal NULL)
+	if ioOk = 0 Then
 		DBM("[通信エラー] Connection Error.")
 		ExitFunction
 	End If
-
-
-	FwVer=rsv[4]
-	rsv[4]=0
-
-	if lstrcmp(rsv,FIRMWARE_ID)=0 Then 
-		if FwVer=FIRMWARE_VERSION Then
-			CheckFirmware=TRUE
-
-		Elseif FwVer<FIRMWARE_VERSION Then
-			if msg=FALSE Then CheckFirmware=FALSE:ExitFunction
+	
+	
+	FwVer = rsv[4]
+	rsv[4] = 0
+	
+	if lstrcmp(rsv, FIRMWARE_ID) = 0 Then
+		if FwVer = FIRMWARE_VERSION Then
+			CheckFirmware = TRUE
+			
+		Elseif FwVer < FIRMWARE_VERSION Then
+			if msg = FALSE Then
+				CheckFirmware = FALSE
+				ExitFunction
+			end if
 			if MessageBox(hMainWnd,
-				 sprintfStr(ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\nDevice：v%c\nHost：v%c\n\n続行しますか？",
-					FwVer,
-					FIRMWARE_VERSION
-				 ),
-				 "Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
-
-				CheckFirmware=TRUE
+				sprintfStr(ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\nDevice：v%c\nHost：v%c\n\n続行しますか？",
+				FwVer,
+				FIRMWARE_VERSION
+				),
+				"Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
+				
+				CheckFirmware = TRUE
 			Else
-				CheckFirmware=FALSE
+				CheckFirmware = FALSE
 			End If
 		Else
-			if msg=TRUE Then 
+			if msg = TRUE Then
 				MessageBox(hMainWnd,
-					sprintfStr(ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nArduino : FW.v%c\nRequest : FW.v%c",
-						FwVer,
-						FIRMWARE_VERSION
-					),"Detected higher number of Firmware version",
-					MB_ICONINFORMATION
+				sprintfStr(ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nArduino : FW.v%c\nRequest : FW.v%c",
+				FwVer,
+				FIRMWARE_VERSION
+				), "Detected higher number of Firmware version",
+				MB_ICONINFORMATION
 				)
-
+				
 			End If
-
+			
 			DBM("FW ver mismatch")
-			CheckFirmware=TRUE
+			CheckFirmware = TRUE
 		End If
 	Else
 		if retry>5 Then
-			if msg=TRUE Then MessageBox(hMainWnd,ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。","Firmware mismatch",MB_ICONERROR)
+			if msg = TRUE Then MessageBox(hMainWnd, ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。", "Firmware mismatch", MB_ICONERROR)
 			DBM("VerCheck Failed.")
-			CheckFirmware=FALSE
+			CheckFirmware = FALSE
 		Else
-			retry++	
+			retry + +
 			DBM("VerCheck retry...")
 			PumpMessage()
-
+			
 			if GetKeyState(VK_ESCAPE) And &H80 Then
 				DBM("cancel")
-				CheckFirmware=FALSE
+				CheckFirmware = FALSE
 			Else
 				FlushCom(hSerial)
-				Goto *SEND_VER_CHECK
+				Goto * SEND_VER_CHECK
 			End If
 		End If
 	End If
 	
-	if msg=TRUE Then
-		DBM(sprintfStr("FirmwareID : %s%c",rsv,FwVer))
+	if msg = TRUE Then
+		DBM(sprintfStr("FirmwareID : %s%c", rsv AS DWord, FwVer))
 	End If
 End Function
 
 Sub FlushCom(hSerial AS HANDLE)
-	PurgeComm(hSerial,PURGE_TXABORT)
-	PurgeComm(hSerial,PURGE_RXABORT)
-
-	Dim cs AS COMSTAT,dwErrors AS DWord
-	ClearCommError(hSerial,VarPtr(dwErrors),cs)
-
+	PurgeComm(hSerial, PURGE_TXABORT)
+	PurgeComm(hSerial, PURGE_RXABORT)
+	
+	Dim cs AS COMSTAT, dwErrors AS DWord
+	ClearCommError(hSerial, VarPtr(dwErrors), cs)
+	
 	'理由はわからないがこのSleepを外すとファームチェックに失敗する
 	Sleep(10)
-
-	if cs.cbInQue=0 Then ExitSub
-
+	
+	if cs.cbInQue = 0 Then ExitSub
+	
 	'受信バッファを全部取り出す
 	Dim tmp aS BytePtr
-	tmp=calloc(cs.cbInQue)
-	LoadFile(hSerial,tmp,cs.cbInQue)
-'	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
-'	Dump(tmp,cs.cbInQue)
-'	printf(ex"%d bytes\n",cs.cbInQue)
-
-	free(tmp): tmp=NULL
-
+	tmp = calloc(cs.cbInQue)
+	LoadFile(hSerial, tmp, cs.cbInQue)
+	'	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
+	'	Dump(tmp,cs.cbInQue)
+	'	printf(ex"%d bytes\n",cs.cbInQue)
+	
+	free(tmp)
+	tmp = NULL
+	
 	FlushFileBuffers(hSerial)
-
+	
 End Sub
 
-
-Sub SetCartRegister(bank AS Byte,address AS Word,val AS Byte)(isLoROM AS BOOL)
-	Dim cmd[5] AS Byte,dwAB AS DWord,retry AS BOOL
-
+Sub SetCartRegister(bank AS Byte, address AS Word, val AS Byte)(isLoROM AS BOOL)
+	Dim cmd[5] AS Byte, dwAB AS DWord, retry AS BOOL
+	
 	if isLoROM Then
-		cmd[0]=Asc("t")
+		cmd[0] = Asc("t")
 	Else
-		cmd[0]=Asc("T")
+		cmd[0] = Asc("T")
 	End If
 	cmd[1] = bank
-	cmd[2] = (address >>  0) AS Byte
-	cmd[3] = (address >>  8) AS Byte
-
+	cmd[2] = (address >> 0) AS Byte
+	cmd[3] = (address >> 8) AS Byte
+	
 	cmd[4] = val
-
-	WriteFile(hCOM,cmd,5,VarPtr(dwAB),ByVal NULL)
-	printf(ex"[CMD_%c]%02X%04X = %X\n",cmd[0],bank,address,val)
+	
+	WriteFile(hCOM, cmd, 5, VarPtr(dwAB), ByVal NULL)
+	printf(ex"[CMD_%c]%02X%04X = %X\n", cmd[0], bank, address, val)
 End Sub
 
 
-Function ST018_BiosDump(hSerial AS HANDLE,data AS BytePtr)(progress AS *ProgressCallback) As BOOL
+Function ST018_BiosDump(hSerial AS HANDLE, data AS BytePtr)(progress AS * ProgressCallback) As BOOL
 	Dim dwReadByte As DWord
 	
-	WriteFile(hSerial,"z",1,VarPtr(dwReadByte),ByVal NULL)
-	dwReadByte=0
+	WriteFile(hSerial, "z", 1, VarPtr(dwReadByte), ByVal NULL)
+	dwReadByte = 0
 	
 	if progress<>NULL Then progress->Init(160)
-
-	if WaitForRequest(hSerial,GetByte("S"),2000) = FALSE Then Goto *SBD_ERR
-
+	
+	if WaitForRequest(hSerial, GetByte("S"), 2000) = FALSE Then Goto * SBD_ERR
+	
 	Const ST018_BIOS_TRANSFER_SIZE = (1024) AS DWord
 	Dim ReadByteSum AS DWord, i AS Long
-	For i=0 To 159
+	For i = 0 To 159
 		dwReadByte = ReceiveFromReader(hSerial, data + ReadByteSum, ST018_BIOS_TRANSFER_SIZE, 4)
 		if dwReadByte <> ST018_BIOS_TRANSFER_SIZE Then
-			printf(ex"[BIOS DUMP] TRANSFER ERROR %X/%X\n",dwReadByte, ST018_BIOS_TRANSFER_SIZE)
-			Goto *SBD_ERR
-		Endif
-		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n",i*ST018_BIOS_TRANSFER_SIZE,dwReadByte,ST018_BIOS_TRANSFER_SIZE)
+			printf(ex"[BIOS DUMP] TRANSFER ERROR %X/%X\n", dwReadByte, ST018_BIOS_TRANSFER_SIZE)
+			Goto * SBD_ERR
+		End if
+		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n", i * ST018_BIOS_TRANSFER_SIZE, dwReadByte, ST018_BIOS_TRANSFER_SIZE)
 		ReadByteSum = ReadByteSum + dwReadByte
-
+		
 		'Continue 送信
-		WriteFile(hSerial,"c",1,VarPtr(dwReadByte),ByVal NULL)
-
+		WriteFile(hSerial, "c", 1, VarPtr(dwReadByte), ByVal NULL)
+		
 		if progress<>NULL Then progress->Step(1)
 	Next i
 	
 	if progress<>NULL Then progress->Final()
-	ST018_BiosDump=TRUE
+	ST018_BiosDump = TRUE
 	ExitFunction
-
+	
 *SBD_ERR
 	if progress<>NULL Then progress->Final()
-
+	
 	'キャンセル送信
-	WriteFile(hSerial,"e",1,VarPtr(dwReadByte),ByVal NULL)
-EndFunction
+	WriteFile(hSerial, "e", 1, VarPtr(dwReadByte), ByVal NULL)
+End Function

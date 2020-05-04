@@ -39,27 +39,27 @@ enum NP_SRAM_MAP
 End Enum
 
 
-Sub NP_Status_RegToInfo(ByRef reg AS NP_STATUS_REG,ByRef info AS NP_STATUS_INFO)
-	if reg.magic=&H2A Then
-		info.isNP=TRUE
+Sub NP_Status_RegToInfo(ByRef reg As NP_STATUS_REG, ByRef info As NP_STATUS_INFO)
+	If reg.magic = &H2A Then
+		info.isNP = TRUE
 	Else
-		info.isNP=FALSE
+		info.isNP = FALSE
 	End If
-
-	info.writeEnable=reg.status And &H04
-	info.readEnbale=NOT(reg.status And &H08) And 1
-	info.slot=reg.status>>4
-	if (reg.size And 3) = 3 Then
-		info.sramSize=0
+	
+	info.writeEnable = reg.status And &H04
+	info.readEnbale = Not(reg.status And &H08) And 1
+	info.slot = reg.status>>4
+	If (reg.size And 3) = 3 Then
+		info.sramSize = 0
 	Else
-		info.sramSize=2*1024<<(2*(reg.size And 3) )
+		info.sramSize = 2 * 1024<<(2 * (reg.size And 3) )
 	End If
-	info.romSize=512*1024*(((reg.size>>2) And &H07)+1)
+	info.romSize = 512 * 1024 * (((reg.size>>2) And &H07) + 1)
 	SetDWord(VarPtr(info.romMap), (reg.size >> 6) )
-	SetWord(VarPtr(info.sramMap),reg.sram_map)
-	info.sramBase=reg.base And &H0F
-	info.romBase=reg.base>>4
-
+	SetWord(VarPtr(info.sramMap), reg.sram_map)
+	info.sramBase = reg.base And &H0F
+	info.romBase = reg.base>>4
+	
 End Sub
 
 
@@ -86,14 +86,14 @@ Function NP_wakeup() AS BOOL
 EndFunction
 
 
-Sub NP_command(_cmd AS Byte) 
-	NP_wakeup() 
-	SetCartRegister(&H00,&H2400,_cmd)
+Sub NP_command(_cmd AS Byte)
+	NP_wakeup()
+	SetCartRegister(&H00, &H2400, _cmd)
 End Sub
 
 
-Function  NP_changeSlot(slot AS Long) As BOOL
-	NP_command((slot And &H0F) + &H80)
+Function NP_changeSlot(slot AS Long) As BOOL
+	NP_command(( (slot And &H0F) + &H80) As Byte )
 End Function
 
 

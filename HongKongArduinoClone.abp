@@ -3,17 +3,17 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v1.1d"	'FhashSave対応, ST018BIOS, CX4, 自動ボーレート対応
-Const INIFILE_NAME= "HongKongArduinoClone.ini"
-Const FIRMWARE_NAME="HongKongArduinoFast"
+Const VerStr = "v1.1d" 'FhashSave対応, ST018BIOS, CX4, 自動ボーレート対応
+Const INIFILE_NAME = "HongKongArduinoClone.ini"
+Const FIRMWARE_NAME = "HongKongArduinoFast"
 
 Const DEFAULT_BAUDRATE = 1000000
 Const DEFAULT_CONTINUE = 20
-Const DEFAULT_DUMP_SIZE = &H002000*2
-Const DEFAULT_QDD_BUFSIZE = 1024*512
+Const DEFAULT_DUMP_SIZE = &H002000 * 2
+Const DEFAULT_QDD_BUFSIZE = 1024 * 512
 
-Const DEVICE_BUFFER_SIZE_OUT = 16*1024
-Const DEVICE_BUFFER_SIZE_IN  = 16*1024
+Const DEVICE_BUFFER_SIZE_OUT = 16 * 1024
+Const DEVICE_BUFFER_SIZE_IN = 16 * 1024
 
 'タイムアウト設定
 Const HKAC_TRANSFER_FLOAT_TIME_MUL = 2.5
@@ -22,8 +22,8 @@ Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
 'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
 Const HKAC_WRITE_BUFFER_LEN = &HFF
-Const FIRMWARE_ID="HKAF"
-Const FIRMWARE_VERSION=&H34
+Const FIRMWARE_ID = "HKAF"
+Const FIRMWARE_VERSION = &H34
 
 const ID_DLG_TAB = &H1001
 Dim INIFILE_PATH AS BytePtr
@@ -36,12 +36,12 @@ Dim INIFILE_PATH AS BytePtr
 Declare Function AllocConsole Lib "kernel32" () As Long
 Declare Function FreeConsole Lib "kernel32" () As Long
 Dim _System_hConsoleOut As HANDLE
-_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
+_System_hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE)
 #endif
 
 '受信タイムアウト追加時間の設定読み込み
 Dim HKAC_RX_TIMEOUT_MARGIN AS Long
-HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName,"RxTimeoutMargine",10,INIFILE_PATH)
+HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 10, INIFILE_PATH)
 
 '---------------------------
 '  Window Message Loop
@@ -51,15 +51,15 @@ RegistAcceleratorKey()
 
 Dim msgMain As MSG, iResult As Long
 Do
-	iResult=GetMessage(msgMain,0,0,0)
-	If iResult=0 Then ExitDo
-
+	iResult = GetMessage(msgMain, 0, 0, 0)
+	If iResult = 0 Then ExitDo
+	
 	if TranslateAccelerator(hMainWnd, hAccel, msgMain) = FALSE Then 'ショートカットキー
-	    If IsDialogMessage(hMainWnd, msgMain) = FALSE Then 'TAB用
-	        TranslateMessage(msgMain)
-    	    DispatchMessage(msgMain)
+		If IsDialogMessage(hMainWnd, msgMain) = FALSE Then 'TAB用
+			TranslateMessage(msgMain)
+			DispatchMessage(msgMain)
 		End If
-  End If
+	End If
 Loop
 
 ' Call destructores and exit process
