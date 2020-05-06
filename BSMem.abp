@@ -276,7 +276,7 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 		(blocks) As DWord , (blocks*128) As DWord , _
 		(_header->offset) As DWord , _
 		(status.ptr) As DWord , _
-		(GetRomSpeedString(header->mapMode)) As DWord , (GetRomMapString(header->mapMode)) As DWord , _
+		(RawHeader_GetRomSpeedString(header->mapMode)) As DWord , (RawHeader_GetRomMapString(header->mapMode)) As DWord , _
 		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
 	)
 

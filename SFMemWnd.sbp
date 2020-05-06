@@ -220,15 +220,15 @@ Sub SFMemWnd_CommandButton2_Click()
 		info.romMap = NP_ROM_MAP_HiROM
 		Const NPDUMP_GAME_TITLE = "SFMemory"
 		memcpy(cartInfo.Title, NPDUMP_GAME_TITLE, lstrlen(NPDUMP_GAME_TITLE) + 1)
-		cartInfo.diableChecksum = TRUE
+		cartInfo.enableChecksum = TRUE
 	End If
 	
-	cartInfo.ROMSize = info.romSize
-	if cartInfo.ROMType<>SFC_MAP_SF_MENU Then
+	cartInfo.RomSize = info.romSize
+	if cartInfo.MapType<>SFC_MAP_SF_MENU Then
 		if info.romMap = NP_ROM_MAP_LoROM then
-			cartInfo.ROMType = SFC_MAP_LoROM
+			cartInfo.MapType = SFC_MAP_LoROM
 		else
-			cartInfo.ROMType = SFC_MAP_HiROM
+			cartInfo.MapType = SFC_MAP_HiROM
 		End if
 	End If
 	SetCartInfo(VarPtr(cartInfo), FALSE)

@@ -1,0 +1,451 @@
+' Internal Rom HederとそれをパースしたSFC_CART_INFO構造体関連
+
+'-----------------
+' Rom Header Defines
+'-----------------
+
+Const SFC_SPEC_HEADER_SIZE=&H20+&H10
+Const SFC_SPEC_HEADER_ADDR=&HFFC0-&H10
+
+' ROMヘッダーのマッピング情報
+' MapModeの下位4ビット
+Enum SFC_MAP_TYPE_RAW
+	SFC_MAP_RAW_LoROM = 0
+	SFC_MAP_RAW_HiROM = 1
+	SFC_MAP_RAW_SDD1= 2
+	SFC_MAP_RAW_SA1	= 3
+	SFC_MAP_RAW_ExHiROM = 5
+	SFC_MAP_RAW_SPC7110 = &H0A
+End Enum
+
+Const SFC_CHIPSET_BSX   = &HE5
+Const SFC_CHIPSET_CX4   = &HF3
+Const SFC_CHIPSET_ST018 = &HF5
+Const SFC_CHIPSET_ST010 = &HF6
+
+' HKACが判断したマッピングID
+' ROM, SRAMへのアクセス方法を識別
+' SFC_MAP_TYPE_RAWと違って連番
+Enum SFC_MAP_TYPE
+	SFC_MAP_LoROM = 0
+	SFC_MAP_HiROM
+	SFC_MAP_SDD1
+	SFC_MAP_SA1
+	SFC_MAP_ExHiROM
+	SFC_MAP_SPC7110
+	SFC_MAP_SpLoROM '衛星対応カートリッジでかつLoROMで3MBのもの(ダビスタ)
+	SFC_MAP_SF_MENU 'SFメモリカートリッジ
+	SFC_MAP_ST018
+	SFC_MAP_ST010
+	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
+	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
+	SFC_MAP_BSX
+	SFC_MAP_JRAPAT
+	SFC_MAP_TYPE_NUM
+End Enum
+
+
+' ↑のラベル
+Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE_NUM] = [
+	"LoROM"				,
+	"HiROM"				,
+	"S-DD1"				,
+	"SA-1"				,
+	"ExHiROM"			,
+	"SPC7110"			,
+	"SpecialLoROM"		,
+	"MX15001 (SFメモリ)",
+	"LoROM with ST018 "	,
+	"LoROM with ST010 "	,
+	"CX4 for RockMan X2",
+	"CX4 for RockMan X3",
+	"LoROM (BS-X)"		,
+	"LoROM (JRA PAT)"	,
+	"<invalid mapper id>"
+] AS BytePtr
+
+'スーファミヘッダから取得した情報
+'後の都合のいい処理がしてある。
+'生ヘッダを見たければrawHeaderにアクセス
+Type SFC_CART_INFO
+	Title[23] As Byte		'ゲームタイトル
+	MapType As Long			'SFC_MAP_TYPE ... ROM/RAMのアクセス方法を識別するコード
+	CartType As Byte		'Cartridge parts contents
+	RomSize As DWord		'Game ROM Size (byte)
+	SramSize As DWord		'Save SRAM Size(byte)
+	Country As Byte			'国コード
+	Version As Byte			'ROMバージョン
+	CheckSum1 As Word		'チェックサム
+	CheckSum2 As Word		'チェックサムのNOT
+	hasExtraHeader As BOOL	'拡張ヘッダ（FFB0h-FFBFh)があるかどうか
+	enableChecksum As BOOL	'チェックサムが有効かどうかMENU PROGRAMとかBSMC等
+	isFastRom As BOOL		'false: SlowRrom
+	isLoROM As BOOL			'ROMのマッピングがLoROMなもの。SFC_MAP_LoROM, SA1, SpLoROM, SF_MENUなどでTRUEになる
+	isBSX  As BOOL			'BSMCスロットがあるかどうか（衛星放送対応カートリッジかどうか）
+	isFlashSave As BOOL		'FLASHセーブかどうか
+	MakerCode As Word		'メーカーコード
+	GameCode[4] As Byte		'ゲームコードの文字列（Extraheaderがある時のみ有効)
+	AddrOffset As DWord		'ROMの開始アドレス
+	
+	rawHeader As SFC_CART_HEADER
+EndType
+
+' Raw ROM-Header (FFB0h～)
+Type Align(1) SFC_CART_HEADER
+	MakerCode 	AS Word	'未使用のこともある
+	GameCode	AS DWord
+	dummy0[6] 	AS Byte
+	ExRamSize 	AS Byte
+	ExVersion	AS Byte
+	CartSubNum	AS Byte
+	'------------------
+	GameTitle[20] As Byte
+	MapMode 	AS Byte
+	CartType 	AS Byte
+	RomSize 	AS Byte
+	SramSize 	AS Byte
+	CountryID	AS Byte
+	dummy1		As Byte	'33h固定のはずだが、そうでないものも多い
+	Version		As Byte
+	Checksum1	AS Word
+	Checksum2 	As Word
+End Type
+
+
+
+'-----------------
+' Header Functions
+'-----------------
+
+'生のROMヘッダをSFC_CART_INFOに
+
+Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
+	'カートリッジのヘッダエリアのデータをSFC_CART_INFOへ格納
+	
+	Dim i As Long
+	
+	memcpy(VarPtr(info->rawHeader), data, Sizeof(SFC_CART_HEADER))
+	
+	'タイトル取得
+	memcpy(info, data->GameTitle, 21)
+	If info->Title[i] = 0 Then
+		lstrcpy(info->Title, "CART CONNECTION ERR")
+	Else
+		'右からスペースをNULL文字で埋めル
+		For i = 20 To 0 Step -1
+			If info->Title[i] <> &H20 And info->Title[i] <> 0 Then	exitfor
+			info->Title[i] = 0
+		Next i
+	End If
+
+	info->Title[21] = 0 ' NULL文字挿入
+	info->CartType = data->CartType
+	info->Country = data->CountryID
+	info->Version = data->Version
+	info->CheckSum1 = data->Checksum1
+	info->CheckSum2 = data->Checksum2
+	info->isFastRom = data->MapMode And &H10
+
+	info->enableChecksum = TRUE	' 仮決定
+	info->isFlashSave = FALSE 	' 仮決定
+	
+	' ROM / SRAMサイズ計算
+	If data->RomSize<>0 Then
+		info->RomSize = &H0400 << data->RomSize
+	Else
+		info->RomSize = 0
+	End If
+	
+	If data->SramSize<>0 Then
+		info->SramSize = &H0400 << data->SramSize
+	Else
+		info->SramSize = 0
+	End If
+
+	' 拡張ヘッダがあるかチェック
+	' MarkerCodeとGameCodeがASCIIコードから外れてたら拡張ヘッダナシと判定
+	Dim p As BytePtr
+	p = VarPtr(data->MakerCode)
+	info->hasExtraHeader = TRUE
+	For i = 0 To 5
+		If (p[i] < &H20) Or (p[i] > &H7F) Then
+			info->hasExtraHeader = FALSE
+			ExitFor
+		End If
+	Next i
+	
+	' 拡張ヘッダの情報セット
+	If info->hasExtraHeader Then
+		info->MakerCode = data->MakerCode
+		lstrcpy(info->GameCode, Dw2Str(info->rawHeader.GameCode))
+		If lstrcmp(info->GameCode, "	") = 0 Then lstrcpy(info->GameCode, "????")
+	End If
+
+	' MapTypeを仮決定。MapModeから判定できない特殊なものは後で決定される
+	Select Case (data->MapMode And &H0F)
+		Case 0
+			info->MapType = SFC_MAP_LoROM
+		Case 1
+			info->MapType = SFC_MAP_HiROM
+		Case 2
+			info->MapType = SFC_MAP_SDD1
+		Case 3
+			info->MapType = SFC_MAP_SA1
+		Case 5
+			info->MapType = SFC_MAP_ExHiROM
+		Case &H0A
+			info->MapType = SFC_MAP_SPC7110
+		Case Else
+			info->MapType = SFC_MAP_LoROM
+	End Select
+	
+	' ChipsetからMapTypeを検討
+	Select Case info->CartType
+		Case SFC_CHIPSET_BSX
+			info->MapType = SFC_MAP_BSX
+
+		Case SFC_CHIPSET_CX4
+			' 同じCX4でもロックマンX2かX3かでMapTypeを変えなきゃならない
+			' ゲームタイトルからX2かX3か判定する。
+			' 海外版でも文字数が同じなのでこの手法が使える
+			If info->Title[9] = GetByte("2") Then
+				info->MapType = SFC_MAP_CX4_2DC0N
+
+			ElseIf info->Title[9] = GetByte("3") Then
+				info->MapType = SFC_MAP_CX4_1DC0N
+			Else
+				DBM("[WAN] Failed to detect CX4 ROM Type.")
+				info->MapType = SFC_MAP_CX4_1DC0N
+			End If
+
+		Case SFC_CHIPSET_ST018
+			info->MapType = SFC_MAP_ST018
+
+		Case SFC_CHIPSET_ST010
+			info->MapType = SFC_MAP_ST010
+			info->SramSize = 4 * 1024		' ST010内蔵RAM
+
+	End Select
+
+	'メーカがEJ（NTT DATA）ならFlashSaveカセット
+	If info->MakerCode = &H4A45 Then
+		info->isFlashSave = TRUE
+		info->SramSize = (128 * 1024) As DWord
+		info->MapType = SFC_MAP_JRAPAT
+	End If	
+		
+	' Rom Memory Modelを決定
+	If info->MapType = SFC_MAP_LoROM Or info->MapType = SFC_MAP_SpLoROM Or info->MapType = SFC_MAP_SF_MENU Or info->MapType = SFC_MAP_BSX Or info->MapType = SFC_MAP_JRAPAT Then
+		info->AddrOffset = 0
+		info->isLoROM = TRUE
+	Else
+		info->AddrOffset = HiROM_START_ADR
+		info->isLoROM = FALSE
+	End If
+	
+	'SpecialLoROMはLoROMの衛星対応カートリッジで3MB目を吸うときにバンク切り替えが必要
+	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
+	'ここではダビスタ96とサウンドノベルツクールとBSXがヒットするはず。
+	'BSXは1MBなのでバンク切り替え必要なし
+	If info->GameCode[0] = Asc("Z") And info->GameCode[3] = Asc("J") Then
+		info->isBSX = TRUE
+		If info->MapType = SFC_MAP_LoROM Then
+			If info->RomSize>1024 * 1024 * 2 Then
+				info->MapType = SFC_MAP_SpLoROM
+				info->RomSize = 1024 * 1024 * 3
+			End If
+		End If
+	End If
+	
+	'タイトルがMENU PROGRAMならSFM確定
+	If lstrcmp("MENU PROGRAM", info->Title) = 0 Then
+		info->MapType = SFC_MAP_SF_MENU
+		info->enableChecksum = FALSE
+	End If
+	
+
+	'SUPER FOMATION SOCCERのタイトルーオーバランを修正
+	If lstrcmp("SUPER FORMATION SOCCE", info->Title) = 0 Then
+		lstrcat(info->Title, "R")
+		info->MapType = SFC_MAP_LoROM
+	End If
+
+			
+EndSub
+
+Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
+	Dim i As Long
+	For i = 0 To 19
+		If header->GameTitle[i] < &H20 Then
+			If Not(i>4 And header->GameTitle[i] = 0) Then GoTo * ISH_ERR
+		End If
+	Next i
+	'サイズチェック
+	If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
+	isSnesHeader = TRUE
+	ExitFunction
+	
+*ISH_ERR
+	isSnesHeader = FALSE
+End Function
+
+' 生ヘッダ関連
+Function RawHeader_GetRomSpeedString(mapMode As Byte) As BytePtr
+	If (mapMode And &H10) Then
+		RawHeader_GetRomSpeedString = "Fast"
+	Else
+		RawHeader_GetRomSpeedString = "Slow"
+	End If
+End Function
+
+Function RawHeader_GetRomMapString(mapMode As Byte) As BytePtr
+	Select Case (mapMode And &H0F)
+		Case SFC_MAP_RAW_LoROM
+			RawHeader_GetRomMapString = "LoROM"
+		Case SFC_MAP_RAW_HiROM
+			RawHeader_GetRomMapString = "HiROM"
+		Case SFC_MAP_RAW_SDD1
+			RawHeader_GetRomMapString = "S-DD1"
+		Case SFC_MAP_RAW_SA1
+			RawHeader_GetRomMapString = "SA-1"
+		Case SFC_MAP_RAW_ExHiROM
+			RawHeader_GetRomMapString = "ExHiROM"
+		Case SFC_MAP_RAW_SPC7110
+			RawHeader_GetRomMapString = "SPC7110"
+		Case Else
+			RawHeader_GetRomMapString = "unknown"
+	End Select
+End Function
+
+
+'---------------------------
+' SRAM Memory Model
+'---------------------------
+
+Const SRAM_CTRL_SA1	 = &H01000000
+Const SRAM_CTRL_SPC7110 = &H02000000
+
+Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
+Type SFC_SRAM_MODEL
+	adr As DWord		'セーブ用SRAMのアドレス
+	bankStep As DWord	'バンク間の差 (BANK0 70:0000, BANK1 71:0000なら0x010000)
+	bankSize As DWord	'そのバンクにおけるSRAM領域のサイズ
+	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる。例外としてSRAM_CTRL_???の代入が許可されている
+End Type
+
+Dim SFC_LoROM_SRAM_MODEL[3]=[
+	&H700000,
+	&H010000,
+	&H008000,
+	CBUS_RST
+] As DWord
+
+Dim SFC_HiROM_SRAM_MODEL[3]=[
+'	&H206000,
+'	SUPER DONKEY KONG 2 は 30:6000h ~
+	&H306000,
+	&H010000,
+	&H002000,
+	CBUS_RST or CBUS_ROMSEL
+] As DWord
+
+Dim SFC_BSX_SRAM_MODEL[3]=[
+	&H105000,
+	&H010000,
+	&H001000,
+	CBUS_RST or CBUS_ROMSEL
+] As DWord
+
+'テイルズオブファンタジア用
+Dim SFC_ExHiROM_SRAM_MODEL[3]=[
+	&HB06000,
+	&H010000,
+	&H002000,
+	CBUS_RST or CBUS_ROMSEL
+] As DWord
+
+Dim SFC_SDD1_SRAM_MODEL[3]=[
+	&H806000,
+	&H010000,
+	&H002000,
+	CBUS_RST 
+] As DWord
+
+Dim SFC_SA1_SRAM_MODEL[3]=[
+	&H400000,
+	&H010000,
+	&H010000,
+	CBUS_RST or SRAM_CTRL_SA1
+] As DWord
+
+Dim SFC_SA1_WRITE_SRAM_MODEL[3]=[
+	&H006000,
+	&H010000,
+	&H002000,
+	CBUS_RST or SRAM_CTRL_SA1
+] As DWord
+
+Dim SFC_SPC7110_SRAM_MODEL[3]=[
+	&H306000,
+	&H010000,
+	&H002000,
+	CBUS_RST or CBUS_ROMSEL or SRAM_CTRL_SPC7110
+] As DWord
+
+Dim SFC_ST010_SRAM_MODEL[3]=[
+	&H680000,
+	&H010000,
+	&H001000,
+	CBUS_RST
+] As DWord
+
+'JRA PAT用（Flash）
+Dim SFC_JRA_SRAM_MODEL[3]=[
+	&HC00000,
+	&H010000,
+	&H008000,
+	CBUS_RST or CBUS_ROMSEL
+] As DWord
+
+
+Function GetSramModel(info As *SFC_CART_INFO, isWrite AS BOOL) As *SFC_SRAM_MODEL
+	Dim model As *DWord
+	Select Case info->MapType
+		Case SFC_MAP_BSX
+			model = SFC_BSX_SRAM_MODEL
+		
+		Case SFC_MAP_SDD1
+			model = SFC_SDD1_SRAM_MODEL
+
+		Case SFC_MAP_SPC7110
+			model = SFC_SPC7110_SRAM_MODEL
+
+		Case SFC_MAP_ExHiROM
+			model = SFC_ExHiROM_SRAM_MODEL
+
+		Case SFC_MAP_SA1
+			if isWrite Then
+				model = SFC_SA1_WRITE_SRAM_MODEL
+			Else
+				model = SFC_SA1_SRAM_MODEL
+			End If
+
+		Case SFC_MAP_ST010
+			model = SFC_ST010_SRAM_MODEL
+	
+		Case SFC_MAP_JRAPAT
+			model = SFC_JRA_SRAM_MODEL
+
+		Case SFC_MAP_LoROM
+			model = SFC_LoROM_SRAM_MODEL
+
+		Case SFC_MAP_HiROM
+			model = SFC_HiROM_SRAM_MODEL
+
+		Case Else
+			model = SFC_LoROM_SRAM_MODEL
+			DBM("[WAN] GetSramModel: Unknown MapType ")
+	End Select
+
+	GetSramModel = model As *SFC_SRAM_MODEL
+End Function

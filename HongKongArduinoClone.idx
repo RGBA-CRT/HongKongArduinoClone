@@ -18,6 +18,7 @@
 #include "BSMem.abp"
 #include "sfc_doc.txt"
 #include "SubClassWindow.abp"
+#include "RomHeader.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

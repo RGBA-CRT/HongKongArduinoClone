@@ -105,15 +105,15 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO)
 
 	With virtualHeader
 		lstrcpy(.Title, "BSX Mempack")
-		.diableChecksum = TRUE
-		.ROMSize = BSM_GetMempackSize(pack_idx)
-		.ROMType = SFC_MAP_HiROM
+		.enableChecksum = FALSE
+		.RomSize = BSM_GetMempackSize(pack_idx)
+		.MapType = SFC_MAP_HiROM
 		.AddrOffset = BSM_GetMempackAdress(slot_idx)
 		.isLoROM = BSM_isLoROM(slot_idx)
 	End With
 
 	if pack_idx = BSM_SAMEGAME or pack_idx = BSM_GNEXT Then
-		virtualHeader.ROMSize = 512 * 1024
+		virtualHeader.RomSize = 512 * 1024
 	End If
 End Sub
 

@@ -75,27 +75,23 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	ResetDBM()
 	
 	SetIniPath()
+
 	ListUpComPort(GetDlgItem(hMainWnd, ComList))
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "LoROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "HiROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "S-DD1 HiROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "SA-1 HiROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "ExHiROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "SPC7110 HiROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "Special LoROM" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "SF MEMORY MX15001" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "LoROM + ST018" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "CX4 for RockManX2" As Long)
-	SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, "CX4 for RockManX3" As Long)
+
+	' setup mapper type list box
+	Dim i as Long
+	for i = 0 To SFC_MAP_TYPE_NUM-1
+		SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, SFC_MAP_TYPE_LABEL[i] As Long)
+	Next i
 	
-	SendMessage(MWnd(EditBox1), WM_SETFONT, CreateFont( -12, 0, 0, 0, 400, 0, 0, 0, SHIFTJIS_CHARSET, OUT_RASTER_PRECIS, 0, DEFAULT_QUALITY, FIXED_PITCH, "ＭＳ ゴシック") As DWord , TRUE)
+	'SendMessage(MWnd(EditBox1), WM_SETFONT, CreateFont( -12, 0, 0, 0, 400, 0, 0, 0, SHIFTJIS_CHARSET, OUT_RASTER_PRECIS, 0, DEFAULT_QUALITY, FIXED_PITCH, "ＭＳ ゴシック") As DWord , TRUE)
 	SendMessage(hMainWnd, WM_SETICON, ICON_SMALL, LoadImage(GetModuleHandle(0), IDI_ICON1 As BytePtr, IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR) As Long)
 	
 	SetCheckBox(MWnd(CheckBox6), TRUE)
 	
 	SetDlgEnable(STATUS_CLOSED)
 	
-	Dim i AS Long, buf[100] AS Byte
+	Dim buf[100] AS Byte
 	Dim tmp AS DWord
 	For i = 0 To 7
 		tmp = &H80 << i
@@ -113,6 +109,9 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 #endif
 	
 	SetWindowText(MWnd(EditBox6), Str$(baudrate))
+
+	wsprintf(buf, "%s %s", ProgramName, VerStr)
+	SetWindowText(hMainWnd, buf)
 End Sub
 
 Sub SetIniPath()
@@ -271,14 +270,16 @@ Sub MainWnd_CommandButton5_Click()
 		DBM(ex"Connection Stage2 OK.\r\n")
 		
 		'ボーレート変更コマンド送信
-		ChangeBaudrate(hCOM, rate)
-		DBM("baudrate=" + Str$(rate) + "bps")
-		
-		'変更後の正常なデータ通信を確立
-		DBM("changeing baudrate...")
-		If CheckFirmware(hCOM, FALSE) = FALSE Then
-			DBM("invailde baudrate")
-			goto * HKAF_CON_ERR
+		if rate <> INITIAL_BAUDRATE Then
+			ChangeBaudrate(hCOM, rate)
+			DBM("baudrate=" + Str$(rate) + "bps")
+			
+			'変更後の正常なデータ通信を確立
+			DBM("changeing baudrate...")
+			If CheckFirmware(hCOM, FALSE) = FALSE Then
+				DBM("invailde baudrate")
+				goto * HKAF_CON_ERR
+			End If
 		End If
 		
 		DBM(ex"Connection Successful!!!\r\n")
@@ -400,7 +401,7 @@ Sub MainWnd_CommandButton2_Click()
 	Dim path As BytePtr
 
 	GetDumpConfig(info)
-'	info.ROMSize = &H400000	'debug
+'	info.RomSize = &H400000	'debug
 
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", info.Title)
@@ -552,7 +553,7 @@ Sub MainWnd_RButtonDblClick(flags As Long, x As Integer, y As Integer)
 End Sub
 
 Sub MainWnd_Static1_DblClick()
-	exec("http://hongkongarduino.web.fc2.com/")
+	exec("http://susumutaniyama.github.io/HongKongArduino/")
 End Sub
 
 'リードテスト
@@ -641,11 +642,11 @@ Sub SetRomInfoToDlg_FromROM()
 		Dim idx AS Long
 		If cartInfo.CartType=&HE5 Then
 			idx=BSM_SLOT_BIOS
-		Elseif cartInfo.ROMType=SFC_MAP_LoROM or cartInfo.ROMType=SFC_MAP_SpLoROM then
+		Elseif cartInfo.MapType=SFC_MAP_LoROM or cartInfo.MapType=SFC_MAP_SpLoROM then
 			idx=BSM_SLOT_SpLoROM
-		Elseif cartInfo.ROMType=SFC_MAP_HiROM then
+		Elseif cartInfo.MapType=SFC_MAP_HiROM then
 			idx=BSM_SLOT_HiROM
-		Elseif cartInfo.ROMType=SFC_MAP_SA1 then
+		Elseif cartInfo.MapType=SFC_MAP_SA1 then
 			idx=BSM_SLOT_SA1
 		Else
 			DBM("[!!!]Warning: unknown BS-X slot")
@@ -657,7 +658,7 @@ Sub SetRomInfoToDlg_FromROM()
 		BSM_close()
 	End If
 	
-	If cartInfo.ROMType=SFC_MAP_SF_MENU Then
+	If cartInfo.MapType=SFC_MAP_SF_MENU Then
 		SFM_open()
 	End If	
 
@@ -711,34 +712,25 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 End Sub
 
 Function getSelectedMapMode() AS Long
-	Dim mapperTable[SFC_MAP_TYPE_NUM]=[ _
-		SFC_MAP_LoROM, _
-		SFC_MAP_HiROM, _
-		SFC_MAP_SDD1, _
-		SFC_MAP_SA1, _
-		SFC_MAP_ExHiROM, _
-		SFC_MAP_SPC7110, _
-		SFC_MAP_SpLoROM, _
-		SFC_MAP_SF_MENU, _
-		SFC_MAP_ST018, _
-		SFC_MAP_CX4_2DC0N, _
-		SFC_MAP_CX4_1DC0N, 
-	] As Long, idx As Long
-
+	Dim idx AS Long
 	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE_NUM
-	getSelectedMapMode=mapperTable[idx]
+	if idx<0 or idx>=SFC_MAP_TYPE_NUM Then
+		DBM("!!!!ASSERT, idx is over.")
+		idx=0
+	End If
+	getSelectedMapMode=idx
 
 End Function
 Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 	'LoROM/HiROMの選択とMAD1のチェック取得
 	If GetCheckBox(MWnd(CB_MANUAL)) Then
-		info.ROMType = getSelectedMapMode()
-		'		info.MapMode = (info.MapMode And &HF0) or info.ROMType
-		info.ROMSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
-		info.SRAMSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
-		printf(ex"custom rom size = %d\n", (info.ROMSize / 1024 / 1024) AS DWord)
+		info.MapType = getSelectedMapMode()
+		'		info.MapMode = (info.MapMode And &HF0) or info.MapType
+		info.RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
+		info.SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
+		printf(ex"custom rom size = %d\n", (info.RomSize / 1024 / 1024) AS DWord)
 		
-		If info.ROMType = SFC_MAP_LoROM or info.ROMType = SFC_MAP_SpLoROM or info.ROMType = SFC_MAP_SF_MENU Then
+		If info.MapType = SFC_MAP_LoROM or info.MapType = SFC_MAP_SpLoROM or info.MapType = SFC_MAP_SF_MENU Then
 			info.AddrOffset = 0
 			info.isLoROM = TRUE
 		Else
@@ -751,46 +743,10 @@ Sub GetDlgOption(ByRef info As SFC_CART_INFO)
 
 'MapMode (20 SrowRom LoROMのやつ）のGUI用関数
 Function MapModeToComboboxIndex(mapMode As SFC_MAP_TYPE) As Long
-	Dim mapTable[SFC_MAP_TYPE_NUM] = [ &H00, &H01, &H02, &H03, &H05, &H0A, &HF0, &HF1, &HF2] As Byte
-	Dim romMap As Byte
-	Dim i As Long
-	
-	romMap = mapMode As Byte
-	
-	For i = 0 To SFC_MAP_TYPE_NUM
-		If mapTable[i] = romMap Then
-			MapModeToComboboxIndex = i
-			ExitFor
-		End If
-	Next
+	MapModeToComboboxIndex = mapMode As Long
 End Function
 
-Function GetRomSpeedString(mapMode As Byte) As BytePtr
-	If (mapMode And &H20) Then
-		GetRomSpeedString = "Fast"
-	Else
-		GetRomSpeedString = "Slow"
-	End If
-End Function
 
-Function GetRomMapString(mapMode As Byte) As BytePtr
-	Select Case (mapMode And &H0F)
-		Case 0
-			GetRomMapString = "LoROM"
-		Case 1
-			GetRomMapString = "HiROM"
-		Case 2
-			GetRomMapString = "S-DD1"
-		Case 3
-			GetRomMapString = "SA-1"
-		Case 5
-			GetRomMapString = "ExHiROM"
-		Case &H0A
-			GetRomMapString = "SPC7110"
-		Case Else
-			GetRomMapString = "unknown"
-	End Select
-End Function
 
 'カートリッジ情報をGUIに反映
 Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
@@ -802,7 +758,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 	Const UNK_CART_TYPE_TEXT = "+???"
 
 	SetWindowText(MWnd(ROMTITLE),info->Title)
-	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->ROMType),0)
+	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->MapType),0)
 	MainWnd_MAPPING_SelChange()
 
 	lstrcpy(CartChip,"ROM")
@@ -863,7 +819,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 						lstrcat(CartChip,"+SPC7110+RAM+BAT")
 					End If
 				Case &H06
-					If info->ROMSize=&H100000 Then
+					If info->RomSize=&H100000 Then
 						lstrcat(CartChip,"+ST010")
 					Else
 						lstrcat(CartChip,"+ST011")
@@ -877,13 +833,13 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 
 	SetWindowText(MWnd(CART_CIPS),CartChip)
 	
-	If info->ROMSize =0 Then
+	If info->RomSize =0 Then
 		SetWindowText(MWnd(ROM_SIZE),"None")		
 	Else
 		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
-							(info->ROMSize/1024) As DWord, (info->ROMSize*8/(1024^2)) As DWord))
+							(info->RomSize/1024) As DWord, (info->RomSize*8/(1024^2)) As DWord))
 	End If
-	If info->SRAMSize =0 Then
+	If info->SramSize =0 Then
 		SetWindowText(MWnd(SRAM_SIZE),"None")		
 	Else
 		Dim FLASH_TEXT AS BytePtr
@@ -893,7 +849,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 			FLASH_TEXT=""
 		End If
 		SetWindowText(MWnd(SRAM_SIZE),sprintfStr("%dKB [%dKbit]%s",
-			(info->SRAMSize/1024) As DWord, (info->SRAMSize*8/1024) As DWord, FLASH_TEXT As DWord))
+			(info->SramSize/1024) As DWord, (info->SramSize*8/1024) As DWord, FLASH_TEXT As DWord))
 	End If
 
 	SetCheckBox(MWnd(CB_MANUAL),bManual)
@@ -926,7 +882,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 		If info->hasExtraHeader Then
 			'DBM("Extra Header Found.")
 			DBM(sprintfStr("MakerID : [%c%c] %s", _
-				info->MakerCode As DWord, (info->MakerCode >> 8) As DWord, info->MakerName As DWord))
+				info->MakerCode As DWord, (info->MakerCode >> 8) As DWord, GetMakerString(info->MakerCode) As DWord))
 			DBMN("GameCode: SHVC-"): DBM(info->GameCode)
 		End If
 
@@ -995,12 +951,12 @@ Sub MainWnd_CommandButton11_Click()
 
 End Sub
 
-
+/*
 Function Lo2Hi(Adr As DWord) As DWord
 	Lo2Hi = (Adr And &HFF8000)<<1 or (Adr And &H007FFF) or &H8000
 	
 End Function
-
+*/
 
 Sub MainWnd_DropFiles(hDrop As HDROP)
 	Dim buf[MAX_PATH] As Byte
@@ -1140,7 +1096,7 @@ Sub MainWnd_CommandButton16_Click()
 	SetDlgEnable(STATUS_CONNECTED)
 End Sub
 
-Sub MainWnd_ROM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):DBM("test3"):	End Sub
+Sub MainWnd_ROM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
 Sub MainWnd_SRAM_SIZE_SelChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
 Sub MainWnd_ROM_SIZE_EditChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub
 Sub MainWnd_SRAM_SIZE_EditChange():	SetCheckBox(MWnd(CB_MANUAL),TRUE):	End Sub

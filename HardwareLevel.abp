@@ -359,7 +359,7 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL) AS BOOL
 			DBM("VerCheck Failed.")
 			CheckFirmware = FALSE
 		Else
-			retry + +
+			retry++
 			DBM("VerCheck retry...")
 			PumpMessage()
 			

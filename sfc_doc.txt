@@ -480,7 +480,10 @@ TODO: リファクタリング
 
 	PROGRESS CALLBACKを使う
 	Chips文字列の生成は関数化する
-
+対応
+リファクタリング
+Flash対応
+自動ボーレート調整
 */
 
 /*
@@ -533,3 +536,30 @@ TODO: リファクタリング
 	+ Speed : 30101byte/sec
 	
 */	
+
+/*
+
+## 議論：SramModelをMapModeごとに分けるか？
++ MapModeの存在意義として、非対応なカートリッジ、カスタムカートリッジで判定をしくじったときに選べるようにしたいとある
++ あとMapModeは特殊カートリッジかをわかりやすくしたいという物がある
++ したがって、SRAMの配置についても同じようにしたい
++ やり方としては
+	+ 現状のまま、MapModeにSRAMの構成も含める
+		+ Cons:組み合わせで増えそう、使いまわしできるのか？
+		+ Pros:UIとしてわかりやすい。SFCはファミコンほど混沌としてないのでこちらで良さそう
+	+ SRAM用のMapModeを用意する
+		+ Cons:UIが複雑になる
+		+ Pros:組み合わせで増やせる
++ Flash対応について
+	+ isFlashをMemoryModelに含めるか？
+		+ CTRLにSRAM/FLASHって書けば良さそう
+	+ アドレスはそのまま、Flashかどうかで分岐する
+	+ ただし、MapModeでFlashかどうか判定しているので...
++ write対応について
+	+ GetSramModelで判定
++ まとめ
+	+ MapTypeはSRAMのメモリ領域の特定の意味も持たせる
+	+ FlashメモリかどうかはMemoryModelに含めない
+		+ どのマッピングもFlashセーブになり得る
+	+ Read/WriteでModelが異なるものについてはGet関数で対応
+*/

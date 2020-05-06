@@ -2,7 +2,7 @@ WINDOW:MainWnd
     HANDLE    = hMainWnd
     POINT     = -2147483648,-2147483648
     SIZE      = 475,285
-    CAPTION   = "HongKongArduinoClone v1.1"
+    CAPTION   = "HKAC"
     STYLE     = &H10ca0000
     EXSTYLE   = &H00000010
     ID        = 0
@@ -33,7 +33,7 @@ WINDOW:MainWnd
     ITEM      = Static9,326,224,50,12,"baudrate : ",&H50000000,&H00000000,11
     ITEM      = Static10,442,224,23,11,"bps",&H50000000,&H00000000,11
     ITEM      = CommandButton5,186,44,51,21,"&Connect",&H50010000,&H00000000,1
-    ITEM      = MAPPING,79,100,158,160,"",&H50200002,&H00000000,3
+    ITEM      = MAPPING,79,98,158,200,"",&H50200002,&H00000000,3
     ITEM      = Static7,442,242,31,12,"---",&H50000000,&H00000000,11
     ITEM      = CB_MANUAL,256,226,59,13,"Manual",&H50000003,&H00000000,2
     ITEM      = ROMTITLE,79,74,157,21,"",&H50000880,&H00000200,4

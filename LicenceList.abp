@@ -144,7 +144,7 @@ End Type
 Dim SFC_Licences AS * SNES_LICENCE_CODE
 SFC_Licences = SNES_LICENCE_LIST AS * SNES_LICENCE_CODE
 
-Function getLicenceString(code AS DWord) aS BytePtr
+Function GetMakerString(code AS DWord) aS BytePtr
 	'codeをビッグエンディアンにする（リストがBEなので）
 	code = (code>>8 or code<<8) And &HFFFF
 	
@@ -152,11 +152,11 @@ Function getLicenceString(code AS DWord) aS BytePtr
 	for i = 0 to SNES_LICENCE_LIST_NUM
 		if SFC_Licences[i].str = NULL Then ExitFor
 		if SFC_Licences[i].id = code Then
-			getLicenceString = SFC_Licences[i].str
+			GetMakerString = SFC_Licences[i].str
 			ExitFunction
 		End if
 		'printf(ex"[%d][%d]%s\n",i,SFC_Licences[i].id,SFC_Licences[i].str)
 	Next
-	getLicenceString = "(unknown)"
+	GetMakerString = "(unknown)"
 	
 End Function
