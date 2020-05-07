@@ -135,7 +135,60 @@ Sub SetIniPath()
 	lstrcat(INIFILE_PATH, INIFILE_NAME)
 End Sub
 
+
+Sub ListUpComPort_Callback(userdata AS VoidPtr, PortName As BytePtr, FriendlyName AS BytePtr)
+	Dim hCombobox As HWND
+	hCombobox = userdata
+
+	Dim textbuf[64] As BytePtr
+	wsprintf(textbuf, ex"%s - %s",PortName,FriendlyName)
+
+	PumpMessage()
+	' Get Text Width
+	Dim size As SIZE, hdc As HDC, hOldFont As HFONT, hNowFont As HFONT
+	hdc = GetDC(hCombobox)
+	hOldFont = SelectObject(hdc, hFont_MainWnd)
+	GetTextExtentPoint32(hdc, textbuf, lstrlen(textbuf), size)
+	ReleaseDC(hCombobox,hdc)
+
+	' Adjust Dropdown list width
+	Dim currentWidth AS Long
+	currentWidth = 	SendMessage(hCombobox, CB_GETDROPPEDWIDTH, 0, 0)
+	if currentWidth < size.cx Then SendMessage(hCombobox, CB_SETDROPPEDWIDTH, size.cx+10, 0)
+
+	' add string
+	SendMessage(hCombobox,CB_ADDSTRING,0,textbuf As Long)
+Endsub
+
 Sub ListUpComPort(Wnd As HWND)
+	' デバイス名付きリストアップを試す(Win2K以降)
+	Dim sa AS SetupApiWrapper
+	if sa.Load() Then
+		EnumSerialPorts(VarPtr(sa), AddressOf(ListUpComPort_Callback), Wnd)
+
+	Else
+		DBM("Cannot Load setupapi.dll")
+
+		'旧リストアップ関数を呼び出し
+		ListUpComPort_Win9x(Wnd)
+	Endif
+
+	'最後に選択されたポートを選ぶ
+	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
+	lastDevice=calloc(128)
+	GetPrivateProfileString(ProgramName,"LastDevice","None",lastDevice,128,INIFILE_PATH)
+
+	'探す
+	lastDeviceIdx=SendMessage(Wnd,CB_FINDSTRINGEXACT,-1,lastDevice As DWord)
+	If lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
+
+	'セットする
+	SendMessage(Wnd,CB_SETCURSEL,lastDeviceIdx,0)
+	 
+	free(lastDevice)	
+End Sub
+
+Sub ListUpComPort_Win9x(Wnd As HWND)
 	Dim buf As BytePtr,p As DWord,C As Long
 	dim QDD_BUFSIZE As DWord
 
@@ -175,19 +228,7 @@ Sub ListUpComPort(Wnd As HWND)
 
 	If C=0 then SendMessage(Wnd,CB_ADDSTRING,0,"None" As Long)
 
-	'最後に選択されたポートを選ぶ
-	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
-	lastDevice=calloc(128)
-	GetPrivateProfileString(ProgramName,"LastDevice","None",lastDevice,128,INIFILE_PATH)
 
-	'探す
-	lastDeviceIdx=SendMessage(Wnd,CB_FINDSTRINGEXACT,-1,lastDevice As DWord)
-	If lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
-
-	'セットする
-	SendMessage(Wnd,CB_SETCURSEL,lastDeviceIdx,0)
-	 
-	free(lastDevice)	
 End Sub
 
 Sub DBM(Text As BytePtr)
@@ -228,7 +269,7 @@ Sub MainWnd_CommandButton5_Click()
 	
 	If hCOM = 0 then
 		'接続
-		Dim txCom As BytePtr, rate As DWord
+		Dim txCom As BytePtr, rate As DWord, i As Long
 		
 		rate = GetDlgItemInt(hMainWnd, EditBox6, NULL, FALSE)
 		If rate = 0 Then
@@ -237,7 +278,14 @@ Sub MainWnd_CommandButton5_Click()
 		End If
 		
 		txCom = GetWndTextMalloc(GetDlgItem(hMainWnd, ComList))
-		DBM("Connect to " + MakeStr(txCom))
+		DBMN("Connect to "): DBM(txCom)
+		for i=0 To 10
+			if txCom[i] = 0 Then ExitFor
+			if txCom[i] = &H20 Then
+				txCom[i] = 0
+				ExitFor
+			End If
+		Next i
 		
 		'bufferlen
 		Dim bufferSize AS DWord
@@ -1140,3 +1188,21 @@ Public
 		DBM(ex"\r\n")
 	End Sub
 End Class
+
+Sub MainWnd_CommandButton18_Click()   
+	Dim size As SIZE
+	Dim hdc As HDC, hWnd AS HWND
+	hWnd=MWnd(ComList)
+	hdc = GetDC(hWnd)
+	Dim text AS BytePtr
+	text = "tあいうえおかんじ感じ"
+	GetTextExtentPoint32(hdc, text, lstrlen(text), size)
+	ReleaseDC(hWnd,hdc)
+
+	printf("size: %d,%d", size.cx, size.cy)
+
+	Dim currentWidth AS Long
+	currentWidth = 	SendMessage(MWnd(ComList), CB_GETDROPPEDWIDTH, 0, 0)
+	if currentWidth < size.cx Then SendMessage(MWnd(ComList), CB_SETDROPPEDWIDTH, size.cx, 0)
+	SendMessage(MWnd(ComList), CB_ADDSTRING, 0, text)
+End Sub

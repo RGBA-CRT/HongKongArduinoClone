@@ -15,7 +15,7 @@ WINDOW:MainWnd
     FILEPATH  = MainWnd.sbp
     ITEM      = Static1,9,8,230,27,"This program is designed for http://hongkongarduino.web.fc2.com/",&H50000101,&H00020000,11
     ITEM      = Static2,13,50,60,12,"Serial Prot : ",&H50000000,&H00000000,11
-    ITEM      = ComList,79,45,99,215,"",&H50210502,&H00000000,3
+    ITEM      = ComList,79,45,99,215,"",&H50210142,&H00000000,3
     ITEM      = Static3,13,77,58,13,"ROM Title : ",&H50000000,&H00000000,11
     ITEM      = Static4,13,100,58,13,"Mapping : ",&H50000000,&H00000000,11
     ITEM      = Static5,13,127,58,13,"Chipset :",&H50000000,&H00000000,11
