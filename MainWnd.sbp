@@ -71,6 +71,8 @@ Sub ResetDBM()
 	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2018\r\nThis program was cloned \r\n	from WinHongKongArduino.\r\nCopyright (c) 2014 たにやま\r\n")
 End Sub
 
+
+Dim hFont_LogBox As HFONT
 Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	ResetDBM()
 	
@@ -80,8 +82,8 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 
 	' setup mapper type list box
 	Dim i as Long
-	for i = 0 To SFC_MAP_TYPE_NUM-1
-		SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, SFC_MAP_TYPE_LABEL[i] As Long)
+	for i = 0 To SFC_MAP_TYPE__NUM-1
+		SendMessage(MWnd(MAPPING), CB_ADDSTRING, 0, GetMappingString(i) As Long)
 	Next i
 	
 	'SendMessage(MWnd(EditBox1), WM_SETFONT, CreateFont( -12, 0, 0, 0, 400, 0, 0, 0, SHIFTJIS_CHARSET, OUT_RASTER_PRECIS, 0, DEFAULT_QUALITY, FIXED_PITCH, "ＭＳ ゴシック") As DWord , TRUE)
@@ -105,13 +107,16 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	If baudrate = 0 Then baudrate = DEFAULT_BAUDRATE
 	
 #IFDEF _DEBUG
-	MoveWindow(hMainWnd, 0, 0, 475, 330, TRUE)
+	MoveWindow(hMainWnd, 0, 0, 505, 330, TRUE)
 #endif
 	
 	SetWindowText(MWnd(EditBox6), Str$(baudrate))
 
 	wsprintf(buf, "%s %s", ProgramName, VerStr)
 	SetWindowText(hMainWnd, buf)
+
+	hFont_LogBox=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,50,"MS Gothic")
+	SendMessage(GetDlgItem(hMainWnd,EditBox1),WM_SETFONT,hFont_LogBox As WPARAM,0)
 End Sub
 
 Sub SetIniPath()
@@ -586,7 +591,7 @@ End Sub
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 	'ESC+マウス中ボタンダブルクリックでテストモード
 	If GetCancelKey() Then 
-		MoveWindow(hMainWnd,0,0,475,330,TRUE)
+		MoveWindow(hMainWnd,0,0,505,330,TRUE)
 		AllocConsole()
 		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
 		printf(ex"Welcome to debug console\n")
@@ -623,15 +628,19 @@ End Sub
 
 Sub SetRomInfoToDlg_FromROM()
 	Dim buf[SFC_SPEC_HEADER_SIZE+2] As Byte,cartInfo As SFC_CART_INFO
-	DBM( "Cartridge Infomation")
+	'DBM( "Cartridge Infomation")
 
 	'ヘッダを読み出し＆ダイアログに情報を表示
 	FlushCom(hCOM)
 	getCartInfo(cartInfo)
 
 	'ダイアログに表示
-	SetCartInfo(VarPtr(cartInfo),TRUE)
+	SetCartInfo(VarPtr(cartInfo))
 
+	Dim info_text[1024] as Byte
+	GenerateHeaderInfoText(VarPtr(cartInfo), info_text, 1024)
+	DBMN(info_text)
+	
 	'Manualのチェックを外す
 	SetCheckBox(MWnd(CB_MANUAL),FALSE)
 
@@ -640,7 +649,7 @@ Sub SetRomInfoToDlg_FromROM()
 		BSM_open()
 
 		Dim idx AS Long
-		If cartInfo.CartType=&HE5 Then
+		If cartInfo.Chipset=&HE5 Then
 			idx=BSM_SLOT_BIOS
 		Elseif cartInfo.MapType=SFC_MAP_LoROM or cartInfo.MapType=SFC_MAP_SpLoROM then
 			idx=BSM_SLOT_SpLoROM
@@ -688,7 +697,7 @@ Sub GetDumpConfig(ByRef info As SFC_CART_INFO)
 
 	GetDlgOption(info)	'infoにGUIの設定を反映
 
-	SetCartInfo(VarPtr(info),FALSE)
+	SetCartInfo(VarPtr(info))
 End Sub
 
 
@@ -703,7 +712,7 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info.Title,"[ERR]通信エラー")
-		SetCartInfo(VarPtr(info),TRUE)
+		SetCartInfo(VarPtr(info))
 		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
 		DisconnectDevice()
 		ExitSub
@@ -713,8 +722,8 @@ End Sub
 
 Function getSelectedMapMode() AS Long
 	Dim idx AS Long
-	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE_NUM
-	if idx<0 or idx>=SFC_MAP_TYPE_NUM Then
+	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE__NUM
+	if idx<0 or idx>=SFC_MAP_TYPE__NUM Then
 		DBM("!!!!ASSERT, idx is over.")
 		idx=0
 	End If
@@ -749,89 +758,16 @@ End Function
 
 
 'カートリッジ情報をGUIに反映
-Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
+Sub SetCartInfo(info As *SFC_CART_INFO)
 	'このルーチンからはManualのチェックが変わらないようにする
 	Dim bManual AS BOOL
 	bManual=GetCheckBox(MWnd(CB_MANUAL))
-
-	Dim CartChip[512] As Byte
-	Const UNK_CART_TYPE_TEXT = "+???"
 
 	SetWindowText(MWnd(ROMTITLE),info->Title)
 	SendMessage(MWnd(MAPPING),CB_SETCURSEL,MapModeToComboboxIndex(info->MapType),0)
 	MainWnd_MAPPING_SelChange()
 
-	lstrcpy(CartChip,"ROM")
-
-	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
-	Select Case info->CartType>>4
-		Case &H00
-			Select Case info->CartType And &H0F
-				Case &H00 : lstrcat(CartChip,"")
-				Case &H01 : lstrcat(CartChip,"+RAM")
-				Case &H02 : lstrcat(CartChip,"+RAM+BAT")
-				Case &H03 : lstrcat(CartChip,"+DSP")
-				Case &H04 : lstrcat(CartChip,"+DSP+RAM")
-				Case &H05 : lstrcat(CartChip,"+DSP+RAM+BAT")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End Select
-		Case &H01 'SuperFX
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+MARIO+RAM")
-				Case &H04 : lstrcat(CartChip,"+GSU+RAM")
-				Case &H05 : lstrcat(CartChip,"+GSU+RAM+BAT")
-				Case &H0A : lstrcat(CartChip,"+GSU1+RAM+BAT")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End Select
-			lstrcat(CartChip," [SuperFX]")
-		Case &H02 : lstrcat(CartChip,"+OBC1+RAM+BAT")
-		Case &H03 
-			lstrcat(CartChip,"+SA-1+RAM")
-			If info->CartType = &H34 Then
-			Elseif info->CartType = &H35 then
-				 lstrcat(CartChip,"+BAT")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End If
-		Case &H04
-			lstrcat(CartChip,"+SDD1+")
-			If (info->CartType And &H0F) = 3 Then
-			Elseif info->CartType = &H45 then
-				 lstrcat(CartChip,"RAM+BAT")
-			Else
-				lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End If
-		Case &H05 : lstrcat(CartChip,"S-RTC+RAM+BAT")
-		Case &H0E 
-			Select Case info->CartType And &H0F
-				Case &H03 : lstrcat(CartChip,"+SGB+RAM")
-				Case &H05 : lstrcat(CartChip,"+BS-X")
-				Case &H0A : lstrcat(CartChip,"+CX4")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End Select
-		Case &H0F
-			Select Case (info->CartType And &H0F) As DWord
-				Case &H03 : lstrcat(CartChip,"+CX4")
-				Case &H05
-					If info->isLoROM Then
-						lstrcat(CartChip,"+ST018+RAM+BAT")
-					Else
-						lstrcat(CartChip,"+SPC7110+RAM+BAT")
-					End If
-				Case &H06
-					If info->RomSize=&H100000 Then
-						lstrcat(CartChip,"+ST010")
-					Else
-						lstrcat(CartChip,"+ST011")
-					End If
-				Case &H09 : lstrcat(CartChip,"+SPC7110+RAM+BAT+RTC")
-				Case Else : lstrcat(CartChip,UNK_CART_TYPE_TEXT)
-			End Select
-		Case Else
-			lstrcat(CartChip," UNKNOWN CART TYPE")
-	End Select
-
-	SetWindowText(MWnd(CART_CIPS),CartChip)
+	SetWindowText(MWnd(CART_CIPS), GetChipsetString(info))
 	
 	If info->RomSize =0 Then
 		SetWindowText(MWnd(ROM_SIZE),"None")		
@@ -853,46 +789,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO,bMessageOutput AS BOOL)
 	End If
 
 	SetCheckBox(MWnd(CB_MANUAL),bManual)
-	
-	If bMessageOutput Then	
-		DBMN("Chips: ")
-		wsprintf(CartChip+lstrlen(CartChip),ex" [0x%02X]",info->CartType)
-		DBM(CartChip)
-		
-		Dim fastrom[1] = ["Slow", "Fast"] As BytePtr
-		Dim lohi[1]	= ["Lo", "Hi"] As BytePtr
-		DBM(sprintfStr("RomSpeed: [%02X]%s%sRom", _
-			info->rawHeader.MapMode  		As DWord, _
-			fastrom[info->isFastRom And 1] 	As DWord, _
-			lohi[info->isLoROM And 1]		As DWord))
-/*		DBM(sprintfStr("MapMode :[%02X]%s%s", _
-			info->rawHeader.MapMode,_
-			fastrom[info->isFastRom And 1], _
-			GetRomMapString(info->rawHeader.MapMode)))
-*/
-		DBMN("Country : ")
-		Select Case info->Country
-			Case 00 : DBM("Japan")
-			Case 01 : DBM("USA")
-			Case 02 : DBM("Europe")
-			Case 03 : DBM("(unknown)")
-		End Select
 
-		DBM(ex"Version : "+Str$(info->Version/10+1.0))
-		If info->hasExtraHeader Then
-			'DBM("Extra Header Found.")
-			DBM(sprintfStr("MakerID : [%c%c] %s", _
-				info->MakerCode As DWord, (info->MakerCode >> 8) As DWord, GetMakerString(info->MakerCode) As DWord))
-			DBMN("GameCode: SHVC-"): DBM(info->GameCode)
-		End If
-
-		DBM("CheckSum1(sum) : "+Hex$(info->CheckSum1))
-		DBM("CheckSum2(rev) : "+Hex$(info->CheckSum2))
-
-		DBM("")
-		If info->isBSX Then	DBM(ex"BS Memory Slot detected.\r\n")
-		If info->isFlashSave Then DBM(ex"Save Flash detected.\r\n")
-	End If
 End Sub	
 
 Function GetCheckBox(Ctrl As HWND) As Byte
@@ -992,7 +889,11 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	End If
 	
 	SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
-	SetCartInfo(VarPtr(cartInfo), TRUE)
+	SetCartInfo(VarPtr(cartInfo))
+
+	Dim infotext[HEADER_INFO_TEXT_LEN] As Byte
+	GenerateHeaderInfoText(VarPtr(cartInfo), infotext, HEADER_INFO_TEXT_LEN)
+	DBM(infotext)
 End Sub
 
 

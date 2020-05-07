@@ -248,35 +248,36 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 
 	'Flag
 	Dim flagStr AS StringClass
-	flagStr.cat("  Sound Link : ")
+	flagStr.cat(" - Sound Link: ")
 	if header->exeFlags And &H10 Then
 		flagStr.cat(ex"NO (RSV OFF)\r\n")
 	Else
 		flagStr.cat(ex"YES (RSV ON)\r\n")
 	End If
 
-	flagStr.cat("  Execution Area : ")
-	if (header->exeFlags And &H60) >> 5 = 0 Then
-		flagStr.cat(ex"FLASH\r\n")
-	Else
-		flagStr.cat(ex"PSRAM\r\n")
-	End If
-
-	flagStr.cat("  St.GIGA Logo   : ")
+	flagStr.cat(" - St.GIGA Logo: ")
 	if (header->exeFlags And &H80) Then
 		flagStr.cat(ex"Skip\r\n")
 	Else
 		flagStr.cat(ex"Display\r\n")
 	End If
 
+	flagStr.cat(" - Execution Area: ")
+	if (header->exeFlags And &H60) >> 5 = 0 Then
+		flagStr.cat(ex"Memory Pack\r\n")
+	Else
+		flagStr.cat(ex"PSRAM\r\n")
+	End If
 
-	str.sprintf(ex"Name   : %s\r\nDate   : %dŒŽ%d“ú\r\nUsage  : %d blocks (%d KB)\r\nOffset : %Xh\r\nStatus : %s\r\nMapMode: %s %s\r\nFlag: %02Xh \r\n%s\r\n", _
+
+
+	str.sprintf(ex"- Name: %s\r\n- Date: %02dŒŽ%02d“ú\r\n- Usage: %d blocks (%d KB)\r\n- Offset: %Xh\r\n- Status: %s\r\n- RomType: Mode%02X %s%s\r\n- Flag: %02Xh \r\n%s\r\n", _
 		(title) As DWord,_ 
 		(header->month >> 4) As DWord , (header->day >> 3) As DWord , _
 		(blocks) As DWord , (blocks*128) As DWord , _
 		(_header->offset) As DWord , _
 		(status.ptr) As DWord , _
-		(RawHeader_GetRomSpeedString(header->mapMode)) As DWord , (RawHeader_GetRomMapString(header->mapMode)) As DWord , _
+		header->mapMode, (RawHeader_GetRomSpeedString(header->mapMode)) As DWord , (RawHeader_GetRomMapString(header->mapMode)) As DWord , _
 		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
 	)
 

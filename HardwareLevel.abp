@@ -140,7 +140,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 
 	ReadROM=ReceiveFromReader(hSerial, data, size)
 	
-	printf(ex"%03X:%X/%X bytes received.\n",address,ReadROM,size)
+	printf(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
 End Function
 
 Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long

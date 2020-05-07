@@ -29,38 +29,38 @@ Const SFC_CHIPSET_ST010 = &HF6
 Enum SFC_MAP_TYPE
 	SFC_MAP_LoROM = 0
 	SFC_MAP_HiROM
-	SFC_MAP_SDD1
-	SFC_MAP_SA1
 	SFC_MAP_ExHiROM
+	SFC_MAP_SA1
+	SFC_MAP_SDD1
 	SFC_MAP_SPC7110
 	SFC_MAP_SpLoROM '衛星対応カートリッジでかつLoROMで3MBのもの(ダビスタ)
-	SFC_MAP_SF_MENU 'SFメモリカートリッジ
-	SFC_MAP_ST018
-	SFC_MAP_ST010
-	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
-	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
 	SFC_MAP_BSX
 	SFC_MAP_JRAPAT
-	SFC_MAP_TYPE_NUM
+	SFC_MAP_ST018
+	SFC_MAP_ST010
+	SFC_MAP_SF_MENU 'SFメモリカートリッジ
+	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
+	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
+	SFC_MAP_TYPE__NUM
 End Enum
 
 
 ' ↑のラベル
-Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE_NUM] = [
+Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE__NUM] = [
 	"LoROM"				,
 	"HiROM"				,
-	"S-DD1"				,
-	"SA-1"				,
 	"ExHiROM"			,
+	"SA-1 HiROM"		,
+	"S-DD1"				,
 	"SPC7110"			,
 	"SpecialLoROM"		,
-	"MX15001 (SFメモリ)",
-	"LoROM with ST018 "	,
-	"LoROM with ST010 "	,
-	"CX4 for RockMan X2",
-	"CX4 for RockMan X3",
 	"LoROM (BS-X)"		,
 	"LoROM (JRA PAT)"	,
+	"LoROM with ST018 "	,
+	"LoROM with ST010 "	,
+	"MX15001 (SFメモリ)",
+	"CX4 for RockMan X2",
+	"CX4 for RockMan X3",
 	"<invalid mapper id>"
 ] AS BytePtr
 
@@ -70,7 +70,7 @@ Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE_NUM] = [
 Type SFC_CART_INFO
 	Title[23] As Byte		'ゲームタイトル
 	MapType As Long			'SFC_MAP_TYPE ... ROM/RAMのアクセス方法を識別するコード
-	CartType As Byte		'Cartridge parts contents
+	Chipset As Byte		'Cartridge parts contents
 	RomSize As DWord		'Game ROM Size (byte)
 	SramSize As DWord		'Save SRAM Size(byte)
 	Country As Byte			'国コード
@@ -94,18 +94,19 @@ EndType
 Type Align(1) SFC_CART_HEADER
 	MakerCode 	AS Word	'未使用のこともある
 	GameCode	AS DWord
-	dummy0[6] 	AS Byte
+	dummy0[5] 	AS Byte
+	FlashSize 	AS Byte
 	ExRamSize 	AS Byte
 	ExVersion	AS Byte
-	CartSubNum	AS Byte
+	SpecialVer	AS Byte
 	'------------------
 	GameTitle[20] As Byte
 	MapMode 	AS Byte
-	CartType 	AS Byte
+	Chipset 	AS Byte
 	RomSize 	AS Byte
 	SramSize 	AS Byte
 	CountryID	AS Byte
-	dummy1		As Byte	'33h固定のはずだが、そうでないものも多い
+	OldMakerCode As Byte	'33h固定のはずだが、そうでないものも多い
 	Version		As Byte
 	Checksum1	AS Word
 	Checksum2 	As Word
@@ -139,7 +140,7 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	End If
 
 	info->Title[21] = 0 ' NULL文字挿入
-	info->CartType = data->CartType
+	info->Chipset = data->Chipset
 	info->Country = data->CountryID
 	info->Version = data->Version
 	info->CheckSum1 = data->Checksum1
@@ -149,18 +150,6 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	info->enableChecksum = TRUE	' 仮決定
 	info->isFlashSave = FALSE 	' 仮決定
 	
-	' ROM / SRAMサイズ計算
-	If data->RomSize<>0 Then
-		info->RomSize = &H0400 << data->RomSize
-	Else
-		info->RomSize = 0
-	End If
-	
-	If data->SramSize<>0 Then
-		info->SramSize = &H0400 << data->SramSize
-	Else
-		info->SramSize = 0
-	End If
 
 	' 拡張ヘッダがあるかチェック
 	' MarkerCodeとGameCodeがASCIIコードから外れてたら拡張ヘッダナシと判定
@@ -179,6 +168,11 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 		info->MakerCode = data->MakerCode
 		lstrcpy(info->GameCode, Dw2Str(info->rawHeader.GameCode))
 		If lstrcmp(info->GameCode, "	") = 0 Then lstrcpy(info->GameCode, "????")
+	Else
+		' 拡張ヘッダが無い場合、OldMakerCodeからMakerCodeを作成
+		Dim old_gc[2] AS Byte
+		wsprintf(old_gc, "%02X", data->OldMakerCode)
+		info->MakerCode = GetWord(old_gc)
 	End If
 
 	' MapTypeを仮決定。MapModeから判定できない特殊なものは後で決定される
@@ -200,7 +194,7 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	End Select
 	
 	' ChipsetからMapTypeを検討
-	Select Case info->CartType
+	Select Case info->Chipset
 		Case SFC_CHIPSET_BSX
 			info->MapType = SFC_MAP_BSX
 
@@ -227,15 +221,40 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 
 	End Select
 
+	' ROM / SRAMサイズ計算
+	If data->RomSize<>0 Then
+		info->RomSize = &H0400 << data->RomSize
+	Else
+		info->RomSize = 0
+	End If
+	
+	If data->SramSize<>0 Then
+		info->SramSize = &H0400 << data->SramSize
+	Else
+		if info->hasExtraHeader Then
+			info->SramSize = &H0400 << data->ExRamSize
+		Else
+			info->SramSize = 0
+		End If
+	End If
+
 	'メーカがEJ（NTT DATA）ならFlashSaveカセット
 	If info->MakerCode = &H4A45 Then
 		info->isFlashSave = TRUE
-		info->SramSize = (128 * 1024) As DWord
 		info->MapType = SFC_MAP_JRAPAT
-	End If	
+	End If
+
+	if info->isFlashSave Then
+		if info->hasExtraHeader Then
+			info->SramSize = (1024 << data->FlashSize) As DWord
+		Else
+			' Flashサイズが無いので仮決定(JRAPAT共通サイズ)
+			info->SramSize = (1024 * 128) As DWord
+		End If
+	End If
 		
 	' Rom Memory Modelを決定
-	If info->MapType = SFC_MAP_LoROM Or info->MapType = SFC_MAP_SpLoROM Or info->MapType = SFC_MAP_SF_MENU Or info->MapType = SFC_MAP_BSX Or info->MapType = SFC_MAP_JRAPAT Then
+	If info->MapType = SFC_MAP_LoROM Or info->MapType = SFC_MAP_SpLoROM Or info->MapType = SFC_MAP_SF_MENU Or info->MapType = SFC_MAP_BSX Or info->MapType = SFC_MAP_JRAPAT or info->MapType = SFC_MAP_ST018 or info->MapType = SFC_MAP_ST010 Then
 		info->AddrOffset = 0
 		info->isLoROM = TRUE
 	Else
@@ -289,6 +308,142 @@ Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
 	isSnesHeader = FALSE
 End Function
 
+' those country codes are from fullsnes.
+Enum SFC_COUNTRY
+	SFC_COUNTRY_JAPAN = 0
+	SFC_COUNTRY_ENGLISH
+	SFC_COUNTRY_PAL
+	SFC_COUNTRY_SWEDEN
+	SFC_COUNTRY_FINLAND
+	SFC_COUNTRY_DENMARK
+	SFC_COUNTRY_FRANCE
+	SFC_COUNTRY_HOLLAND
+	SFC_COUNTRY_SPAIN
+	SFC_COUNTRY_GERMANY
+	SFC_COUNTRY_ITALY
+	SFC_COUNTRY_CHINA
+	SFC_COUNTRY_INDONESIA
+	SFC_COUNTRY_KOREA
+	SFC_COUNTRY_A
+	SFC_COUNTRY_CANADA
+	SFC_COUNTRY_BRAZIL
+	SFC_COUNTRY_AUSTRALIA
+	SFC_COUNTRY_X
+	SFC_COUNTRY_Y
+	SFC_COUNTRY_Z
+	SFC_COUNTRY__NUM
+End Enum
+
+' ↑のラベル
+Dim SFC_COUNTRY_LABEL[SFC_COUNTRY__NUM] = [
+	"[J] Japan"			,
+	"[E] USA"			,
+	"[P] Europe"		,
+	"[W] Sweden"		,
+	"[-] Finland"		,
+	"[-] Denmark"		,
+	"[F] France"		,
+	"[H] Holland"		,
+	"[S] Spain"			,
+	"[D] Germany"		,
+	"[I] Italy"			,
+	"[C] China"			,
+	"[-] Indonesia"		,
+	"[K] South Korea"	,
+	"[A] Common (0x0E)"	,
+	"[N] Canada"		,
+	"[B] Brazil"		,
+	"[U] Australia"		,
+	"[X] Other (0x12)"	,
+	"[Y] Other (0x13)"	,
+	"[Z] Other (0x14)"	,
+	"[ ] Unknown"	
+] AS BytePtr
+
+Function GetCountryString(country_code AS Byte) As BytePtr
+	if country_code >= SFC_COUNTRY__NUM Then country_code = SFC_COUNTRY__NUM
+	GetCountryString = SFC_COUNTRY_LABEL[country_code]
+End Function
+
+Function GetMappingString(maptype AS Long) As BytePtr
+	if maptype >= SFC_MAP_TYPE__NUM Then maptype = SFC_MAP_TYPE__NUM
+	GetMappingString = SFC_MAP_TYPE_LABEL[maptype]
+End Function
+
+Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
+	Dim label AS BytePtr
+	
+	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
+	Select Case info->Chipset>>4
+		Case &H00
+			Select Case info->Chipset And &H0F
+				Case &H00 : label = "ROM"
+				Case &H01 : label = "ROM+RAM"
+				Case &H02 : label = "ROM+RAM+BAT"
+				Case &H03 : label = "ROM+DSP"
+				Case &H04 : label = "ROM+DSP+RAM"
+				Case &H05 : label = "ROM+DSP+RAM+BAT"
+				Case Else : label = "ROM (?)"
+			End Select
+		Case &H01 'SuperFX
+			Select Case info->Chipset And &H0F
+				Case &H03 : label = "[SFX]ROM+MARIO+RAM"
+				Case &H04 : label = "[SFX]ROM+GSU+RAM"
+				Case &H05 : label = "[SFX]ROM+GSU+RAM+BAT"
+				Case &H0A : label = "[SFX]ROM+GSU1+RAM+BAT"
+				Case Else : label = "[SFX]ROM+GSU (?)"
+			End Select
+		Case &H02 : label = "ROM+OBC1+RAM+BAT"
+		Case &H03 
+			If info->Chipset = &H34 Then
+				label = "ROM+SA-1+RAM"
+			Elseif info->Chipset = &H35 then
+				 label = "ROM+SA-1+RAM+BAT"
+			Else
+				label = "ROM+SA1 (?)"
+			End If
+		Case &H04
+			If (info->Chipset And &H0F) = 3 Then
+				label = "ROM+SDD1"
+			Elseif info->Chipset = &H45 then
+				label = "ROM+SDD1+RAM+BAT"
+			Else
+				label = "ROM+SDD1 [unknown:4xh]"
+			End If
+		Case &H05 : label = "S-RTC+RAM+BAT"
+		Case &H0E 
+			Select Case info->Chipset And &H0F
+				Case &H03 : label = "ROM+SGBCPU+ICD2+2xRAM+GB slot"
+				Case &H05 : label = "ROM+2xRAM+MCCBSC+BAT"
+				Case Else : label = "ROM+Co-processor (?)"
+			End Select
+		Case &H0F
+			Select Case (info->Chipset And &H0F) As DWord
+				Case &H03 : label = "ROM+CX4"
+				Case &H05
+					If info->isLoROM Then
+						label = "ROM+ST018+RAM+BAT"
+					Else
+						label = "ROM+SPC7110+RAM+BAT"
+					End If
+				Case &H06
+					If info->RomSize=&H100000 Then
+						label = "ROM+ST010"
+					Else
+						label = "ROM+ST011"
+					End If
+				Case &H09 : label = "ROM+SPC7110+RAM+BAT+RTC"
+				Case Else : label = "ROM+Co-processor (?)"
+			End Select
+		Case Else
+			label = "ROM (? unknown chipset)"
+	End Select
+
+	GetChipsetString = label
+End Function
+
+
+
 ' 生ヘッダ関連
 Function RawHeader_GetRomSpeedString(mapMode As Byte) As BytePtr
 	If (mapMode And &H10) Then
@@ -317,6 +472,94 @@ Function RawHeader_GetRomMapString(mapMode As Byte) As BytePtr
 	End Select
 End Function
 
+Function ceil(var As Single) As Long
+	ceil = Int(var)
+	if var - ceil > 0 Then ceil++
+End Function
+
+Const HEADER_INFO_TEXT_LEN = 1024
+Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr, text_len AS SIZE_T) As BOOL
+	Dim info AS StringClass
+	info.allocStr(HEADER_INFO_TEXT_LEN)
+
+	info.cat(ex"==== ROM infomation ====")
+	info.sprintf(ex"\r\n- Title: %s ", header->Title As DWord)
+	info.sprintf(ex"\r\n- Version : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
+	info.sprintf(ex"\r\n- Checksum: 0x%04X, 0x%04X", header->CheckSum2, header->CheckSum1)
+
+	Dim fastrom[1] = ["Slow", "Fast"] As BytePtr
+	Dim lohi[1]	= ["Hi","Lo"] As BytePtr
+	info.sprintf(ex"\r\n- RomType : Mode%02X, %s%sROM", _
+			header->rawHeader.MapMode  		As DWord, _
+			fastrom[header->isFastRom And 1] 	As DWord, _
+			lohi[header->isLoROM And 1]		As DWord)
+
+	info.sprintf(ex"\r\n- Mapping : %s", GetMappingString(header->MapType) As DWord)
+
+	Dim chipset_text AS BytePtr
+	chipset_text = GetChipsetString(header)
+	if lstrlen(chipset_text) < 15 Then
+		info.sprintf(ex"\r\n- Chipset : 0x%02X %s", header->Chipset, chipset_text As DWord)
+	Else
+		info.sprintf(ex"\r\n- Chipset : 0x%02X\r\n - %s", header->Chipset, chipset_text As DWord)
+	End If
+
+
+	
+	Dim publisher_text AS BytePtr
+	publisher_text = GetMakerString(header->MakerCode)
+	if lstrlen(publisher_text) < 15 Then
+		info.sprintf(ex"\r\n- Publisher: %c%c/%s", _
+			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
+	Else			
+		info.sprintf(ex"\r\n- Publisher: %c%c \r\n - %s", _
+			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
+	Endif
+
+	If header->hasExtraHeader Then		
+		info.cat(ex"\r\n- GameCode : SHVC-"): info.cat(header->GameCode)
+	End If
+
+
+	If header->isFlashSave Then 
+		info.cat(ex"\r\n- SaveType : FLASH")
+	Elseif header->SramSize = 0 Then
+		info.cat(ex"\r\n- SaveType : None")
+	Else
+		info.cat(ex"\r\n- SaveType : SRAM")
+	End If
+
+	if header->SramSize Then
+		Dim srammodel AS *SFC_SRAM_MODEL, lastbank As DWord
+		srammodel = GetSramModel(header, FALSE) 
+		lastbank = (srammodel->adr + (srammodel->bankStep) * (ceil(header->SramSize/srammodel->bankSize-1))) + srammodel->bankSize-1
+		info.sprintf(ex"\r\n - Map: $%02X:%04X-$%02X:%04X %dbank", _
+			srammodel->adr>>16, srammodel->adr And &HFFFF, _
+			lastbank>>16, lastbank And &HFFFF, _
+			ceil(header->SramSize/srammodel->bankSize))
+	End If
+
+	If header->hasExtraHeader Then
+		if header->rawHeader.SpecialVer <> 0 Then
+			info.sprintf(ex"\r\n- SpecialVersion: 0x%02X", header->rawHeader.SpecialVer)
+		Endif
+	End If
+
+	If header->isBSX Then	info.cat(ex"\r\nBS Memory Slot detected.")
+	If header->hasExtraHeader Then	info.cat(ex"\r\nExtra Header detected.")
+
+	info.cat(ex"\r\n\r\n")
+	
+
+	Dim copy_size AS SIZE_T
+	if text_len < info.length() Then
+		copy_size = text_len
+	Else
+		copy_size = info.length()
+	End If
+
+	memcpy(text_buffer, info.ptr, copy_size)
+End Function
 
 '---------------------------
 ' SRAM Memory Model

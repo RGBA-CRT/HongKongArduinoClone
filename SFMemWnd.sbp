@@ -231,7 +231,7 @@ Sub SFMemWnd_CommandButton2_Click()
 			cartInfo.MapType = SFC_MAP_HiROM
 		End if
 	End If
-	SetCartInfo(VarPtr(cartInfo), FALSE)
+	SetCartInfo(VarPtr(cartInfo))
 	
 #ifndef _DEBUG
 	path = SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", cartInfo.Title)
