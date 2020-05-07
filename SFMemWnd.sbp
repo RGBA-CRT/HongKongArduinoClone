@@ -214,7 +214,7 @@ Sub SFMemWnd_CommandButton2_Click()
 	Dim cartInfo As SFC_CART_INFO
 	Dim path As BytePtr
 	
-	getCartInfo(cartInfo)
+	getCartInfo( VarPtr(cartInfo))
 	if idx = 0 Then
 		info.romSize = 1024 * 1024 * 4
 		info.romMap = NP_ROM_MAP_HiROM

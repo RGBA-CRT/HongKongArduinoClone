@@ -10,6 +10,7 @@ Dim hCOM As HANDLE
 Dim DlgStatus As DLG_STATUS
 Dim fWindowActive AS BOOL
 
+Dim isFirstBaudrateError=FALSE As BOOL
 
 'ダイアログの状態
 Enum DLG_STATUS
@@ -269,6 +270,17 @@ Sub DBMN(Text As BytePtr)
 	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
 End Sub
 
+Sub BaudrateErrorMessage()
+	' 初回
+	if isFirstBaudrateError = FALSE Then
+		Dim text_jpn=ex"通信に失敗しました。使用しているArduino似合わせてボーレートを調整してください。(詳細はReadme参照)\n\n設定例:\n  公式Arduino: 500000bps\n  互換機(CH340): 1000000bps " As BytePtr
+		Dim text_eng=ex"Communication failed. Please adjust baudrate for your Arduino (see README.md)" As BytePtr
+		MessageBox(hMainWnd, text_jpn, text_eng, MB_OK OR MB_ICONERROR)
+		DBM(text_eng)
+		DBM(ex"Example:\r\n- Offical Arduino: 500000bps\r\n- Compatible(CH340): 1000000bps")
+		isFirstBaudrateError=TRUE
+	End If
+End Sub
 
 Sub MainWnd_CommandButton5_Click()
 	'設定保存
@@ -338,6 +350,7 @@ Sub MainWnd_CommandButton5_Click()
 			DBM("changeing baudrate...")
 			If CheckFirmware(hCOM, FALSE) = FALSE Then
 				DBM("invailde baudrate")
+				BaudrateErrorMessage()
 				goto * HKAF_CON_ERR
 			End If
 		End If
@@ -460,7 +473,10 @@ Sub MainWnd_CommandButton2_Click()
 	Dim info As SFC_CART_INFO
 	Dim path As BytePtr
 
-	GetDumpConfig(info)
+	If GetDumpConfig(VarPtr(info)) <> TRUE Then 
+		DBM("GetDumpConfig() Error")
+		ExitSub
+	End If
 '	info.RomSize = &H400000	'debug
 
 #ifndef _DEBUG
@@ -470,13 +486,24 @@ Sub MainWnd_CommandButton2_Click()
 	path="dump.sfc"
 #endif
 
-	DumpFullROM(VarPtr(info), path)
+	Dim ret AS Long
+	ret = DumpFullROM(VarPtr(info), path)
+
+	if ret = HKAC_DUMPROM_OK Then
+		MessageBeep(MB_ICONASTERISK)
+
+	Else
+		DBM("Failed to dump ROM.")
+		if ret = HKAC_DUMPROM_RETRY_OVER Then
+			BaudrateErrorMessage()
+		End If
+
+	End If
 
 #ifndef _DEBUG
 	free(path)
 #endif
 
-	MessageBeep(MB_ICONASTERISK)
 End Sub
 
 Sub MainWnd_QueryClose(ByRef cancel As Integer)
@@ -512,7 +539,11 @@ Sub MainWnd_CommandButton3_Click()
 	Dim info As SFC_CART_INFO
 	Dim path As BytePtr
 
-	GetDumpConfig(info)
+	If GetDumpConfig(VarPtr(info)) <> TRUE Then 
+		DBM("GetDumpConfig() Error")
+		ExitSub
+	End If
+
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",info.Title)
 	If path=0 Then ExitSub
@@ -532,7 +563,10 @@ Sub MainWnd_CommandButton4_Click()
 	Dim path As BytePtr
 	
 	Dim info As SFC_CART_INFO
-	GetDumpConfig(info)
+	If GetDumpConfig(VarPtr(info)) <> TRUE Then 
+		DBM("GetDumpConfig() Error")
+		ExitSub
+	End If
 	
 	If info.isFlashSave Then
 		ErrMes(hMainWnd, "フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "未実装", 0)
@@ -687,7 +721,7 @@ Sub SetRomInfoToDlg_FromROM()
 
 	'ヘッダを読み出し＆ダイアログに情報を表示
 	FlushCom(hCOM)
-	getCartInfo(cartInfo)
+	getCartInfo(VarPtr(cartInfo))
 
 	'ダイアログに表示
 	SetCartInfo(VarPtr(cartInfo))
@@ -747,16 +781,17 @@ End Sub
 
 
 '吸出し設定をROMとGUIから読み出し
-Sub GetDumpConfig(ByRef info As SFC_CART_INFO)
-	getCartInfo(info)
+Function GetDumpConfig(info As *SFC_CART_INFO) As BOOL
+	if getCartInfo(info) <> TRUE Then ExitFunction
 
 	GetDlgOption(info)	'infoにGUIの設定を反映
 
-	SetCartInfo(VarPtr(info))
-End Sub
+	SetCartInfo(info)
+	GetDumpConfig=TRUE
+End Function
 
 
-Sub getCartInfo(ByRef info As SFC_CART_INFO)
+Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	'カートリッジからヘッダをロード
 	Dim buf[SFC_SPEC_HEADER_SIZE+5] As Byte
 	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
@@ -766,14 +801,16 @@ Sub getCartInfo(ByRef info As SFC_CART_INFO)
 	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
 
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
-		lstrcpy(info.Title,"[ERR]通信エラー")
-		SetCartInfo(VarPtr(info))
+		lstrcpy(info->Title,"[ERR]通信エラー")
+		SetCartInfo(info)
 		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
 		DisconnectDevice()
 		ExitSub
 	End If
-	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))
-End Sub
+	SloveCartInfo(buf As *SFC_CART_HEADER,info)
+
+	getCartInfo = TRUE
+End Function
 
 Function getSelectedMapMode() AS Long
 	Dim idx AS Long
@@ -785,21 +822,21 @@ Function getSelectedMapMode() AS Long
 	getSelectedMapMode=idx
 
 End Function
-Sub GetDlgOption(ByRef info As SFC_CART_INFO)
+Sub GetDlgOption(info As *SFC_CART_INFO)
 	'LoROM/HiROMの選択とMAD1のチェック取得
 	If GetCheckBox(MWnd(CB_MANUAL)) Then
-		info.MapType = getSelectedMapMode()
-		'		info.MapMode = (info.MapMode And &HF0) or info.MapType
-		info.RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
-		info.SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
-		printf(ex"custom rom size = %d\n", (info.RomSize / 1024 / 1024) AS DWord)
+		info->MapType = getSelectedMapMode()
+		'		info->MapMode = (info->MapMode And &HF0) or info->MapType
+		info->RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
+		info->SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
+		printf(ex"custom rom size = %d\n", (info->RomSize / 1024 / 1024) AS DWord)
 		
-		If info.MapType = SFC_MAP_LoROM or info.MapType = SFC_MAP_SpLoROM or info.MapType = SFC_MAP_SF_MENU Then
-			info.AddrOffset = 0
-			info.isLoROM = TRUE
+		If info->MapType = SFC_MAP_LoROM or info->MapType = SFC_MAP_SpLoROM or info->MapType = SFC_MAP_SF_MENU Then
+			info->AddrOffset = 0
+			info->isLoROM = TRUE
 		Else
-			info.AddrOffset = HiROM_START_ADR
-			info.isLoROM = FALSE
+			info->AddrOffset = HiROM_START_ADR
+			info->isLoROM = FALSE
 		End If
 		
 	End If

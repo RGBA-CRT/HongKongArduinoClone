@@ -87,7 +87,7 @@ Sub SendControl(hSerial AS HANDLE,b AS Byte)
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError()))
+	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError())):debug
 End Sub
 
 'アドレスセット
@@ -144,7 +144,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 End Function
 
 Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long
-	Dim ReadByte As DWord	
+	Dim TotalReadByte As DWord	
 	Dim dwReadByte As DWord
 	if TimeoutMul <= 1.0 Then
 		TimeoutMul=1.0
@@ -158,6 +158,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
+	Dim requestSize As Long
 
 	Do		
 		if retry>HKAC_HW_RETRY or GetCancelKey() And &H80 Then ExitDo
@@ -169,15 +170,23 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 			Continue
 		End  If
 
-		if ReadFile(hSerial,(data) + ReadByte, cs.cbInQue,VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
-		ReadByte+=dwReadByte
+		' limit request size
+		if TotalReadByte+cs.cbInQue > size Then 
+			requestSize = size - TotalReadByte
+		Else
+			requestSize = cs.cbInQue
+		End If
+
+		if ReadFile(hSerial,(data) + TotalReadByte, requestSize, VarPtr(dwReadByte),ByVal NULL) = FALSE Then DBM(ex"\r\n[Connection Error!] GLE:"+Str$(GetLastError())):ExitDo
+		TotalReadByte+=dwReadByte
 	
-		if ReadByte >= size Then exitdo
+		if TotalReadByte > size Then debug
+		if TotalReadByte >= size Then exitdo
 	Loop
 
 	printf(ex"retry %03d/%03d ",retry,HKAC_HW_RETRY)
 
-	ReceiveFromReader=ReadByte
+	ReceiveFromReader=TotalReadByte
 End Function
 
 Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWord) AS BOOL
@@ -354,7 +363,7 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL) AS BOOL
 			CheckFirmware = TRUE
 		End If
 	Else
-		if retry>5 Then
+		if retry>3 Then
 			if msg = TRUE Then MessageBox(hMainWnd, ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。", "Firmware mismatch", MB_ICONERROR)
 			DBM("VerCheck Failed.")
 			CheckFirmware = FALSE

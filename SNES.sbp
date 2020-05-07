@@ -18,11 +18,16 @@ Const HIROM_SRAM_BANKSIZE = 1024*8
 
 'ROMの吸出し
 
-Sub DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr)
-	DumpRom(info, Path, 0)
-End Sub
+Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
+	DumpFullROM = DumpRom(info, Path, 0)
+End Function
 	
-Sub DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord)
+Const HKAC_DUMPROM_OK = 0
+Const HKAC_DUMPROM_COMMERROR = 1
+Const HKAC_DUMPROM_RETRY_OVER = 2
+Const HKAC_DUMPROM_COPRO_ERROR = 3
+Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) As Long
+	DumpRom = HKAC_DUMPROM_OK
 	Dim MAX_CONTINUE = DEFAULT_CONTINUE As DWord
 	Dim DUMP_BUFFER_SIZE = DEFAULT_DUMP_SIZE As DWord
 	Dim DumpAddress As DWord, offset As DWord, ret As DWord
@@ -112,45 +117,56 @@ Sub DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord)
 		
 		'吸出し＆データチェック
 		ret = ReadROM(hCOM, buf, 0, DumpAddress, DUMP_BUFFER_SIZE, info->isLoROM)
-		If ret = 0 Then DBM("ERROR!"):Goto * EXIT_DUMP
-			If ret<>DUMP_BUFFER_SIZE Then
-				DBMN(ex"[x" + Str$(C) + ex"]")
-				C++
-				'If C>MAX_CONTINUE Then DBM("Over retry count.")
-				Continue
+		If ret = 0 Then 
+			DBM("ERROR!")
+			DumpRom=HKAC_DUMPROM_COMMERROR
+			Goto * EXIT_DUMP
+
+		Else If ret<>DUMP_BUFFER_SIZE Then
+			DBMN(ex"[x" + Str$(C) + ex"]")
+			C++
+			If C>MAX_CONTINUE Then 
+				DBM("Over retry count.")
+				DumpRom=HKAC_DUMPROM_RETRY_OVER
+				Goto * EXIT_DUMP
 			End If
-			
-			'ファイルへ出力
-			OutFile(hout, buf, DUMP_BUFFER_SIZE)
-			
-			'バッファのチェックサム計算
-			bufChecksum = SnesCheckSum(buf, DUMP_BUFFER_SIZE)
-			
-			'3MBの時はラスト8Mbitを再加算
-			If DumpAddress>= 1024 * 1024 * 2 Then
-				If info->RomSize = 1024 * 1024 * 3 Then
-					bufChecksum + = bufChecksum
-				End If
+			Continue
+		Else
+			C=0
+
+		End If
+		
+		'ファイルへ出力
+		OutFile(hout, buf, DUMP_BUFFER_SIZE)
+		
+		'バッファのチェックサム計算
+		bufChecksum = SnesCheckSum(buf, DUMP_BUFFER_SIZE)
+		
+		'3MBの時はラスト8Mbitを再加算
+		If DumpAddress>= 1024 * 1024 * 2 Then
+			If info->RomSize = 1024 * 1024 * 3 Then
+				bufChecksum + = bufChecksum
 			End If
-			
-			'チェックサム加算
-			CheckSum + = bufChecksum
-			
-			'次のアドレスを計算
-			DumpAddress + = DUMP_BUFFER_SIZE
-			'特殊系のバンク切り替え
-			If info->MapType = SFC_MAP_SpLoROM Then
-				If DumpAddress - offset = &H200000 Then
-					'吸出しアドレスをバンク80hに飛ばす
-					offset = &H400000 'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
-					DumpAddress = offset
-					Size = &H100000
-					
-					DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
-				End If
+		End If
+		
+		'チェックサム加算
+		CheckSum + = bufChecksum
+		
+		'次のアドレスを計算
+		DumpAddress + = DUMP_BUFFER_SIZE
+		'特殊系のバンク切り替え
+		If info->MapType = SFC_MAP_SpLoROM Then
+			If DumpAddress - offset = &H200000 Then
+				'吸出しアドレスをバンク80hに飛ばす
+				offset = &H400000 'LoROMアドレスで400000h, HiROMアドレス(実アドレス)で800000h
+				DumpAddress = offset
+				Size = &H100000
 				
-			Else If DumpAddress - offset = &H400000 Then
-				'4MB超えする時
+				DBM(ex"\r\n[SpLoROM]バンク切り替え80h-")
+			End If
+			
+		Else If DumpAddress - offset = &H400000 Then
+			'4MB超えする時
 			If info->MapType = SFC_MAP_SDD1 Then
 				If bBankChanged = FALSE Then
 					'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
@@ -220,7 +236,6 @@ Sub DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord)
 	SetWindowText(MWnd(Static7), "100%")
 	SetDlgEnable(STATUS_CONNECTED)
 
-
 	free(buf)
 	CloseHandle(hout)
 
@@ -229,7 +244,7 @@ Sub DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord)
 	FlushCom(hCOM)
 
 	DBM("")
-End Sub
+End Function
 
 Function checkContiguous(adr As BytePtr,size As DWord) As Long
 	Dim i As Long,someCount As DWord,last As Byte
