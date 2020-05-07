@@ -472,19 +472,18 @@ A5 READ-WAIT(81)(81);
 
 /*
 TODO: リファクタリング
-	ヘッダの構造体を正規化
-	関数の分け方をもう一度考え直そう
-	SRAMのMEMORY_MODELをROMにも
-	ROM　START
-	ROM　MODEL（LO/Hi)
+	[OK]ヘッダの構造体を正規化
+	[  ]関数の分け方をもう一度考え直そう
+	[  ]SRAMのMEMORY_MODELをROMにも
+		ROM　START
+		ROM　MODEL（LO/Hi)
 
-	PROGRESS CALLBACKを使う
-	Chips文字列の生成は関数化する
-対応
-リファクタリング
-Flash対応
-[SRAMベリファイ
-自動ボーレート調整
+	[  ]PROGRESS CALLBACKを使う
+	[OK]Chips文字列の生成は関数化する
+	[PR]リファクタリング
+	[  ]Flash対応
+	[  ]SRAMベリファイ
+	[  ]自動ボーレート調整->初回失敗時のメッセージに変更
 */
 
 /*

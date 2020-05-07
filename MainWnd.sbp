@@ -68,7 +68,7 @@ End Sub
 
 Sub ResetDBM()
 	SetWindowText(MWnd(EditBox1),"")
-	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2018\r\nThis program was cloned \r\n	from WinHongKongArduino.\r\nCopyright (c) 2014 たにやま\r\n")
+	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016-2020.\r\nThis program is third-party impremention of HongKongArduino.\r\nOrg Copyright (C) 2014 たにやま\r\n")
 End Sub
 
 
@@ -140,7 +140,7 @@ Sub ListUpComPort_Callback(userdata AS VoidPtr, PortName As BytePtr, FriendlyNam
 	Dim hCombobox As HWND
 	hCombobox = userdata
 
-	Dim textbuf[64] As BytePtr
+	Dim textbuf[64] As Byte
 	wsprintf(textbuf, ex"%s - %s",PortName,FriendlyName)
 
 	PumpMessage()
@@ -161,24 +161,31 @@ Sub ListUpComPort_Callback(userdata AS VoidPtr, PortName As BytePtr, FriendlyNam
 Endsub
 
 Sub ListUpComPort(Wnd As HWND)
-	' デバイス名付きリストアップを試す(Win2K以降)
-	Dim sa AS SetupApiWrapper
-	if sa.Load() Then
-		EnumSerialPorts(VarPtr(sa), AddressOf(ListUpComPort_Callback), Wnd)
 
-	Else
-		DBM("Cannot Load setupapi.dll")
-
-		'旧リストアップ関数を呼び出し
-		ListUpComPort_Win9x(Wnd)
-	Endif
-
-	'最後に選択されたポートを選ぶ
+	' 最後に接続したデバイスを取得
 	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
 	lastDevice=calloc(128)
 	GetPrivateProfileString(ProgramName,"LastDevice","None",lastDevice,128,INIFILE_PATH)
 
-	'探す
+	' デバイス名付きリストアップを試す(Win2K以降)
+	Dim sa AS SetupApiWrapper, failed AS BOOL
+	if sa.Load() Then
+		if EnumSerialPorts(VarPtr(sa), AddressOf(ListUpComPort_Callback), Wnd) = FALSE Then failed=TRUE
+	Else
+		failed=TRUE
+	Endif
+
+	if failed Then
+		DBM("Listup serial port failed.")
+
+		SendMessage(Wnd,CB_ADDSTRING,0,lastDevice As Long)
+		SendMessage(Wnd,CB_ADDSTRING,0,"COM1" As Long)
+		SendMessage(Wnd,CB_ADDSTRING,0,"COM2" As Long)
+		SendMessage(Wnd,CB_ADDSTRING,0,"COM3" As Long)
+		SendMessage(Wnd,CB_ADDSTRING,0,"<Error>" As Long)
+	End If
+
+	'最後に選択されたポートを選ぶ
 	lastDeviceIdx=SendMessage(Wnd,CB_FINDSTRINGEXACT,-1,lastDevice As DWord)
 	If lastDeviceIdx=CB_ERR Then lastDeviceIdx=0
 
@@ -188,7 +195,7 @@ Sub ListUpComPort(Wnd As HWND)
 	free(lastDevice)	
 End Sub
 
-Sub ListUpComPort_Win9x(Wnd As HWND)
+Sub ListUpComPort_Old(Wnd As HWND)
 	Dim buf As BytePtr,p As DWord,C As Long
 	dim QDD_BUFSIZE As DWord
 

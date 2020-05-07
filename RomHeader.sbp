@@ -482,7 +482,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	Dim info AS StringClass
 	info.allocStr(HEADER_INFO_TEXT_LEN)
 
-	info.cat(ex"==== ROM infomation ====")
+	info.cat(ex"==== Cartridge infomation ====")
 	info.sprintf(ex"\r\n- Title: %s ", header->Title As DWord)
 	info.sprintf(ex"\r\n- Version : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
 	info.sprintf(ex"\r\n- Checksum: 0x%04X, 0x%04X", header->CheckSum2, header->CheckSum1)
