@@ -1,6 +1,4 @@
 'スーファミシステム系
-
-
 ' Control bus defines
 Const CBUS_OE = 1
 Const CBUS_ROMSEL = 2
@@ -9,8 +7,9 @@ Const CBUS_RST= 8
 
 Const DEFAULT_CTRLBUS = &H0C	'CBUS_RST CBUS_WE
 
-Const HiROM_START_ADR=&HC00000
-Const HIROM_SRAM_BANKSIZE = 1024*8
+
+
+Const LoROM_BANK_SIZE = &H8000
 
 '----------------
 ' ROM Functions
@@ -18,14 +17,19 @@ Const HIROM_SRAM_BANKSIZE = 1024*8
 
 'ROMの吸出し
 
-Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
-	DumpFullROM = DumpRom(info, Path, 0)
-End Function
+
 	
-Const HKAC_DUMPROM_OK = 0
-Const HKAC_DUMPROM_COMMERROR = 1
-Const HKAC_DUMPROM_RETRY_OVER = 2
-Const HKAC_DUMPROM_COPRO_ERROR = 3
+Enum HKAC_DUMPROM_RESULT
+	HKAC_DUMPROM_OK = 0
+	HKAC_DUMPROM_COMMERROR
+	HKAC_DUMPROM_RETRY_OVER
+	HKAC_DUMPROM_COPRO_ERROR
+	HKAC_DUMPROM_FILE_ERROR
+	HKAC_DUMPROM_USER_CANCEL
+	HKAC_DUMPROM_CHECKSUM_ERROR
+	HKAC_DUMPROM_PTRERROR
+End Enum
+
 Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) As Long
 	DumpRom = HKAC_DUMPROM_OK
 	Dim MAX_CONTINUE = DEFAULT_CONTINUE As DWord
@@ -140,7 +144,7 @@ Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) A
 		OutFile(hout, buf, DUMP_BUFFER_SIZE)
 		
 		'バッファのチェックサム計算
-		bufChecksum = SnesCheckSum(buf, DUMP_BUFFER_SIZE)
+		bufChecksum = SumSnesChecksum(buf, DUMP_BUFFER_SIZE)
 		
 		'3MBの時はラスト8Mbitを再加算
 		If DumpAddress>= 1024 * 1024 * 2 Then
@@ -246,31 +250,92 @@ Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) A
 	DBM("")
 End Function
 
-Function checkContiguous(adr As BytePtr,size As DWord) As Long
-	Dim i As Long,someCount As DWord,last As Byte
-	For i=0 To size
-		If last=adr[i] Then
-			/*If last<>0 Then*/ someCount++	'0連続はよくあるので除外
-			
-			If someCount=>&H1000 Then DBM(Hex$(last)+"fill"):ExitFunction
-		Else
-			someCount=0
-		End If
-		last=adr[i]
-	Next i
-	checkContiguous=TRUE
+Function GetDumpBufferSize() AS DWord
+	Dim bufferSize AS DWord
+	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	If bufferSize < 1 Then 
+		bufferSize = DEFAULT_DUMP_SIZE * 1024
+	Elseif bufferSize > (LoROM_BANK_SIZE/1024) Then
+		bufferSize = LoROM_BANK_SIZE
+	Else
+		'LoROMバンクをまたいだバンクサイズだとバンク切り替えできないので　丸める(脳死アルゴリズム)
+		*MARU
+		if LoROM_BANK_SIZE Mod bufferSize Then bufferSize--:Goto *MARU
+		bufferSize *= 1024
+	End If
+	GetDumpBufferSize = bufferSize
 End Function
 
-'チェックサム計算
-Function SnesCheckSum(data As BytePtr,length As DWord) As DWord
-	Dim i As DWord
-	SnesCheckSum=0
+Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, rom As BytePtr, progress AS * ProgressCallback) As HKAC_DUMPROM_RESULT
+	Dim dwReadByte As DWord
+	Dim totalReadBytes As DWord
+	Dim currentAddress As DWord
+	Dim retry As DWord, retryLimit As DWord
+	Dim romBuffer AS BytePtr, bufferSize AS DWord
+
+	if mmodel=NULL or rom=NULL Then DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
+	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): debug: 	DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
+
+	DumpRom2 = HKAC_DUMPROM_OK
+
+	' 設定読み出し
+	retryLimit = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
+	bufferSize = GetDumpBufferSize()
+
+	' 初期アドレスセット
+	currentAddress = mmodel->rom.adr
+	SendControl(hCOM, DEFAULT_CTRLBUS)
+
+	' MMC初期化
+	if mmodel->rom.init_cb Then mmodel->rom.init_cb(hSerial, info)
+
+	' ダンプバッファの作成
+	romBuffer = calloc(bufferSize)
+
+	if progress Then progress->Init( info->RomSize>>10 )
+
 	Do
-		SnesCheckSum += data[i]
-		If i => length-1 Then ExitDo
-		i++
+		'ESCキーでキャンセル
+		if progress Then
+			If progress->isCancel() Then DumpRom2 = HKAC_DUMPROM_USER_CANCEL: Goto *EXIT_DUMP2
+		End If
+
+		'吸出し＆データチェック
+		Dim ret AS Long
+		ret = ReadROM(hSerial, romBuffer, 0, currentAddress, bufferSize, FALSE)
+		If ret = 0 Then
+			DumpRom2=HKAC_DUMPROM_COMMERROR
+			Goto *EXIT_DUMP2
+		Else If ret<>bufferSize Then
+			retry++
+			progress->ErrorRetry(retry, retryLimit)
+			If retry>retryLimit Then DumpRom2=HKAC_DUMPROM_RETRY_OVER:Goto *EXIT_DUMP2
+			Continue
+		Else
+			retry=0
+		End If
+
+		'出力
+		memcpy(rom + totalReadBytes, romBuffer, bufferSize)
+		
+		if progress Then progress->Step( bufferSize>>10 )
+
+		totalReadBytes += bufferSize
+		if totalReadBytes >= info->RomSize Then ExitDo
+
+		currentAddress = mmodel->rom.next_cb(info, currentAddress, bufferSize)
+
 	Loop
+	
+	if mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hSerial, info)
+
+*EXIT_DUMP2
+	if progress<>NULL Then progress->Final()
+
+	free(romBuffer)	
+	
 End Function
+
 
 
 '---------------------------
@@ -290,12 +355,13 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, FileName As BytePtr)
 		ExitSub
 	End If
 	
-	Dim sraminfo As * SFC_SRAM_MODEL
+	Dim sraminfo As *SFC_SRAM_MODEL, mmap As SFC_MMAP_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
 	
-	sraminfo = GetSramModel(info, FALSE)
+	GetMmapModel(info, FALSE, VarPtr(mmap))
+	sraminfo = VarPtr(mmap.sram)
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
@@ -353,12 +419,13 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 	Dim fin As File
 	
 	'諸計算
-	Dim sraminfo As * SFC_SRAM_MODEL
+	Dim sraminfo As *SFC_SRAM_MODEL, mmap As SFC_MMAP_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
 	
-	sraminfo = GetSramModel(info, TRUE)
+	GetMmapModel(info, TRUE, VarPtr(mmap))
+	sraminfo = VarPtr(mmap.sram)
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SA-1レジスタセットアップ

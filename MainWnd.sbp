@@ -270,10 +270,19 @@ Sub DBMN(Text As BytePtr)
 	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
 End Sub
 
+'printfのDBM版
+Sub DBMf(lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e As DWord ,f As DWord ,g As DWord ,h As DWord ,i As DWord ,j As DWord ,k As DWord ,l As DWord ,m As DWord ,n As DWord ) 
+	Dim dbuf[1024] As Byte
+	Dim p AS DWord
+	p=wsprintf(dbuf,lpFormat,a,b,c,d,e,f,g,h,i,j,k,l,m,n)
+
+	DBM(dbuf)
+EndSub
+
 Sub BaudrateErrorMessage()
 	' 初回
 	if isFirstBaudrateError = FALSE Then
-		Dim text_jpn=ex"通信に失敗しました。使用しているArduino似合わせてボーレートを調整してください。(詳細はReadme参照)\n\n設定例:\n  公式Arduino: 500000bps\n  互換機(CH340): 1000000bps " As BytePtr
+		Dim text_jpn=ex"通信に失敗しました。使用しているArduinoに合わせてボーレートを調整してください。(詳細はReadme参照)\n\n最大ボーレートは使用しているシリアルコンバータに依存します。例:\n  [公式Arduino UNO] ATmega8U2: 500,000 bps\n  [Arduino互換機] CH340: 1,000,000 bps" As BytePtr
 		Dim text_eng=ex"Communication failed. Please adjust baudrate for your Arduino (see README.md)" As BytePtr
 		MessageBox(hMainWnd, text_jpn, text_eng, MB_OK OR MB_ICONERROR)
 		DBM(text_eng)
@@ -719,9 +728,11 @@ Sub SetRomInfoToDlg_FromROM()
 	Dim buf[SFC_SPEC_HEADER_SIZE+2] As Byte,cartInfo As SFC_CART_INFO
 	'DBM( "Cartridge Infomation")
 
-	'ヘッダを読み出し＆ダイアログに情報を表示
+	'ヘッダを読み出し
 	FlushCom(hCOM)
 	getCartInfo(VarPtr(cartInfo))
+	printf(ex"=== ROM HEADER ===\n")
+	Dump(VarPtr(cartInfo.rawHeader), sizeof(SFC_CART_HEADER))
 
 	'ダイアログに表示
 	SetCartInfo(VarPtr(cartInfo))
@@ -1147,7 +1158,7 @@ Sub MainWnd_CommandButton17_Click()
 	End If
 	
 	Dim checksum AS DWord
-	checksum = SnesCheckSum(buf, ST018_BIOS_SIZE)
+	checksum = SumSnesChecksum(buf, ST018_BIOS_SIZE)
 	DBM(sprintfStr(ex"CheckSum  : %08X\r\nActualSum : %08X", ST018_CHECKSUM, checksum))
 	If ST018_CHECKSUM = checksum Then
 		DBM(ex"Checksum OK.\r\n")
@@ -1192,12 +1203,16 @@ Sub MainWnd_CommandButton17_Click()
 	delete pc
 End Sub
 
+' 言語仕様上抽象クラスが作りづらいので、とりあえずバリエーションはこれだけにする
 Class ProgressCallback
 Private
 	Max AS Long
 	Now AS Long
 	hProgress As HANDLE
+	StartTime As DWord
+	ProcessTime As DWord
 Public
+
 	Sub Init(Max AS Word) 
 		hProgress=MWnd(hProg)
 		this.Now=0
@@ -1207,12 +1222,16 @@ Public
 		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,Max As Word))
 
 		SetDlgEnable(STATUS_DUMPING)
+		
+		DBM("(Pless Esc to Cancel)")
+		DBMN("Dumping")		
 
+		StartTime = GetTickCount()
 	End Sub
 
 	Sub Step(step AS Long)
 		SendMessage(hProgress, PBM_SETSTEP,step,0)
-		SendMessage(hProgress,PBM_STEPIT,0,0)
+		SendMessage(hProgress, PBM_STEPIT,0,0)
 
 		Now = Now + step		
 		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
@@ -1223,14 +1242,31 @@ Public
 	End Sub
 
 	Sub Final()
+		ProcessTime = GetTickCount() - StartTime
+
 		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
 
 		SetWindowText(MWnd(Static7),"100%")
 
 		SetDlgEnable(STATUS_CONNECTED)
 
-		DBM(ex"\r\n")
+		DBMN(ex"done\r\n")
 	End Sub
+
+	Function isCancel() As BOOL
+		PumpMessage()
+		isCancel = GetCancelKey()
+	End Function
+
+	Sub ErrorRetry(count As DWord, limit As DWord)
+		DBMN(ex"X")
+	End Sub
+
+	' ProgressCallbackの仕様外
+	Function GetProcessTime() As DWord
+		GetProcessTime = ProcessTime
+	End Function
+
 End Class
 
 Sub MainWnd_CommandButton18_Click()   
@@ -1250,3 +1286,59 @@ Sub MainWnd_CommandButton18_Click()
 	if currentWidth < size.cx Then SendMessage(MWnd(ComList), CB_SETDROPPEDWIDTH, size.cx, 0)
 	SendMessage(MWnd(ComList), CB_ADDSTRING, 0, text)
 End Sub
+
+Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
+	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *ProgressCallback
+	Dim outFile AS File
+
+	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
+		DumpFullROM = HKAC_DUMPROM_FILE_ERROR
+		ExitFunction
+	End If
+
+	GetMmapModel(info, FALSE, VarPtr(mmapModel))
+	pc = New ProgressCallback()
+
+	Dim rom as BytePtr
+	rom = calloc( info->RomSize )
+	FillMemory(rom, info->RomSize, &HDD)
+	
+	DumpFullROM = DumpRom2(hCOM, info, VarPtr(mmapModel), rom, pc)
+	outFile.write(rom, info->RomSize)	
+
+	Dim time AS DWord
+	time = pc->GetProcessTime()
+	DBMf(ex"Time  : %d.%d sec", time/1000, time Mod 1000)
+
+	Dim speed As DWord
+	speed = (info->RomSize / (time / 1000))
+	if speed > 999 Then
+		DBMf(ex"Speed : %d,%03d byte/sec", speed/1000, speed Mod 1000)
+	Else
+		DBMf(ex"Speed : %d byte/sec", speed)
+	End If
+
+	Dim actualSum AS Word
+	actualSum = CalcSnesChecksum(info, rom)
+	DBMf("HeaderSum: %02X, %02X", info->CheckSum2, info->CheckSum1)
+	DBMf("ActualSum: %02X, %02X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
+
+	if info->enableChecksum Then
+		if CheckChecksum(info, actualSum) Then
+			DBM(ex"checksum OK.")
+		Else
+			DBM(ex"checksum NG...!!!")
+			MessageBoxf(hMainWnd, "ROM Dump Error", MB_ICONERROR, _
+						ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1, (not(actualSum) And &HFFFF), info->CheckSum2, (actualSum And &HFFFF))
+		End If
+	Else
+		DBM("checksum is disabled.")
+	End if	
+
+	DBMN(ex"\r\n")
+
+	outFile.close()
+	free(rom)
+	delete pc
+
+End Function

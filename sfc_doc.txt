@@ -481,6 +481,7 @@ TODO: リファクタリング
 	[  ]PROGRESS CALLBACKを使う
 	[OK]Chips文字列の生成は関数化する
 	[PR]リファクタリング
+	[  ]Dump.メモリにしてチェックサムとファイルをウィンドウ持ちにしろ
 	[  ]Flash対応
 	[  ]SRAMベリファイ
 	[  ]自動ボーレート調整->初回失敗時のメッセージに変更
@@ -562,4 +563,23 @@ TODO: リファクタリング
 	+ FlashメモリかどうかはMemoryModelに含めない
 		+ どのマッピングもFlashセーブになり得る
 	+ Read/WriteでModelが異なるものについてはGet関数で対応
+
+Enum SFC_MAP_TYPE
+	SFC_MAP_LoROM = 0
+	SFC_MAP_HiROM
+	SFC_MAP_ExHiROM
+	SFC_MAP_SA1
+	SFC_MAP_SDD1
+	SFC_MAP_SPC7110
+	SFC_MAP_SpLoROM '衛星対応カートリッジでかつLoROMで3MBのもの(ダビスタ)
+	SFC_MAP_BSX
+	SFC_MAP_JRAPAT
+	SFC_MAP_ST018
+	SFC_MAP_ST010
+	SFC_MAP_SF_MENU 'SFメモリカートリッジ
+	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
+	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
+	SFC_MAP_TYPE__NUM
+End Enum
+
 */

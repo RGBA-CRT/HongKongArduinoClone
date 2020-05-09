@@ -227,15 +227,19 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	Else
 		info->RomSize = 0
 	End If
-	
+
 	If data->SramSize<>0 Then
 		info->SramSize = &H0400 << data->SramSize
+	
+	Elseif info->hasExtraHeader And data->ExRamSize Then
+		info->SramSize = &H0400 << data->ExRamSize
+
+	Elseif info->MapType = SFC_MAP_ST010 Then
+		' ST010内蔵RAM
+		info->SramSize = 4 * 1024
+
 	Else
-		if info->hasExtraHeader Then
-			info->SramSize = &H0400 << data->ExRamSize
-		Else
-			info->SramSize = 0
-		End If
+		info->SramSize = 0
 	End If
 
 	'メーカがEJ（NTT DATA）ならFlashSaveカセット
@@ -291,22 +295,6 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 
 			
 EndSub
-
-Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
-	Dim i As Long
-	For i = 0 To 19
-		If header->GameTitle[i] < &H20 Then
-			If Not(i>4 And header->GameTitle[i] = 0) Then GoTo * ISH_ERR
-		End If
-	Next i
-	'サイズチェック
-	If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
-	isSnesHeader = TRUE
-	ExitFunction
-	
-*ISH_ERR
-	isSnesHeader = FALSE
-End Function
 
 ' those country codes are from fullsnes.
 Enum SFC_COUNTRY
@@ -484,8 +472,23 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 
 	info.cat(ex"==== Cartridge infomation ====")
 	info.sprintf(ex"\r\n- Title: %s ", header->Title As DWord)
-	info.sprintf(ex"\r\n- Version : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
-	info.sprintf(ex"\r\n- Checksum: 0x%04X, 0x%04X", header->CheckSum2, header->CheckSum1)
+	
+	Dim publisher_text AS BytePtr
+	publisher_text = GetMakerString(header->MakerCode)
+	if lstrlen(publisher_text) < 15 Then
+		info.sprintf(ex"\r\n- Publisher: %c%c/%s", _
+			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
+	Else			
+		info.sprintf(ex"\r\n- Publisher: %c%c \r\n - %s", _
+			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
+	Endif
+
+	If header->hasExtraHeader Then		
+		info.cat(ex"\r\n- GameCode : SHVC-"): info.cat(header->GameCode)
+	End If
+
+	info.sprintf(ex"\r\n- Version  : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
+	info.sprintf(ex"\r\n- Checksum : 0x%04X, 0x%04X", header->CheckSum2, header->CheckSum1)
 
 	Dim fastrom[1] = ["Slow", "Fast"] As BytePtr
 	Dim lohi[1]	= ["Hi","Lo"] As BytePtr
@@ -504,39 +507,25 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 		info.sprintf(ex"\r\n- Chipset : 0x%02X\r\n - %s", header->Chipset, chipset_text As DWord)
 	End If
 
-
-	
-	Dim publisher_text AS BytePtr
-	publisher_text = GetMakerString(header->MakerCode)
-	if lstrlen(publisher_text) < 15 Then
-		info.sprintf(ex"\r\n- Publisher: %c%c/%s", _
-			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
-	Else			
-		info.sprintf(ex"\r\n- Publisher: %c%c \r\n - %s", _
-			header->MakerCode As DWord, (header->MakerCode >> 8) As DWord, publisher_text As DWord)
-	Endif
-
-	If header->hasExtraHeader Then		
-		info.cat(ex"\r\n- GameCode : SHVC-"): info.cat(header->GameCode)
-	End If
-
-
+	info.cat(ex"\r\n- SaveType: ")
 	If header->isFlashSave Then 
-		info.cat(ex"\r\n- SaveType : FLASH")
+		info.cat("FLASH")
 	Elseif header->SramSize = 0 Then
-		info.cat(ex"\r\n- SaveType : None")
+		info.cat("None")
+	Elseif header->MapType = SFC_MAP_ST010 Then
+		info.cat("ST010 Internal RAM")
 	Else
-		info.cat(ex"\r\n- SaveType : SRAM")
+		info.cat("SRAM")
 	End If
 
 	if header->SramSize Then
-		Dim srammodel AS *SFC_SRAM_MODEL, lastbank As DWord
-		srammodel = GetSramModel(header, FALSE) 
-		lastbank = (srammodel->adr + (srammodel->bankStep) * (ceil(header->SramSize/srammodel->bankSize-1))) + srammodel->bankSize-1
+		Dim model AS SFC_MMAP_MODEL, lastbank As DWord
+		GetMmapModel(header, FALSE, VarPtr(model)) 
+		lastbank = (model.sram.adr + (model.sram.bankStep) * (ceil(header->SramSize/model.sram.bankSize-1))) + model.sram.bankSize-1
 		info.sprintf(ex"\r\n - Map: $%02X:%04X-$%02X:%04X %dbank", _
-			srammodel->adr>>16, srammodel->adr And &HFFFF, _
+			model.sram.adr>>16, model.sram.adr And &HFFFF, _
 			lastbank>>16, lastbank And &HFFFF, _
-			ceil(header->SramSize/srammodel->bankSize))
+			ceil(header->SramSize/model.sram.bankSize))
 	End If
 
 	If header->hasExtraHeader Then
@@ -561,134 +550,49 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	memcpy(text_buffer, info.ptr, copy_size)
 End Function
 
-'---------------------------
-' SRAM Memory Model
-'---------------------------
-
-Const SRAM_CTRL_SA1	 = &H01000000
-Const SRAM_CTRL_SPC7110 = &H02000000
-
-Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
-Type SFC_SRAM_MODEL
-	adr As DWord		'セーブ用SRAMのアドレス
-	bankStep As DWord	'バンク間の差 (BANK0 70:0000, BANK1 71:0000なら0x010000)
-	bankSize As DWord	'そのバンクにおけるSRAM領域のサイズ
-	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる。例外としてSRAM_CTRL_???の代入が許可されている
-End Type
-
-Dim SFC_LoROM_SRAM_MODEL[3]=[
-	&H700000,
-	&H010000,
-	&H008000,
-	CBUS_RST
-] As DWord
-
-Dim SFC_HiROM_SRAM_MODEL[3]=[
-'	&H206000,
-'	SUPER DONKEY KONG 2 は 30:6000h ~
-	&H306000,
-	&H010000,
-	&H002000,
-	CBUS_RST or CBUS_ROMSEL
-] As DWord
-
-Dim SFC_BSX_SRAM_MODEL[3]=[
-	&H105000,
-	&H010000,
-	&H001000,
-	CBUS_RST or CBUS_ROMSEL
-] As DWord
-
-'テイルズオブファンタジア用
-Dim SFC_ExHiROM_SRAM_MODEL[3]=[
-	&HB06000,
-	&H010000,
-	&H002000,
-	CBUS_RST or CBUS_ROMSEL
-] As DWord
-
-Dim SFC_SDD1_SRAM_MODEL[3]=[
-	&H806000,
-	&H010000,
-	&H002000,
-	CBUS_RST 
-] As DWord
-
-Dim SFC_SA1_SRAM_MODEL[3]=[
-	&H400000,
-	&H010000,
-	&H010000,
-	CBUS_RST or SRAM_CTRL_SA1
-] As DWord
-
-Dim SFC_SA1_WRITE_SRAM_MODEL[3]=[
-	&H006000,
-	&H010000,
-	&H002000,
-	CBUS_RST or SRAM_CTRL_SA1
-] As DWord
-
-Dim SFC_SPC7110_SRAM_MODEL[3]=[
-	&H306000,
-	&H010000,
-	&H002000,
-	CBUS_RST or CBUS_ROMSEL or SRAM_CTRL_SPC7110
-] As DWord
-
-Dim SFC_ST010_SRAM_MODEL[3]=[
-	&H680000,
-	&H010000,
-	&H001000,
-	CBUS_RST
-] As DWord
-
-'JRA PAT用（Flash）
-Dim SFC_JRA_SRAM_MODEL[3]=[
-	&HC00000,
-	&H010000,
-	&H008000,
-	CBUS_RST or CBUS_ROMSEL
-] As DWord
-
-
-Function GetSramModel(info As *SFC_CART_INFO, isWrite AS BOOL) As *SFC_SRAM_MODEL
-	Dim model As *DWord
-	Select Case info->MapType
-		Case SFC_MAP_BSX
-			model = SFC_BSX_SRAM_MODEL
-		
-		Case SFC_MAP_SDD1
-			model = SFC_SDD1_SRAM_MODEL
-
-		Case SFC_MAP_SPC7110
-			model = SFC_SPC7110_SRAM_MODEL
-
-		Case SFC_MAP_ExHiROM
-			model = SFC_ExHiROM_SRAM_MODEL
-
-		Case SFC_MAP_SA1
-			if isWrite Then
-				model = SFC_SA1_WRITE_SRAM_MODEL
-			Else
-				model = SFC_SA1_SRAM_MODEL
-			End If
-
-		Case SFC_MAP_ST010
-			model = SFC_ST010_SRAM_MODEL
+' ヘッダかどうか判定
+Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
+	Dim i As Long
+	For i = 0 To 19
+		If header->GameTitle[i] < &H20 Then
+			If Not(i>4 And header->GameTitle[i] = 0) Then GoTo * ISH_ERR
+		End If
+	Next i
+	'サイズチェック
+	If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
+	isSnesHeader = TRUE
+	ExitFunction
 	
-		Case SFC_MAP_JRAPAT
-			model = SFC_JRA_SRAM_MODEL
+*ISH_ERR
+	isSnesHeader = FALSE
+End Function
 
-		Case SFC_MAP_LoROM
-			model = SFC_LoROM_SRAM_MODEL
+' Checksumが一致してるかチェック
+Function CheckChecksum(info As *SFC_CART_INFO, actualSum AS Word) As BOOL	
+	If info->CheckSum2 = (actualSum And &HFFFF) and info->CheckSum1 = (not(actualSum) And &HFFFF) Then
+		CheckChecksum = TRUE
+	Else
+		CheckChecksum = FALSE
+	End If
+End Function
 
-		Case SFC_MAP_HiROM
-			model = SFC_HiROM_SRAM_MODEL
+'チェックサム計算（Byte単位）
+Function SumSnesChecksum(data As BytePtr,length As DWord) As DWord
+	Dim i As DWord
+	SumSnesChecksum=0
+	Do
+		SumSnesChecksum += data[i]
+		If i => length-1 Then ExitDo
+		i++
+	Loop
+End Function
 
-		Case Else
-			model = SFC_LoROM_SRAM_MODEL
-			DBM("[WAN] GetSramModel: Unknown MapType ")
-	End Select
+'チェックサム計算（ROM単位）
+Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr) AS Word
+	CalcSnesChecksum = SumSnesChecksum(rom, info->RomSize)
 
-	GetSramModel = model As *SFC_SRAM_MODEL
+	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024) Then
+		'3MBの時はラスト8Mbitを再加算
+		CalcSnesChecksum += SumSnesChecksum(rom+1024*2, 1024)
+	End If
 End Function

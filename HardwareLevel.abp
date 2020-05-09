@@ -333,7 +333,7 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL) AS BOOL
 			
 		Elseif FwVer < FIRMWARE_VERSION Then
 			if msg = FALSE Then
-				CheckFirmware = FALSE
+				CheckFirmware = TRUE
 				ExitFunction
 			end if
 			if MessageBox(hMainWnd,
