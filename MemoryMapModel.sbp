@@ -44,6 +44,12 @@ Function HiROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWo
 	HiROM_nextAddress = adr + readSize
 End Function
 
+Function ExHiROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	ExHiROM_nextAddress = adr + readSize
+	' $C0:0000`$FF:FFFF‚Ü‚Å‹z‚Á‚½‚çŽŸ‚Í$40:0000`$7F:FFFF
+	if ExHiROM_nextAddress > &HFFFFFF Then ExHiROM_nextAddress = &H400000
+End Function
+
 Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
 	Select Case info->MapType
 		Case SFC_MAP_LoROM
@@ -81,7 +87,7 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->rom.adr       =  HiROM_START_ADR
 			model->rom.isLoROM   =  FALSE
 			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(ExHiROM_nextAddress)
 			model->rom.exit_cb   =  NULL
 
 

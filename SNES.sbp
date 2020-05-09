@@ -5,7 +5,7 @@ Const CBUS_ROMSEL = 2
 Const CBUS_WE = 4
 Const CBUS_RST= 8
 
-Const DEFAULT_CTRLBUS = &H0C	'CBUS_RST CBUS_WE
+Const CBUS_DEFAULT = &H0C	'CBUS_RST CBUS_WE
 
 
 
@@ -44,7 +44,7 @@ Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) A
 	offset = info->AddrOffset '固定
 	DumpAddress = offset 'インクリメントしていく
 	Size = info->RomSize
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 	
 	'設定ファイル読み込み
 	MAX_CONTINUE = GetPrivateProfileInt(ProgramName, "MaxContinue", DEFAULT_CONTINUE, INIFILE_PATH)
@@ -273,7 +273,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	Dim romBuffer AS BytePtr, bufferSize AS DWord
 
 	if mmodel=NULL or rom=NULL Then DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
-	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): debug: 	DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
+	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): 	DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
 
 	DumpRom2 = HKAC_DUMPROM_OK
 
@@ -283,7 +283,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 
 	' 初期アドレスセット
 	currentAddress = mmodel->rom.adr
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 
 	' MMC初期化
 	if mmodel->rom.init_cb Then mmodel->rom.init_cb(hSerial, info)
@@ -307,7 +307,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 			Goto *EXIT_DUMP2
 		Else If ret<>bufferSize Then
 			retry++
-			progress->ErrorRetry(retry, retryLimit)
+			if progress Then progress->ErrorRetry(retry, retryLimit)
 			If retry>retryLimit Then DumpRom2=HKAC_DUMPROM_RETRY_OVER:Goto *EXIT_DUMP2
 			Continue
 		Else
@@ -317,7 +317,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 		'出力
 		memcpy(rom + totalReadBytes, romBuffer, bufferSize)
 		
-		if progress Then progress->Step( bufferSize )
+		if progress Then progress->Step( bufferSize , currentAddress)
 
 		totalReadBytes += bufferSize
 		if totalReadBytes >= info->RomSize Then ExitDo
@@ -340,27 +340,26 @@ End Function
 '---------------------------
 ' SRAM Functions
 '---------------------------
-Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, FileName As BytePtr)
-	Dim fout As File
+Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
+'	Dim fout As File
 	
 	If info->SramSize = 0 Then
 		DBM("SRAM Size is zero.")
 		ExitSub
 	End If
 	
-	If fout.openFile(FileName, GENERIC_WRITE) = FALSE Then
+/*	If fout.openFile(FileName, GENERIC_WRITE) = FALSE Then
 		DBM("Cannot open file! " + MakeStr(FileName))
 		ErrMes(hMainWnd, "SRAMを保存できませんでした。", "File I/O Error", 0, GetLastError())
 		ExitSub
 	End If
-	
-	Dim sraminfo As *SFC_SRAM_MODEL, mmap As SFC_MMAP_MODEL
+*/	
+	Dim sraminfo As *SFC_SRAM_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
 	
-	GetMmapModel(info, FALSE, VarPtr(mmap))
-	sraminfo = VarPtr(mmap.sram)
+	sraminfo = VarPtr(mmap->sram)
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
@@ -370,65 +369,67 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, FileName As BytePtr)
 	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
 	buf = calloc(sraminfo->bankSize)
 	
-	DBM("Dumping SRAM...")
-	DBM("SramSize = " + Str$(info->SramSize / 1024) + "KB")
-	DBM("bankSize = " + Str$(sraminfo->bankSize / 1024) + "KB")
-	DBM("bankCount= " + Str$(bankCount))
-	
 	SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
-	
+
+	if progress Then progress->Init(info->SramSize)
+
 	Dim i As Long, readAddr As DWord
 	Do
-		If i = > bankCount Then ExitDo
-		If GetCancelKey() Then DBM(ex"\r\nCanceled by the user."):GoTo *EXIT_SRAM_DUMP
-		
+		If i = > bankCount Then ExitDo	
+		if progress Then 
+			If progress->isCancel() Then DBM(ex"\r\nCanceled by the user."):GoTo *EXIT_SRAM_DUMP
+		End If
+
 		readAddr = sraminfo->adr + i * sraminfo->bankStep
-		DBM(sprintfStr("SRAM %02X:%04X +%04X", readAddr>>16, readAddr And &HFFFF, sraminfo->bankSize))
 		
 		SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
 		ReadROM(hSerial, buf, 0, readAddr, sraminfo->bankSize, FALSE)
-		fout.write(buf, sraminfo->bankSize)
+		memcpy(sram+(i * sraminfo->bankSize), buf, sraminfo->bankSize)
 		i++
+		
+		if progress Then progress->Step(sraminfo->bankSize, readAddr)
 		PumpMessage()
 	Loop
 	
 	If lastDumpSize > 0 Then
-		DBM(sprintfStr("LastSRAM %02X:%04X +%04X", i + sraminfo->adr>>16, sraminfo->adr And &HFFFF, lastDumpSize))
-		ReadROM(hSerial, buf, 0, sraminfo->adr + i * sraminfo->bankStep, lastDumpSize, FALSE)
-		fout.write(buf, lastDumpSize)
+		readAddr = sraminfo->adr + i * sraminfo->bankStep
+		ReadROM(hSerial, buf, 0, readAddr, lastDumpSize, FALSE)
+		memcpy(sram+(i * sraminfo->bankSize), buf, lastDumpSize)		
+		if progress Then progress->Step(lastDumpSize, readAddr)
 	End If
 	
-	DBM(ex"SRAM dumping successful!!!\r\n")
 	
 *EXIT_SRAM_DUMP
 	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM ENABLE
 	End If
 	
-	SendControl(hSerial, DEFAULT_CTRLBUS)
+	SendControl(hSerial, CBUS_DEFAULT)
+
+	if progress Then progress->Final()
 	
-	fout.close()
+'	fout.close()
 	free(buf)
 		
 End Sub
 
 'Writing SA-1 SRAM routine is based on sanni's cartreader.
 
-Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
+Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
 	Dim fin As File
 	
 	'諸計算
-	Dim sraminfo As *SFC_SRAM_MODEL, mmap As SFC_MMAP_MODEL
+	Dim sraminfo As *SFC_SRAM_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
 	
-	GetMmapModel(info, TRUE, VarPtr(mmap))
-	sraminfo = VarPtr(mmap.sram)
+	sraminfo = VarPtr(mmap->sram)
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SA-1レジスタセットアップ
-		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register
+		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
+'		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL) 'Enable CPU Clock for Writing SA-1 Register
 		Sleep(500)
 		SetCartRegister(&H00, &H2224, &H00, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
@@ -442,21 +443,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 	
 	bankCount = Int(info->SramSize / sraminfo->bankSize)
 	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
-	buf = calloc(info->SramSize)
-	
-	DBM("Writing SRAM...")
-	DBM("SramSize = " + Str$(info->SramSize / 1024) + "KB")
-	DBM("bankSize = " + Str$(sraminfo->bankSize / 1024) + "KB")
-	DBM("bankCount= " + Str$(bankCount))
-	
-	'バッファ生成
-	If fin.openFile(FileName, GENERIC_READ) = FALSE Then
-		DBM("Cannot open file! " + MakeStr(FileName))
-		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
-		ExitSub
-	End If
-	fin.read(buf, info->SramSize)
-	fin.close()
+	buf = sram
 	
 	'ライト開始
 	SendControl(hSerial, (sraminfo->ctrlBus or CBUS_OE) As Byte)
@@ -468,6 +455,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 		writeAddr = sraminfo->adr + i * sraminfo->bankStep
 		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 			'SA-1 SRAM バンク切り替え
+			SendControl(hSerial,CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 			SetCartRegister(&H00, &H2224, i As Byte , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 			SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
 			writeAddr = sraminfo->adr
@@ -477,6 +465,9 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 		SendControl(hSerial, (sraminfo->ctrlBus or CBUS_WE) As Byte)
 		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
 		
+		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
+			SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
+		End If
 		i++
 		PumpMessage()
 	Loop
@@ -488,9 +479,15 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SRAMを最後まで書き込んだ後、何故かSRAMの先頭バイトが0x00になってしまうので再度書き込み
+		SendControl(hSerial,CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 		SetCartRegister(&H00, &H2224, 0   , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 		SetCartRegister(&H00, sraminfo->adr As Word, buf[0], FALSE) 'Rewrite First Byte
+		Sleep(100)
+		SetCartRegister(&H00, &H2226, &H00, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+
+		SendControl(hSerial, CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+		Sleep(100)
 		
 		'CPUクロックを停止してフィニッシュ
 		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL)
@@ -500,9 +497,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, FileName As BytePtr)
 		
 	End If
 	
-	SendControl(hSerial, DEFAULT_CTRLBUS)
-	free(buf)
-	DBM(ex"SRAM writing successful!!!\r\n")
+	SendControl(hSerial, CBUS_DEFAULT)
 	
 	SetAddress(hSerial, &H000000 , FALSE)
 	
@@ -543,7 +538,7 @@ Sub SDD1_SetBanks(hCOM As HANDLE, bankStart As Long)
 	
 	SendControl(hCOM, CBUS_RST Or CBUS_OE)
 	WriteROM(hCOM, buf, 0, &H004804, 4, FALSE)
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 End Sub
 
 '現在のSDD1のバンク設定をGUIに出力
@@ -551,7 +546,7 @@ End Sub
 Sub SDD1_PrintBanks(hCOM As HANDLE)
 	Dim buf[3] As Byte, i As Long
 	
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 	ReadROM(hCOM, buf, 0, &H004804, 4, FALSE)
 	
 	For i = 0 To 3
@@ -584,7 +579,7 @@ Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As B
 
 	SendControl(hCOM, CBUS_RST or CBUS_ROMSEL or CBUS_OE)
 	WriteROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
 
 	'check bank
@@ -600,7 +595,7 @@ End Function
 
 Sub SPC7110_PrintBanks(hCOM As HANDLE)
 	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long '	SendControl(hCOM,CBUS_RST or CBUS_WE)
-	SendControl(hCOM, DEFAULT_CTRLBUS)
+	SendControl(hCOM, CBUS_DEFAULT)
 	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
 
 	If buf[0] And &H80 Then

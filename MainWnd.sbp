@@ -544,6 +544,7 @@ Sub SaveIniFile()
 End Sub
 
 Sub MainWnd_CommandButton3_Click()
+	Dim fout As File
 	Dim info As SFC_CART_INFO
 	Dim path As BytePtr
 
@@ -559,15 +560,46 @@ Sub MainWnd_CommandButton3_Click()
 	path="dump.srm"
 #endif
 
-	DumpSRAM(hCOM, VarPtr(info), path)
+	If fout.openFile(path, GENERIC_WRITE) = FALSE Then
+		DBMf("Cannot open file: %s",path As DWord)
+		Goto *D_EXIT
+		ExitSub
+	End If
+
+	Dim sram As BytePtr
+	sram = calloc(info.SramSize)
+
+	Dim mmap As SFC_MMAP_MODEL
+	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
+
+	DBM("Dumping SRAM...")
+	DBMf("SramSize = %d KB", info.SramSize>>10)
+	DBMf("bankSize = %d KB", mmap.sram.bankSize>>10)
+	DBMf("bankCount= %d", Int(info.SramSize / mmap.sram.bankSize))
+	
+	Dim pc AS *SramProgressCallBack 
+	pc = new_SramProgressCallBack()
+
+	DumpSRAM(hCOM, VarPtr(info), VarPtr(mmap), sram,  pc As *ProgressCallBack)
+
+	delete_SramProgressCallBack(pc)
+	DBM(ex"SRAM dumping successful!!!\r\n")
+
+	fout.write(sram, info.SramSize)
+
+*D_EXIT
+	fout.close()
+	if sram Then free(sram)
 #ifndef _DEBUG
 	free(path)
 #endif
+
 	MessageBeep(MB_ICONASTERISK)
 
 End Sub
 
 Sub MainWnd_CommandButton4_Click()
+	Dim fin As File
 	Dim path As BytePtr
 	
 	Dim info As SFC_CART_INFO
@@ -593,14 +625,68 @@ Sub MainWnd_CommandButton4_Click()
 #endif
 
 	If MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
-	WriteSRAM(hCOM, VarPtr(info), path)
 
+	'READ FILE
+	Dim writeBuffer As BytePtr
+	If fin.openFile(path, GENERIC_READ) = FALSE Then
+		DBMf("Cannot open file: %s", path As DWord)
+		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
+		Goto *WS_EXIT
+	End If
+
+	writeBuffer = calloc(info.SramSize)
+	fin.read(writeBuffer, info.SramSize)
+	fin.close()
+	
+	Dim mmap As SFC_MMAP_MODEL
+	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
+	
+	DBMf("SramSize = %d KB", info.SramSize>>10)
+	DBMf("bankSize = %d KB", mmap.sram.bankSize>>10)
+	DBMf("bankCount= %d", Int(info.SramSize / mmap.sram.bankSize))
+
+	DBM("Writing SRAM...")
+	WriteSRAM(hCOM, VarPtr(info), VarPtr(mmap), writeBuffer, NULL)
+
+	'verify
+	DBMN("Verifying...")
+	Dim verifyBuffer As BytePtr, diffPos AS DWord
+	verifyBuffer = calloc(info.SramSize)
+	DumpSRAM(hCOM, VarPtr(info),  VarPtr(mmap), verifyBuffer, NULL)
+	if compareBinaly(verifyBuffer, writeBuffer, info.SramSize, VarPtr(diffPos)) Then
+		DBM("OK")
+		DBM(ex"SRAM writing successful!!!\r\n")
+		MessageBeep(MB_ICONASTERISK)
+	Else
+		DBMf(ex"NG at 0x%08X", diffPos)
+		DBM(ex"Failed to write SRAM.\r\n")
+		printf("=== write ===\n")
+		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32)
+		printf("=== actual ===\n")
+		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32)
+		MessageBeep(MB_ICONHAND)
+	End If
+	
+*WS_EXIT
 #ifndef _DEBUG
 	free(path)
 #endif
+	if writeBuffer Then free(writeBuffer): writeBuffer=NULL
+	if verifyBuffer Then free(verifyBuffer): verifyBuffer=NULL
 
-	MessageBeep(MB_ICONASTERISK)
 End Sub
+
+Function compareBinaly(dat1 AS BytePtr, dat2 AS BytePtr,length aS DWord)( pos As *DWord) AS BOOL
+	Dim i  AS DWord
+	For i = 0 To length-1
+		if dat1[i]<>dat2[i] Then
+			compareBinaly=FALSE
+			if pos Then SetDWord(pos, i)
+			ExitFunction
+		EndIf
+	Next i
+	compareBinaly=TRUE
+End Function
 
 Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As BytePtr) As BytePtr
 	Dim tOfn As OPENFILENAME, i As DWord
@@ -660,6 +746,7 @@ End Sub
 
 'リードテスト
 Sub MainWnd_CommandButton6_Click()
+	Dim f As File
 	If hCOM = 0 Then ExitSub
 	Dim data As BytePtr, adr As DWord
 	data = calloc(&H10000)
@@ -667,7 +754,6 @@ Sub MainWnd_CommandButton6_Click()
 	DBM("Dump 0x" + Hex$(adr))
 	
 	ReadROM(hCOM, data, 0, adr, &h5000, NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
-	Dim f As File
 	f.openFile("test.bin", GENERIC_WRITE)
 	f.write(data, &h5000)
 	f.close()
@@ -808,7 +894,7 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
 	
 '	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
-	SendControl(hCOM,DEFAULT_CTRLBUS)	'default
+	SendControl(hCOM,CBUS_DEFAULT)	'default
 
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		lstrcpy(info->Title,"[ERR]通信エラー")
@@ -1194,7 +1280,26 @@ Sub MainWnd_CommandButton17_Click()
 End Sub
 
 ' 言語仕様上抽象クラスが作りづらいので、とりあえずバリエーションはこれだけにする
+
 Class ProgressCallback
+Public
+	virtual Sub Init(Max AS DWord) 
+	virtual Function isCancel() As BOOL
+	virtual Sub Step(step AS Long, snesReadAdr As DWord)
+	virtual Sub ErrorRetry(count As DWord, limit As DWord)
+	virtual Sub Final()
+End Class
+
+Type ProgressCallback_Vtable
+	Init As VoidPtr
+	isCancel As VoidPtr
+	Step As VoidPtr
+	ErrorRetry As VoidPtr
+	Final As VoidPtr
+End Type
+
+Class DumpRomProgressCallBack 
+	Inherits  ProgressCallback
 Private
 	Max AS Long
 	Now AS Long
@@ -1204,7 +1309,7 @@ Private
 	Shift As Long
 Public
 
-	Sub Init(Max AS DWord) 
+	Sub Init(_this As VoidPtr, Max AS DWord) 
 		hProgress=MWnd(hProg)
 		this.Now=0
 		this.Max=Max
@@ -1221,7 +1326,7 @@ Public
 		StartTime = GetTickCount()
 	End Sub
 
-	Sub Step(step AS Long)
+	Sub Step(_this As VoidPtr, step AS Long, snesReadAdr As DWord)
 		SendMessage(hProgress, PBM_SETSTEP,step>>Shift,0)
 		SendMessage(hProgress, PBM_STEPIT,0,0)
 
@@ -1233,7 +1338,7 @@ Public
 		PumpMessage()
 	End Sub
 
-	Sub Final()
+	Sub Final(_this As VoidPtr)
 		ProcessTime = GetTickCount() - StartTime
 
 		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
@@ -1245,12 +1350,12 @@ Public
 		DBMN(ex"done\r\n")
 	End Sub
 
-	Function isCancel() As BOOL
+	Function isCancel(_this As VoidPtr) As BOOL
 		PumpMessage()
 		isCancel = GetCancelKey()
 	End Function
 
-	Sub ErrorRetry(count As DWord, limit As DWord)
+	Sub ErrorRetry(_this As VoidPtr, count As DWord, limit As DWord)
 		DBMN(ex"X")
 	End Sub
 
@@ -1261,26 +1366,109 @@ Public
 
 End Class
 
+Function new_DumpRomProgressCallBack() As *DumpRomProgressCallBack
+	Dim ret As *DumpRomProgressCallBack, vtable As *ProgressCallback_Vtable
+	ret = new DumpRomProgressCallBack
+'	vtable = calloc(sizeof(ProgressCallback_Vtable))
+'	vtable = calloc(sizeof(ProgressCallback_Vtable))
+'	Dim vtptr AS *ProgressCallback_Vtable
+'	vtptr = GetDWord(ret)
+'	SetDWord(ret, vtable)
+	vtable = GetDWord(ret)
+	vtable->Init 		= AddressOf(ret->Init)
+	vtable->isCancel 	= AddressOf(ret->isCancel)
+	vtable->Step 		= AddressOf(ret->Step)
+	vtable->ErrorRetry 	= AddressOf(ret->ErrorRetry)
+	vtable->Final 		= AddressOf(ret->Final)
+	new_DumpRomProgressCallBack = ret 
+End Function
+
+Sub delete_DumpRomProgressCallBack(pc As *DumpRomProgressCallBack)
+'	free(GetDWord(pc) As DWord)
+	delete pc
+End Sub
+
+Class SramProgressCallBack 
+	Inherits  ProgressCallback
+Private
+	Max AS Long
+	Now AS Long
+	hProgress As HANDLE
+Public
+
+	Sub Init(_this As VoidPtr, Max AS DWord) 
+		hProgress=MWnd(hProg)
+		this.Now=0
+		this.Max=Max
+
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,(Max) As Word))
+
+		SetDlgEnable(STATUS_DUMPING)
+		
+		DBM("Dumping...")		
+	End Sub
+
+	Sub Step(_this As VoidPtr, step AS Long, snesReadAdr As DWord)
+		SendMessage(hProgress, PBM_SETSTEP,step,0)
+		SendMessage(hProgress, PBM_STEPIT,0,0)
+
+		Now = Now + step		
+		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
+
+		DBM(sprintfStr("SRAM %02X:%04X +%04X", snesReadAdr>>16, snesReadAdr And &HFFFF, step))
+
+		PumpMessage()
+	End Sub
+
+	Sub Final(_this As VoidPtr, )
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+
+		SetWindowText(MWnd(Static7),"100%")
+
+		SetDlgEnable(STATUS_CONNECTED)
+
+	End Sub
+
+	Function isCancel(_this As VoidPtr) As BOOL
+		PumpMessage()
+		isCancel = GetCancelKey()
+	End Function
+
+	Sub ErrorRetry(_this As VoidPtr, count As DWord, limit As DWord)
+		DBMN(ex"X")
+	End Sub
+
+
+End Class
+
+Function new_SramProgressCallBack() As *SramProgressCallBack
+	Dim ret As *SramProgressCallBack, vtable As *ProgressCallback_Vtable
+	ret = new SramProgressCallBack
+'	vtable = calloc(sizeof(ProgressCallback_Vtable))
+'	SetDWord(ret, vtable)
+
+	vtable = GetDWord(ret)
+	vtable->Init 		= AddressOf(ret->Init)
+	vtable->isCancel 	= AddressOf(ret->isCancel)
+	vtable->Step 		= AddressOf(ret->Step)
+	vtable->ErrorRetry 	= AddressOf(ret->ErrorRetry)
+	vtable->Final 		= AddressOf(ret->Final)
+	new_SramProgressCallBack = ret 
+End Function
+
+Sub delete_SramProgressCallBack(pc As *SramProgressCallBack)
+'	free(GetDWord(pc) As DWord)
+	delete pc
+End Sub
+
 Sub MainWnd_CommandButton18_Click()   
-	Dim size As SIZE
-	Dim hdc As HDC, hWnd AS HWND
-	hWnd=MWnd(ComList)
-	hdc = GetDC(hWnd)
-	Dim text AS BytePtr
-	text = "tあいうえおかんじ感じ"
-	GetTextExtentPoint32(hdc, text, lstrlen(text), size)
-	ReleaseDC(hWnd,hdc)
 
-	printf("size: %d,%d", size.cx, size.cy)
-
-	Dim currentWidth AS Long
-	currentWidth = 	SendMessage(MWnd(ComList), CB_GETDROPPEDWIDTH, 0, 0)
-	if currentWidth < size.cx Then SendMessage(MWnd(ComList), CB_SETDROPPEDWIDTH, size.cx, 0)
-	SendMessage(MWnd(ComList), CB_ADDSTRING, 0, text)
+		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
 End Sub
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
-	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *ProgressCallback
+	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack
 	Dim outFile AS File
 
 	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
@@ -1289,7 +1477,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	End If
 
 	GetMmapModel(info, FALSE, VarPtr(mmapModel))
-	pc = New ProgressCallback()
+	pc = new_DumpRomProgressCallBack()
 
 	Dim rom as BytePtr
 	rom = calloc( info->RomSize )
@@ -1340,7 +1528,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 
 	outFile.close()
 	free(rom)
-	delete pc
+	delete_DumpRomProgressCallBack(pc)
 
 	DumpFullROM = ret
 End Function

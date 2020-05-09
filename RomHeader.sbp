@@ -94,10 +94,9 @@ EndType
 Type Align(1) SFC_CART_HEADER
 	MakerCode 	AS Word	'–¢Žg—p‚Ì‚±‚Æ‚à‚ ‚é
 	GameCode	AS DWord
-	dummy0[4] 	AS Byte
+	dummy0[5] 	AS Byte
 	FlashSize 	AS Byte
 	ExRamSize 	AS Byte
-	ExVersion	AS Byte
 	SpecialVer	AS Byte
 	ChipsetSub  As Byte
 	'------------------

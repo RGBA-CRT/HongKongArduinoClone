@@ -457,7 +457,7 @@ Function ST018_BiosDump(hSerial AS HANDLE, data AS BytePtr)(progress AS * Progre
 		'Continue ëóêM
 		WriteFile(hSerial, "c", 1, VarPtr(dwReadByte), ByVal NULL)
 		
-		if progress<>NULL Then progress->Step(1)
+		if progress<>NULL Then progress->Step(1, ReadByteSum)
 	Next i
 	
 	if progress<>NULL Then progress->Final()
