@@ -502,7 +502,6 @@ Sub MainWnd_CommandButton2_Click()
 		MessageBeep(MB_ICONASTERISK)
 
 	Else
-		DBM("Failed to dump ROM.")
 		if ret = HKAC_DUMPROM_RETRY_OVER Then
 			BaudrateErrorMessage()
 		End If
@@ -530,8 +529,8 @@ Sub SaveIniFile()
 	WritePrivateProfileString(ProgramName, "LastDevice", ratestr, INIFILE_PATH)
 	free(ratestr)
 	
-	Tmp = GetPrivateProfileInt(ProgramName, "MaxContinue", DEFAULT_CONTINUE, INIFILE_PATH)
-	WritePrivateProfileString(ProgramName, "MaxContinue", Str$(Tmp), INIFILE_PATH)
+	Tmp = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
+	WritePrivateProfileString(ProgramName, "DumpErrorRetryLimit", Str$(Tmp), INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "QDDSize", DEFAULT_QDD_BUFSIZE, INIFILE_PATH)
 	If Tmp = 0 Then Tmp = DEFAULT_QDD_BUFSIZE
@@ -841,15 +840,6 @@ Sub GetDlgOption(info As *SFC_CART_INFO)
 		info->RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info->SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
 		printf(ex"custom rom size = %d\n", (info->RomSize / 1024 / 1024) AS DWord)
-		
-		If info->MapType = SFC_MAP_LoROM or info->MapType = SFC_MAP_SpLoROM or info->MapType = SFC_MAP_SF_MENU Then
-			info->AddrOffset = 0
-			info->isLoROM = TRUE
-		Else
-			info->AddrOffset = HiROM_START_ADR
-			info->isLoROM = FALSE
-		End If
-		
 	End If
  End Sub
 
@@ -1211,15 +1201,17 @@ Private
 	hProgress As HANDLE
 	StartTime As DWord
 	ProcessTime As DWord
+	Shift As Long
 Public
 
-	Sub Init(Max AS Word) 
+	Sub Init(Max AS DWord) 
 		hProgress=MWnd(hProg)
 		this.Now=0
 		this.Max=Max
 
+		if Max>>10 Then	Shift = 10
 		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
-		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,Max As Word))
+		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,(Max>>Shift) As Word))
 
 		SetDlgEnable(STATUS_DUMPING)
 		
@@ -1230,7 +1222,7 @@ Public
 	End Sub
 
 	Sub Step(step AS Long)
-		SendMessage(hProgress, PBM_SETSTEP,step,0)
+		SendMessage(hProgress, PBM_SETSTEP,step>>Shift,0)
 		SendMessage(hProgress, PBM_STEPIT,0,0)
 
 		Now = Now + step		
@@ -1292,7 +1284,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	Dim outFile AS File
 
 	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
-		DumpFullROM = HKAC_DUMPROM_FILE_ERROR
+		DBM("File open error")
 		ExitFunction
 	End If
 
@@ -1303,37 +1295,46 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	rom = calloc( info->RomSize )
 	FillMemory(rom, info->RomSize, &HDD)
 	
-	DumpFullROM = DumpRom2(hCOM, info, VarPtr(mmapModel), rom, pc)
+	Dim ret AS Long
+	ret = DumpRom2(hCOM, info, VarPtr(mmapModel), rom, pc)
 	outFile.write(rom, info->RomSize)	
 
 	Dim time AS DWord
 	time = pc->GetProcessTime()
-	DBMf(ex"Time  : %d.%d sec", time/1000, time Mod 1000)
+	DBMf(ex"Time  : %d.%d sec", (time/1000) As Long, time Mod 1000)
 
-	Dim speed As DWord
-	speed = (info->RomSize / (time / 1000))
-	if speed > 999 Then
-		DBMf(ex"Speed : %d,%03d byte/sec", speed/1000, speed Mod 1000)
-	Else
-		DBMf(ex"Speed : %d byte/sec", speed)
-	End If
-
-	Dim actualSum AS Word
-	actualSum = CalcSnesChecksum(info, rom)
-	DBMf("HeaderSum: %02X, %02X", info->CheckSum2, info->CheckSum1)
-	DBMf("ActualSum: %02X, %02X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
-
-	if info->enableChecksum Then
-		if CheckChecksum(info, actualSum) Then
-			DBM(ex"checksum OK.")
+	if ret = HKAC_DUMPROM_OK Then
+		Dim speed As DWord
+		speed = (info->RomSize / (time / 1000)) As DWord
+		if speed > 999 Then
+			DBMf(ex"Speed : %d,%03d byte/sec", (speed/1000) As DWord, speed Mod 1000)
 		Else
-			DBM(ex"checksum NG...!!!")
-			MessageBoxf(hMainWnd, "ROM Dump Error", MB_ICONERROR, _
-						ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1, (not(actualSum) And &HFFFF), info->CheckSum2, (actualSum And &HFFFF))
+			DBMf(ex"Speed : %d byte/sec", speed)
 		End If
-	Else
-		DBM("checksum is disabled.")
-	End if	
+
+		Dim actualSum AS Word
+		actualSum = CalcSnesChecksum(info, rom)
+		DBMf("HeaderSum: %02X, %02X", info->CheckSum2, info->CheckSum1)
+		DBMf("ActualSum: %02X, %02X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
+
+		if info->enableChecksum Then
+			if CheckChecksum(info, actualSum) Then
+				DBM(ex"checksum OK.")
+			Else
+				DBM(ex"checksum NG...!!!")
+				MessageBoxf(hMainWnd, "ROM Dump Error", MB_ICONERROR, _
+							ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1, (not(actualSum) And &HFFFF), info->CheckSum2, (actualSum And &HFFFF))
+			End If
+		Else
+			DBM("checksum is disabled.")
+		End if
+
+	Else if ret = HKAC_DUMPROM_USER_CANCEL Then
+		DBM("Canceled by user.")
+
+	Else 
+		DBM("Failed to dump ROM")
+	End If
 
 	DBMN(ex"\r\n")
 
@@ -1341,4 +1342,5 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	free(rom)
 	delete pc
 
+	DumpFullROM = ret
 End Function

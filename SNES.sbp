@@ -24,9 +24,7 @@ Enum HKAC_DUMPROM_RESULT
 	HKAC_DUMPROM_COMMERROR
 	HKAC_DUMPROM_RETRY_OVER
 	HKAC_DUMPROM_COPRO_ERROR
-	HKAC_DUMPROM_FILE_ERROR
 	HKAC_DUMPROM_USER_CANCEL
-	HKAC_DUMPROM_CHECKSUM_ERROR
 	HKAC_DUMPROM_PTRERROR
 End Enum
 
@@ -266,6 +264,7 @@ Function GetDumpBufferSize() AS DWord
 	GetDumpBufferSize = bufferSize
 End Function
 
+' refactored new dump logic
 Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, rom As BytePtr, progress AS * ProgressCallback) As HKAC_DUMPROM_RESULT
 	Dim dwReadByte As DWord
 	Dim totalReadBytes As DWord
@@ -292,7 +291,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	' ダンプバッファの作成
 	romBuffer = calloc(bufferSize)
 
-	if progress Then progress->Init( info->RomSize>>10 )
+	if progress Then progress->Init( info->RomSize )
 
 	Do
 		'ESCキーでキャンセル
@@ -318,7 +317,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 		'出力
 		memcpy(rom + totalReadBytes, romBuffer, bufferSize)
 		
-		if progress Then progress->Step( bufferSize>>10 )
+		if progress Then progress->Step( bufferSize )
 
 		totalReadBytes += bufferSize
 		if totalReadBytes >= info->RomSize Then ExitDo

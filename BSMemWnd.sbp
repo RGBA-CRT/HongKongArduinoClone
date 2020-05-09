@@ -93,11 +93,11 @@ Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Press detect button)" As Long)
 End Sub
 
-Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO)
+Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo AS SFC_MMAP_MODEL)
 	Dim slot_idx As Long
 	Dim pack_idx AS Long
 
-	slot_idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0)
+	slot_idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) 
 	pack_idx = SendMessage(BSMWnd(BSM_MT), CB_GETCURSEL, 0, 0)
 
 	if slot_idx=-1 Then DBM("Slot Type not selected."):exitsub
@@ -108,8 +108,12 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO)
 		.enableChecksum = FALSE
 		.RomSize = BSM_GetMempackSize(pack_idx)
 		.MapType = SFC_MAP_HiROM
-		.AddrOffset = BSM_GetMempackAdress(slot_idx)
-		.isLoROM = BSM_isLoROM(slot_idx)
+	End With
+
+	With mmapInfo
+		.rom.adr = BSM_GetMempackAdress(slot_idx)
+		.rom.isLoROM = BSM_isLoROM(slot_idx)
+		.rom.next_cb = NULL
 	End With
 
 	if pack_idx = BSM_SAMEGAME or pack_idx = BSM_GNEXT Then
@@ -125,8 +129,8 @@ Sub BSMemWnd_CommandButton1_Click()
 	End If
 	
 	'ダイアログの設定から仮想SFCヘッダを生成してダンプ
-	Dim virtualHeader As SFC_CART_INFO
-	BSM_createCartInfoForBSX(virtualHeader)
+	Dim virtualHeader As SFC_CART_INFO, mmap As SFC_MMAP_MODEL
+	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
 	Dim path AS BytePtr
 #ifndef _DEBUG
@@ -262,10 +266,10 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	'exit status mode
 	SetCartRegister(cmdBank, &H0000, &HFF, isLoROM)
 	
-	Dim virtualHeader As SFC_CART_INFO
-	BSM_createCartInfoForBSX(virtualHeader)
+	Dim virtualHeader As SFC_CART_INFO, mmap AS SFC_MMAP_MODEL
+	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
-	if BSM_genHeaderList(TRUE, hCOM, virtualHeader.AddrOffset, virtualHeader.isLoROM) = FALSE Then
+	if BSM_genHeaderList(TRUE, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
 		DBM(ex"MemoryPack is not working...\r\n")
 		SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Empty)" As Long)

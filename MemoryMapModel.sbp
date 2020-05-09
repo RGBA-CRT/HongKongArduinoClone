@@ -1,0 +1,176 @@
+'---------------------------
+' SRAM Memory Model
+'---------------------------
+
+Const SRAM_CTRL_SA1	 = &H01000000
+Const SRAM_CTRL_SPC7110 = &H02000000
+Typedef SfcMmcInitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Typedef SfcMmcNextAddressFunc = *Function(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Typedef SfcMmcExitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO)
+
+Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
+Type SFC_ROM_MODEL
+	adr As DWord		' ROMのアドレス
+	isLoROM AS BOOL		' アクセス方法
+	init_cb As SfcMmcInitFunc
+	next_cb As SfcMmcNextAddressFunc
+	exit_cb As SfcMmcExitFunc
+End Type
+
+Type SFC_SRAM_MODEL
+	adr As DWord		'セーブ用SRAMのアドレス
+	bankStep As DWord	'バンク間の差 (BANK0 70:0000, BANK1 71:0000なら0x010000)
+	bankSize As DWord	'そのバンクにおけるSRAM領域のサイズ
+	ctrlBus As DWord	'CEとかOEとかWEとか　書くとDisableになる。例外としてSRAM_CTRL_???の代入が許可されている
+End Type
+
+Const MODEL_ARRAY_SIZE = 8'sizeof(SFC_MMAP_MODEL)/sizeof(VoidPtr)-1
+Type SFC_MMAP_MODEL
+	sram As SFC_SRAM_MODEL
+	rom As SFC_ROM_MODEL
+End Type
+
+Const LoROM_OFFSET_ADR = &H008000
+Const HiROM_START_ADR  = &HC00000
+'Const HIROM_SRAM_BANKSIZE = 1024*8
+TypeDef MODEL_ARRAY_TYPE = DWord '本当はVoidPtrのほうが良いけどキャストが面倒
+
+Function LoROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	LoROM_nextAddress = adr + readSize
+	if (LoROM_nextAddress And &HFFFF) < &H8000 Then LoROM_nextAddress += &H8000
+End Function
+
+Function HiROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	HiROM_nextAddress = adr + readSize
+End Function
+
+Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
+	Select Case info->MapType
+		Case SFC_MAP_LoROM
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_HiROM
+		'	&H206000
+		'	SUPER DONKEY KONG 2 は 30:6000h ~
+			model->sram.adr      =  &H306000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H002000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->rom.adr       =  HiROM_START_ADR
+			model->rom.isLoROM   =  FALSE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(HiROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		'テイルズオブファンタジアなど
+		Case SFC_MAP_ExHiROM
+			model->sram.adr      =  &HB06000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H002000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->rom.adr       =  HiROM_START_ADR
+			model->rom.isLoROM   =  FALSE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_SA1
+			if isWrite Then
+				model->sram.adr      =  &H006000
+				model->sram.bankStep =  &H010000
+				model->sram.bankSize =  &H002000
+				model->sram.ctrlBus  =  CBUS_RST or SRAM_CTRL_SA1
+				model->rom.adr       =  NULL
+				model->rom.isLoROM   =  NULL
+				model->rom.init_cb   =  NULL
+				model->rom.next_cb   =  NULL
+				model->rom.exit_cb   =  NULL
+			Else
+				model->sram.adr      =  &H400000
+				model->sram.bankStep =  &H010000
+				model->sram.bankSize =  &H010000
+				model->sram.ctrlBus  =  CBUS_RST or SRAM_CTRL_SA1
+				model->rom.adr       =  HiROM_START_ADR
+				model->rom.isLoROM   =  FALSE
+				model->rom.init_cb   =  NULL
+				model->rom.next_cb   =  NULL
+				model->rom.exit_cb   =  NULL
+			End If
+	
+
+
+		Case SFC_MAP_SDD1
+			model->sram.adr      =  &H806000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H002000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  HiROM_START_ADR
+			model->rom.isLoROM   =  FALSE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_SPC7110
+			model->sram.adr      =  &H306000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H002000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL or SRAM_CTRL_SPC7110
+			model->rom.adr       =  HiROM_START_ADR
+			model->rom.isLoROM   =  FALSE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_BSX
+			model->sram.adr      =  &H105000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H001000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->rom.adr       =  NULL
+			model->rom.isLoROM   =  NULL
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+
+
+
+
+		Case SFC_MAP_ST010
+			model->sram.adr      =  &H680000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H001000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  NULL
+			model->rom.isLoROM   =  NULL
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+
+
+		'JRA PAT用（Flash）
+		Case SFC_MAP_JRAPAT
+			model->sram.adr      =  &HC00000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->rom.adr       =  NULL
+			model->rom.isLoROM   =  NULL
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  NULL
+			model->rom.exit_cb   =  NULL
+	End Select
+
+End Function
