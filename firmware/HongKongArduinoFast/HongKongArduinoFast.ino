@@ -209,6 +209,7 @@ void writeCart(int isLoROM = false) {
   word datasize =  Serial_readWord();
 
   CART_WRITE_DISABLE();
+  CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
 
   word goalAdr = address + datasize;
@@ -406,10 +407,11 @@ void writebyte_cart(byte bank, word address, byte data) {
 
   BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
-  
+
   // 74HC245 -> SFC へのデータ安定化
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
+  digitalWrite(CS, LOW);
   CART_WRITE_ENABLE();
 
   // /WEパルスの時間稼ぎ
@@ -419,8 +421,9 @@ void writebyte_cart(byte bank, word address, byte data) {
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
+  //
   CART_WRITE_DISABLE();
+  digitalWrite(CS, HIGH);
 
   //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
@@ -657,8 +660,11 @@ void loop() {
 
         //lorom -> real address
         if (cmd == 't') {
-          LO_TO_REAL_ADDRESS(bank, address);
+          //LO_TO_REAL_ADDRESS(bank, address);
         }
+        //        digitalWrite(CS, HIGH);
+        //        CART_OUTPUT_DISABLE();
+        //        CART_WRITE_DISABLE();
         writebyte_cart(bank, address, data);
       } break;
 

@@ -639,7 +639,7 @@ Sub MainWnd_CommandButton4_Click()
 	fin.close()
 	
 	Dim mmap As SFC_MMAP_MODEL
-	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
+	GetMmapModel(VarPtr(info), TRUE, VarPtr(mmap))
 	
 	DBMf("SramSize = %d KB", info.SramSize>>10)
 	DBMf("bankSize = %d KB", mmap.sram.bankSize>>10)
@@ -652,6 +652,7 @@ Sub MainWnd_CommandButton4_Click()
 	DBMN("Verifying...")
 	Dim verifyBuffer As BytePtr, diffPos AS DWord
 	verifyBuffer = calloc(info.SramSize)
+	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
 	DumpSRAM(hCOM, VarPtr(info),  VarPtr(mmap), verifyBuffer, NULL)
 	if compareBinaly(verifyBuffer, writeBuffer, info.SramSize, VarPtr(diffPos)) Then
 		DBM("OK")
@@ -1465,6 +1466,13 @@ End Sub
 Sub MainWnd_CommandButton18_Click()   
 
 		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
+		
+		Sleep(500)
+		SetCartRegister(&H00, &H2200, &H20, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+		SetCartRegister(&H00, &H2201, &H20, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+		SetCartRegister(&H00, &H2202, &HA0, FALSE) 'Super Nintendo CPU INT Clear
+		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
+		Sleep(100)
 End Sub
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long

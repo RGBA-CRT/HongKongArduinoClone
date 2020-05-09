@@ -428,13 +428,25 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SA-1レジスタセットアップ
-		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
+		' ROMSELを上げてSA1レジスタアクセスにする
+'		SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+
 '		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL) 'Enable CPU Clock for Writing SA-1 Register
+'		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
+	/*	Sleep(500)
+		SetCartRegister(&H00, &H2200, &H20, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+		SetCartRegister(&H00, &H2201, &H20, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+		SetCartRegister(&H00, &H2202, &HA0, FALSE) 'Super Nintendo CPU INT Clear
+		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
+
+		Sleep(10)
+*/
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register 
 		Sleep(500)
 		SetCartRegister(&H00, &H2224, &H00, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
-		Sleep(100)
+		Sleep(10)
 		
 		
 	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
@@ -455,19 +467,18 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 		writeAddr = sraminfo->adr + i * sraminfo->bankStep
 		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 			'SA-1 SRAM バンク切り替え
-			SendControl(hSerial,CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+			' ROMSELを上げてSA1レジスタアクセスにする
+		'	SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 			SetCartRegister(&H00, &H2224, i As Byte , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 			SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
 			writeAddr = sraminfo->adr
+		'	SendControl(hSerial,CBUS_RST OR CBUS_OE OR CBUS_WE)
 		End If
 		DBM(sprintfStr("SRAM %02X:%04X +%04X", writeAddr>>16, writeAddr And &HFFFF, sraminfo->bankSize))
 		
 		SendControl(hSerial, (sraminfo->ctrlBus or CBUS_WE) As Byte)
 		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
 		
-		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
-			SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
-		End If
 		i++
 		PumpMessage()
 	Loop
@@ -479,13 +490,14 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SRAMを最後まで書き込んだ後、何故かSRAMの先頭バイトが0x00になってしまうので再度書き込み
-		SendControl(hSerial,CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+		SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 		SetCartRegister(&H00, &H2224, 0   , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 		SetCartRegister(&H00, sraminfo->adr As Word, buf[0], FALSE) 'Rewrite First Byte
 		Sleep(100)
 		SetCartRegister(&H00, &H2226, &H00, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 
+		'RESET
 		SendControl(hSerial, CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 		Sleep(100)
 		
