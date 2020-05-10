@@ -621,12 +621,13 @@ Sub MainWnd_CommandButton4_Click()
 #else
 	If GetKeyState(VK_SHIFT) And &H80 Then
 		path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
+	If path = 0 Then ExitSub
 	Else
 		path = "write.srm"
 	End If
 #endif
 
-	If MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nまた、正常に書き込める保障はありません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) = IDNO Then ExitSub
+	If MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nデータは復元できません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) <> IDYES Then ExitSub
 
 	'READ FILE
 	Dim writeBuffer As BytePtr
@@ -639,7 +640,9 @@ Sub MainWnd_CommandButton4_Click()
 	writeBuffer = calloc(info.SramSize)
 	fin.read(writeBuffer, info.SramSize)
 	fin.close()
-	
+
+*MWWS_RETRY
+	Dim retry As Long
 	Dim mmap As SFC_MMAP_MODEL
 	GetMmapModel(VarPtr(info), TRUE, VarPtr(mmap))
 	
@@ -672,6 +675,12 @@ Sub MainWnd_CommandButton4_Click()
 		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32)
 		printf(ex"=== actual ===\n")
 		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32)
+
+		if retry<1 Then 
+			retry++
+			DBM("retry...")
+			Goto *MWWS_RETRY
+		Endif
 		MessageBeep(MB_ICONHAND)
 	End If
 	
@@ -1382,7 +1391,7 @@ Function new_DumpRomProgressCallBack() As *DumpRomProgressCallBack
 '	Dim vtptr AS *ProgressCallback_Vtable
 '	vtptr = GetDWord(ret)
 '	SetDWord(ret, vtable)
-	vtable = GetDWord(ret)
+	vtable = GetDWord(ret) As VoidPtr
 	vtable->Init 		= AddressOf(ret->Init)
 	vtable->isCancel 	= AddressOf(ret->isCancel)
 	vtable->Step 		= AddressOf(ret->Step)
@@ -1427,7 +1436,7 @@ Public
 		SendMessage(hProgress, PBM_STEPIT,0,0)
 
 		Dim mode[1] = ["R", "W"] AS BytePtr
-		DBM(sprintfStr("[%s]SRAM bank%02X: $%02X:%04X +%04X", mode[isWrite And 1], Now, snesReadAdr>>16, snesReadAdr And &HFFFF, mmap.sram.bankSize))
+		DBM(sprintfStr("[%s]SRAM bank%02X: $%02X:%04X +%04X", mode[isWrite And 1] As DWord, Now, snesReadAdr>>16, snesReadAdr And &HFFFF, mmap.sram.bankSize))
 
 		Now += step		
 		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
@@ -1462,7 +1471,7 @@ Function new_SramProgressCallBack(mmodel AS *SFC_MMAP_MODEL, isWrite AS BOOL) As
 '	vtable = calloc(sizeof(ProgressCallback_Vtable))
 '	SetDWord(ret, vtable)
 
-	vtable = GetDWord(ret)
+	vtable = GetDWord(ret) As VoidPtr
 	vtable->Init 		= AddressOf(ret->Init)
 	vtable->isCancel 	= AddressOf(ret->isCancel)
 	vtable->Step 		= AddressOf(ret->Step)
