@@ -641,8 +641,8 @@ Sub MainWnd_CommandButton4_Click()
 	fin.read(writeBuffer, info.SramSize)
 	fin.close()
 
-*MWWS_RETRY
 	Dim retry As Long
+*MWWS_RETRY
 	Dim mmap As SFC_MMAP_MODEL
 	GetMmapModel(VarPtr(info), TRUE, VarPtr(mmap))
 	
@@ -676,7 +676,7 @@ Sub MainWnd_CommandButton4_Click()
 		printf(ex"=== actual ===\n")
 		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32)
 
-		if retry<1 Then 
+		if retry<HKAC_SRAM_WRITE_RETRY_LIMIT Then 
 			retry++
 			DBM("retry...")
 			Goto *MWWS_RETRY
@@ -1428,7 +1428,6 @@ Public
 
 		SetDlgEnable(STATUS_DUMPING)
 		
-		DBM("Dumping...")		
 	End Sub
 
 	Sub Step(_this As VoidPtr, step AS Long, snesReadAdr As DWord)
@@ -1501,6 +1500,9 @@ Sub MainWnd_CommandButton18_Click()
 		Dim buf[16] As Byte
 		ReadROM(hCOM, buf, 0, &H2300, 16, FALSE)
 		Dump(buf, 16)
+
+		
+		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL) 'disable CPU Clock for Writing SA-1 Register
 End Sub
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
@@ -1511,6 +1513,12 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 		DBM("File open error")
 		ExitFunction
 	End If
+
+	if info->RomSize = 0 Then
+		DBM("ROM Size is zero.")
+		ExitFunction
+	End If
+
 
 	GetMmapModel(info, FALSE, VarPtr(mmapModel))
 	pc = new_DumpRomProgressCallBack()
@@ -1538,8 +1546,8 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 
 		Dim actualSum AS Word
 		actualSum = CalcSnesChecksum(info, rom)
-		DBMf("HeaderSum: %02X, %02X", info->CheckSum2, info->CheckSum1)
-		DBMf("ActualSum: %02X, %02X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
+		DBMf("HeaderSum: %04X, %04X", info->CheckSum2, info->CheckSum1)
+		DBMf("ActualSum: %04X, %04X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
 
 		if info->enableChecksum Then
 			if CheckChecksum(info, actualSum) Then
