@@ -1074,7 +1074,6 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 		If isSnesHeader(VarPtr(header)) = TRUE Then ExitFor
 	Next i
 	
-	file.close()
 	
 	If isSnesHeader(VarPtr(header)) = FALSE Then
 		DBM(ex"ROM Header not found!\r\n")
@@ -1090,6 +1089,17 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	Dim infotext[HEADER_INFO_TEXT_LEN] As Byte
 	GenerateHeaderInfoText(VarPtr(cartInfo), infotext, HEADER_INFO_TEXT_LEN)
 	DBM(infotext)
+
+#ifdef _DEBUG
+	Dim rombuf As BytePtr
+	rombuf = calloc(file.length())
+	file.setFilePtr(0)
+	file.read(rombuf, file.length())
+	DBMf("actualSum: %04X", CalcSnesChecksum(VarPtr(cartInfo), rombuf))
+	free(rombuf)
+	file.close()
+
+#endif
 End Sub
 
 
@@ -1233,14 +1243,14 @@ Sub MainWnd_CommandButton17_Click()
 	Dim buf AS BytePtr
 	Dim pPath AS BytePtr
 	Dim path aS FilePath
-	Dim pc AS * ProgressCallback
+	Dim pc AS * DumpRomProgressCallback
 	
 	pPath = SaveDialogCalloc(ex"ST018 ROM Image File(*.rom)\0*.rom\0Binaly Image(*.bin)\0*.bin\0すべてのファイル(*.*)\0*.*\0\0", "rom", ST018_BIOS_NAME_COMBINED)
 	If pPath = NULL Then ExitSub
 	path.SetPath(pPath)
 	
 	buf = calloc(ST018_BIOS_SIZE)
-	pc = New ProgressCallback()
+	pc = new_DumpRomProgressCallBack()
 	
 	DBMN("ST018 BIOS Dumping")
 	
@@ -1293,7 +1303,7 @@ Sub MainWnd_CommandButton17_Click()
 	
 *BIOSDUMP_EXIT
 	free(buf)
-	delete pc
+	delete_DumpRomProgressCallBack(pc)
 End Sub
 
 ' 言語仕様上抽象クラスが作りづらいので、とりあえずバリエーションはこれだけにする
@@ -1485,24 +1495,18 @@ Sub delete_SramProgressCallBack(pc As *SramProgressCallBack)
 End Sub
 
 Sub MainWnd_CommandButton18_Click()   
+	'READ FILE
+	Dim writeBuffer As BytePtr
+	If fin.openFile("H:\My-File\ROM\SFC\SNESDump\DERBY STALLION 96.sfc", GENERIC_READ) = FALSE Then
+		DBMf("Cannot open file: %s", path As DWord)
+		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
+		Goto *WS_EXIT
+	End If
 
-		SendControl(hCOM,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
-		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register
-		
-		Sleep(500)
-		SetCartRegister(&H00, &H2200, &H60, FALSE) 
-		SetCartRegister(&H00, &H2201, &H00, FALSE)
-		SetCartRegister(&H00, &H2202, &HA0, FALSE)
-		SetCartRegister(&H00, &H2228, &H00, FALSE)
-		SetCartRegister(&H00, &H222A, &H00, FALSE)
-		Sleep(100)
-		
-		Dim buf[16] As Byte
-		ReadROM(hCOM, buf, 0, &H2300, 16, FALSE)
-		Dump(buf, 16)
+	writeBuffer = calloc(fin.length())
+	fin.read(writeBuffer, fin.length())
+	fin.close()
 
-		
-		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL) 'disable CPU Clock for Writing SA-1 Register
 End Sub
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long

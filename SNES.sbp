@@ -322,7 +322,7 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 		totalReadBytes += bufferSize
 		if totalReadBytes >= info->RomSize Then ExitDo
 
-		currentAddress = mmodel->rom.next_cb(info, currentAddress, bufferSize)
+		currentAddress = mmodel->rom.next_cb(hSerial, info, currentAddress, bufferSize)
 
 	Loop
 	

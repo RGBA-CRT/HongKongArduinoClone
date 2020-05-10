@@ -3,7 +3,7 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v1.1d 2020/05/09" 'FhashSave対応, ST018BIOS, CX4, 自動ボーレート対応, ST010 save, リファクタリング
+Const VerStr = "v1.1d 2020/05/10" 'FhashSave対応, ST018BIOS, CX4, 自動ボーレート対応, ST010 save, リファクタリング
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 

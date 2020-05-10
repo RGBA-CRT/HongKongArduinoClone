@@ -5,7 +5,7 @@
 Const SRAM_CTRL_SA1	 = &H01000000
 Const SRAM_CTRL_SPC7110 = &H02000000
 Typedef SfcMmcInitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO) As BOOL
-Typedef SfcMmcNextAddressFunc = *Function(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Typedef SfcMmcNextAddressFunc = *Function(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
 Typedef SfcMmcExitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO)
 
 Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
@@ -32,22 +32,79 @@ End Type
 
 Const LoROM_OFFSET_ADR = &H008000
 Const HiROM_START_ADR  = &HC00000
-'Const HIROM_SRAM_BANKSIZE = 1024*8
 TypeDef MODEL_ARRAY_TYPE = DWord '本当はVoidPtrのほうが良いけどキャストが面倒
 
-Function LoROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+' ============== LoROM =============
+Function LoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
 	LoROM_nextAddress = adr + readSize
 	if (LoROM_nextAddress And &HFFFF) < &H8000 Then LoROM_nextAddress += &H8000
 End Function
 
-Function HiROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+' ============== HiROM =============
+Function HiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
 	HiROM_nextAddress = adr + readSize
 End Function
 
-Function ExHiROM_nextAddress(info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+' ============== ExHiROM =============
+Function ExHiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
 	ExHiROM_nextAddress = adr + readSize
 	' $C0:0000～$FF:FFFFまで吸ったら次は$40:0000～$7F:FFFF
 	if ExHiROM_nextAddress > &HFFFFFF Then ExHiROM_nextAddress = &H400000
+End Function
+
+' ============== SDD1 =============
+Function SDD1_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	' 最初はROMバンク0～3を吸い出す
+	SDD1_SetBanks(hCOM, 0)
+	SDD1_PrintBanks(hCOM)
+		
+	SDD1_init = TRUE
+End Function
+
+Function SDD1_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SDD1_nextAddress = adr + readSize
+	If SDD1_nextAddress > &HFFFFFF Then
+		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
+		SDD1_SetBanks(hCOM, 4)
+		SDD1_PrintBanks(hCOM)
+		
+		SDD1_nextAddress = HiROM_START_ADR
+	End If
+End Function
+
+' ============== SPC7110 =============
+Function SPC7110_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("Checking SPC7110...")
+	If SPC7110_SetBanks(hSerial, 1, FALSE) = FALSE or _
+						SPC7110_SetBanks(hCOM, 0, FALSE) = FALSE Then
+		ErrMes(hMainWnd, ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。", "SPC7110 Bank Control Error", 0)
+		ExitSub
+	End If
+	SPC7110_PrintBanks(hCOM)
+		
+	SPC7110_init = TRUE
+End Function
+
+Function SPC7110_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SPC7110_nextAddress = adr + readSize
+	If SPC7110_nextAddress > &HFFFFFF Then
+		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
+		DBM("")
+		SPC7110_SetBanks(hSerial, 1, FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
+		SPC7110_nextAddress = HiROM_START_ADR + &H300000 'F0:0000からリスタート
+	End If
+End Function
+
+
+' ============== SpLoROM =============
+Function SpLoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SpLoROM_nextAddress = adr + readSize
+	if (SpLoROM_nextAddress And &HFFFF) < &H8000 Then SpLoROM_nextAddress += &H8000
+	
+	if SpLoROM_nextAddress = &H408000 Then
+		SpLoROM_nextAddress = &H808000
+		DBM(ex"\r\nSpLoROM アドレスジャンプ $80:8000～")
+	End If
 End Function
 
 Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
@@ -97,10 +154,10 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 				model->sram.bankStep =  &H010000
 				model->sram.bankSize =  &H002000
 				model->sram.ctrlBus  =  CBUS_RST or SRAM_CTRL_SA1
-				model->rom.adr       =  NULL
-				model->rom.isLoROM   =  NULL
+				model->rom.adr       =  HiROM_START_ADR
+				model->rom.isLoROM   =  FALSE
 				model->rom.init_cb   =  NULL
-				model->rom.next_cb   =  NULL
+				model->rom.next_cb   =  AddressOf(HiROM_nextAddress)
 				model->rom.exit_cb   =  NULL
 			Else
 				model->sram.adr      =  &H400000
@@ -110,11 +167,10 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 				model->rom.adr       =  HiROM_START_ADR
 				model->rom.isLoROM   =  FALSE
 				model->rom.init_cb   =  NULL
-				model->rom.next_cb   =  NULL
+				model->rom.next_cb   =  AddressOf(HiROM_nextAddress)
 				model->rom.exit_cb   =  NULL
 			End If
 	
-
 
 		Case SFC_MAP_SDD1
 			model->sram.adr      =  &H806000
@@ -123,8 +179,8 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.ctrlBus  =  CBUS_RST
 			model->rom.adr       =  HiROM_START_ADR
 			model->rom.isLoROM   =  FALSE
-			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.init_cb   =  AddressOf(SDD1_init)
+			model->rom.next_cb   =  AddressOf(SDD1_nextAddress)
 			model->rom.exit_cb   =  NULL
 
 
@@ -135,8 +191,20 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL or SRAM_CTRL_SPC7110
 			model->rom.adr       =  HiROM_START_ADR
 			model->rom.isLoROM   =  FALSE
+			model->rom.init_cb   =  AddressOf(SPC7110_init)
+			model->rom.next_cb   =  AddressOf(SPC7110_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_SpLoROM
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
 			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(SpLoROM_nextAddress)
 			model->rom.exit_cb   =  NULL
 
 
@@ -145,13 +213,11 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.bankStep =  &H010000
 			model->sram.bankSize =  &H001000
 			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
-			model->rom.adr       =  NULL
-			model->rom.isLoROM   =  NULL
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
 			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
 			model->rom.exit_cb   =  NULL
-
-
 
 
 		Case SFC_MAP_ST010
@@ -159,24 +225,44 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.bankStep =  &H010000
 			model->sram.bankSize =  &H001000
 			model->sram.ctrlBus  =  CBUS_RST
-			model->rom.adr       =  NULL
-			model->rom.isLoROM   =  NULL
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
 			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
 			model->rom.exit_cb   =  NULL
 
 
+		Case SFC_MAP_ST018
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+/* todo
+	SFC_MAP_SF_MENU 'SFメモリカートリッジ
+	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
+	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
+*/
 		'JRA PAT用（Flash）
 		Case SFC_MAP_JRAPAT
 			model->sram.adr      =  &HC00000
 			model->sram.bankStep =  &H010000
 			model->sram.bankSize =  &H008000
 			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
-			model->rom.adr       =  NULL
-			model->rom.isLoROM   =  NULL
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
 			model->rom.init_cb   =  NULL
-			model->rom.next_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
 			model->rom.exit_cb   =  NULL
+
+
+		Case Else
+			debug
 	End Select
 
 End Function

@@ -222,7 +222,9 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	End Select
 
 	' ROM / SRAMサイズ計算
-	If data->RomSize<>0 Then
+	if info->MapType = SFC_MAP_SPC7110 Then
+		info->RomSize = 5 << 20
+	ElseIf data->RomSize<>0 Then
 		info->RomSize = &H0400 << data->RomSize
 	Else
 		info->RomSize = 0
@@ -231,7 +233,7 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	If data->SramSize<>0 Then
 		info->SramSize = &H0400 << data->SramSize
 	
-	Elseif info->hasExtraHeader And data->ExRamSize Then
+	Elseif info->hasExtraHeader And data->ExRamSize<>0 Then
 		info->SramSize = &H0400 << data->ExRamSize
 
 	Elseif info->MapType = SFC_MAP_ST010 Then
@@ -587,8 +589,8 @@ End Function
 Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr) AS Word
 	CalcSnesChecksum = SumSnesChecksum(rom, info->RomSize) As Word
 
-	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024) Then
+	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024*1024) Then
 		'3MBの時はラスト8Mbitを再加算
-		CalcSnesChecksum += SumSnesChecksum(rom+1024*2, 1024)
+		CalcSnesChecksum += SumSnesChecksum(rom+1024*1024*2, 1024*1024)
 	End If
 End Function

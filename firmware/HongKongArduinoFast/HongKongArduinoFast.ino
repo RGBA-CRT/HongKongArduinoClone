@@ -265,12 +265,12 @@ void st018_command(byte cmd) {
 inline byte st018_readData() {
   if (st018_readyWait())
     return 'E';
-  return readbyte_cart(0x00, 0x3800);
+  return st018_readbyte_cart(0x00, 0x3800);
 }
 
 // タイムアウトつけてないけど大丈夫か
 inline void st018_transferWait() {
-  while ((readbyte_cart(0x00, 0x3804) & 0x10)) ;
+  while ((st018_readbyte_cart(0x00, 0x3804) & 0x10)) ;
 }
 
 bool st018_readyWait() {
@@ -278,7 +278,7 @@ bool st018_readyWait() {
 
   // STATUSのReadyが1になるか、waitCountで255ループするまで待つ
   //                                                    ↓ &&ではない（可読性のないコード）
-  while (((readbyte_cart(0x00, 0x3804) & 0x01) != 0x01) & waitCount) {
+  while (((st018_readbyte_cart(0x00, 0x3804) & 0x01) != 0x01) & waitCount) {
     waitCount++;
     delayMicroseconds(10);
   }
@@ -294,18 +294,22 @@ bool st018_reset() {
 
   //STATが0以外になるまで待つ
   byte waitCount = 0;
-  while (readbyte_cart(0x00, 0x3804) == 0x00) {
+  while (st018_readbyte_cart(0x00, 0x3804) == 0x00) {
     if (waitCount > 250)
       return true;
     waitCount++;
     delayMicroseconds(8000);
   }
+  
   return false;
 }
 
 void st018_memread(byte cmd, byte n_kb) {
   st018_command(cmd);
 
+  // 1バイト読み捨て
+  st018_readData();
+  
   for (byte j = 0; j < n_kb; j++) {
     for (word i = 0; i < 1024; i++) {
       //serial_send(st018_readData());
@@ -325,7 +329,7 @@ void st018_memread(byte cmd, byte n_kb) {
 bool st018_biosDump(byte cmd) {
   // ROMと違ってI/OポートなのでCSは非アクティブである必要がある
   digitalWrite(CS, HIGH);
-
+  
   // reset
   if (st018_reset()) {
     Serial.print("RST ERR");
@@ -384,9 +388,24 @@ inline byte readbyte_cart(byte bank, word address) {
 
   // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  byte ret = readData();
+
+  CART_OUTPUT_DISABLE();
+  return ret;
+}
+
+
+inline byte st018_readbyte_cart(byte bank, word address) {
+  setAddress(bank, address, false);
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_OUTPUT_ENABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte ret = readData();
 
@@ -405,18 +424,14 @@ void writebyte_cart(byte bank, word address, byte data) {
   // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
   // 74HC245 -> SFC へのデータ安定化
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
-  //digitalWrite(CS, LOW);
   CART_WRITE_ENABLE();
 
   // /WEパルスの時間稼ぎ
   // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_WRITE_DISABLE();
-  //digitalWrite(CS, HIGH);
 
   BB_OUT_DISABLE();
   BB_DIR_INPUT();
