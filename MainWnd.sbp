@@ -416,6 +416,8 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(CommandButton4), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CommandButton17), NOT(isEnable) And &H01)
 	
+	EnableWindow(MWnd(ROMTITLE), NOT(isEnable) And &H01)
+	EnableWindow(MWnd(CART_CIPS), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(MAPPING), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(ROM_SIZE), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(SRAM_SIZE), NOT(isEnable) And &H01)
@@ -578,7 +580,7 @@ Sub MainWnd_CommandButton3_Click()
 	DBMf("bankCount= %d", Int(info.SramSize / mmap.sram.bankSize))
 	
 	Dim pc AS *SramProgressCallBack 
-	pc = new_SramProgressCallBack()
+	pc = new_SramProgressCallBack(VarPtr(mmap), FALSE)
 
 	DumpSRAM(hCOM, VarPtr(info), VarPtr(mmap), sram,  pc As *ProgressCallBack)
 
@@ -617,7 +619,7 @@ Sub MainWnd_CommandButton4_Click()
 	path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
 	If path = 0 Then ExitSub
 #else
-	If GetKeyState(VK_ESCAPE) And &H80 Then
+	If GetKeyState(VK_SHIFT) And &H80 Then
 		path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
 	Else
 		path = "write.srm"
@@ -645,8 +647,13 @@ Sub MainWnd_CommandButton4_Click()
 	DBMf("bankSize = %d KB", mmap.sram.bankSize>>10)
 	DBMf("bankCount= %d", Int(info.SramSize / mmap.sram.bankSize))
 
+	Dim pc AS *SramProgressCallBack 
+	pc = new_SramProgressCallBack(VarPtr(mmap), TRUE)
+
 	DBM("Writing SRAM...")
-	WriteSRAM(hCOM, VarPtr(info), VarPtr(mmap), writeBuffer, NULL)
+	WriteSRAM(hCOM, VarPtr(info), VarPtr(mmap), writeBuffer, pc)
+
+	delete_SramProgressCallBack(pc)
 
 	'verify
 	DBMN("Verifying...")
@@ -661,9 +668,9 @@ Sub MainWnd_CommandButton4_Click()
 	Else
 		DBMf(ex"NG at 0x%08X", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
-		printf("=== write ===\n")
+		printf(ex"=== write ===\n")
 		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32)
-		printf("=== actual ===\n")
+		printf(ex"=== actual ===\n")
 		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32)
 		MessageBeep(MB_ICONHAND)
 	End If
@@ -1395,8 +1402,13 @@ Private
 	Max AS Long
 	Now AS Long
 	hProgress As HANDLE
+	mmap As SFC_MMAP_MODEL
+	isWrite As BOOL
 Public
-
+	Sub SramProgressCallBack(memmodel As *SFC_MMAP_MODEL, isWrite As BOOL)
+		memcpy(VarPtr(mmap), memmodel, sizeof(SFC_MMAP_MODEL))
+		this.isWrite = isWrite
+	End Sub
 	Sub Init(_this As VoidPtr, Max AS DWord) 
 		hProgress=MWnd(hProg)
 		this.Now=0
@@ -1414,10 +1426,11 @@ Public
 		SendMessage(hProgress, PBM_SETSTEP,step,0)
 		SendMessage(hProgress, PBM_STEPIT,0,0)
 
-		Now = Now + step		
-		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
+		Dim mode[1] = ["R", "W"] AS BytePtr
+		DBM(sprintfStr("[%s]SRAM bank%02X: $%02X:%04X +%04X", mode[isWrite And 1], Now, snesReadAdr>>16, snesReadAdr And &HFFFF, mmap.sram.bankSize))
 
-		DBM(sprintfStr("SRAM %02X:%04X +%04X", snesReadAdr>>16, snesReadAdr And &HFFFF, step))
+		Now += step		
+		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
 
 		PumpMessage()
 	End Sub
@@ -1443,9 +1456,9 @@ Public
 
 End Class
 
-Function new_SramProgressCallBack() As *SramProgressCallBack
+Function new_SramProgressCallBack(mmodel AS *SFC_MMAP_MODEL, isWrite AS BOOL) As *SramProgressCallBack
 	Dim ret As *SramProgressCallBack, vtable As *ProgressCallback_Vtable
-	ret = new SramProgressCallBack
+	ret = new SramProgressCallBack(mmodel, isWrite)
 '	vtable = calloc(sizeof(ProgressCallback_Vtable))
 '	SetDWord(ret, vtable)
 
@@ -1465,14 +1478,20 @@ End Sub
 
 Sub MainWnd_CommandButton18_Click()   
 
-		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
+		SendControl(hCOM,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register
 		
 		Sleep(500)
-		SetCartRegister(&H00, &H2200, &H20, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
-		SetCartRegister(&H00, &H2201, &H20, FALSE) 'SNES CPU BW-RAM Write Enable (W)
-		SetCartRegister(&H00, &H2202, &HA0, FALSE) 'Super Nintendo CPU INT Clear
-		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
+		SetCartRegister(&H00, &H2200, &H60, FALSE) 
+		SetCartRegister(&H00, &H2201, &H00, FALSE)
+		SetCartRegister(&H00, &H2202, &HA0, FALSE)
+		SetCartRegister(&H00, &H2228, &H00, FALSE)
+		SetCartRegister(&H00, &H222A, &H00, FALSE)
 		Sleep(100)
+		
+		Dim buf[16] As Byte
+		ReadROM(hCOM, buf, 0, &H2300, 16, FALSE)
+		Dump(buf, 16)
 End Sub
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long

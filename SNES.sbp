@@ -371,7 +371,7 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL,
 	
 	SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
 
-	if progress Then progress->Init(info->SramSize)
+	if progress Then progress->Init(bankCount)
 
 	Dim i As Long, readAddr As DWord
 	Do
@@ -387,7 +387,7 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL,
 		memcpy(sram+(i * sraminfo->bankSize), buf, sraminfo->bankSize)
 		i++
 		
-		if progress Then progress->Step(sraminfo->bankSize, readAddr)
+		if progress Then progress->Step(1, readAddr)
 		PumpMessage()
 	Loop
 	
@@ -425,11 +425,18 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 	Dim buf As BytePtr
 	
 	sraminfo = VarPtr(mmap->sram)
+	bankCount = Int(info->SramSize / sraminfo->bankSize)
+	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
+	buf = sram
 	
+	
+	if progress Then progress->Init(bankCount)
+
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
 		'SA-1レジスタセットアップ
 		' ROMSELを上げてSA1レジスタアクセスにする
-'		SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+
+		'SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 
 '		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL) 'Enable CPU Clock for Writing SA-1 Register
 '		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED) 'Enable CPU Clock for Writing SA-1 Register
@@ -441,27 +448,32 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 
 		Sleep(10)
 */
-	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register 
+		' バス釣り：OVERCLOCKだと成功する, NORMALだと書きこぼしがある
+		' 星：OVERCLOCKだと下記こぼす, NORMALだと成功する
+		'  -> WRITEパルス伸ばして解決
+
+	'	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL) 'Enable CPU Clock for Writing SA-1 Register 
+		SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register 
 		Sleep(500)
+
 		SetCartRegister(&H00, &H2224, &H00, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
 		SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 		SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
-		Sleep(10)
+		Sleep(100)
 		
 		
 	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
 	End If
 	
-	bankCount = Int(info->SramSize / sraminfo->bankSize)
-	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
-	buf = sram
-	
 	'ライト開始
 	SendControl(hSerial, (sraminfo->ctrlBus or CBUS_OE) As Byte)
 	
 	Dim i As DWord, writeAddr As DWord
 	Do
+		if progress Then 
+			if progress->isCancel() Then ExitDo
+		End If
 		If i = > bankCount Then ExitDo
 		
 		writeAddr = sraminfo->adr + i * sraminfo->bankStep
@@ -474,18 +486,20 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 			writeAddr = sraminfo->adr
 		'	SendControl(hSerial,CBUS_RST OR CBUS_OE OR CBUS_WE)
 		End If
-		DBM(sprintfStr("SRAM %02X:%04X +%04X", writeAddr>>16, writeAddr And &HFFFF, sraminfo->bankSize))
+'		DBM(sprintfStr("SRAM %02X:%04X +%04X", writeAddr>>16, writeAddr And &HFFFF, sraminfo->bankSize))
 		
 		SendControl(hSerial, (sraminfo->ctrlBus or CBUS_WE) As Byte)
 		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
 		
 		i++
-		PumpMessage()
+		if progress Then progress->Step(1, writeAddr)
+		'PumpMessage()
 	Loop
 	
 	If lastDumpSize > 0 Then
 		DBM(sprintfStr("LastSRAM %02X:%04X +%04X", i + sraminfo->adr>>16, sraminfo->adr And &HFFFF, lastDumpSize))
 		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, sraminfo->adr + i * sraminfo->bankStep, lastDumpSize, FALSE)
+		if progress Then progress->Step(1, writeAddr)
 	End If
 	
 	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
@@ -498,7 +512,7 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 		SetCartRegister(&H00, &H2226, &H00, FALSE) 'SNES CPU BW-RAM Write Enable (W)
 
 		'RESET
-		SendControl(hSerial, CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+		'SendControl(hSerial, CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
 		Sleep(100)
 		
 		'CPUクロックを停止してフィニッシュ
@@ -512,6 +526,8 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 	SendControl(hSerial, CBUS_DEFAULT)
 	
 	SetAddress(hSerial, &H000000 , FALSE)
+
+	if progress Then progress->Final()
 	
 End Sub
 
