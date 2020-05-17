@@ -271,10 +271,10 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	Dim currentAddress As DWord
 	Dim retry As DWord, retryLimit As DWord
 	Dim romBuffer AS BytePtr, bufferSize AS DWord
+	Dim nextAddress As SfcMmcNextAddressFunc
 
 	DumpRom2 = HKAC_DUMPROM_PARAMATER_ERROR
 	if mmodel=NULL or rom=NULL Then ExitFunction
-	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): ExitFunction
 
 	' 設定読み出し
 	retryLimit = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
@@ -285,6 +285,16 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	' 初期アドレスセット
 	currentAddress = mmodel->rom.adr
 	SendControl(hCOM, CBUS_DEFAULT)
+
+	' アドレスをすすめる関数を取得
+	nextAddress = mmodel->rom.next_cb
+	if nextAddress = NULL Then
+		if mmodel->rom.isLoROM Then
+			nextAddress = AddressOf(LoROM_nextAddress)
+		Else
+			nextAddress = AddressOf(HiROM_nextAddress)
+		End If
+	End If
 
 	' MMC初期化
 	if mmodel->rom.init_cb Then mmodel->rom.init_cb(hSerial, info)
@@ -325,11 +335,11 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 		totalReadBytes += bufferSize
 		if totalReadBytes >= info->RomSize Then ExitDo
 
-		currentAddress = mmodel->rom.next_cb(hSerial, info, currentAddress, bufferSize)
+		currentAddress = nextAddress(hSerial, info, currentAddress, bufferSize)
 
 	Loop
 	
-	if mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hSerial, info)
+	if mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hSerial, info, romBuffer)
 
 *EXIT_DUMP2
 	if progress<>NULL Then progress->Final()
@@ -343,34 +353,27 @@ End Function
 '---------------------------
 ' SRAM Functions
 '---------------------------
-Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
-'	Dim fout As File
-	
+Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
 	If info->SramSize = 0 Then
 		DBM("SRAM Size is zero.")
 		ExitSub
 	End If
-	
-/*	If fout.openFile(FileName, GENERIC_WRITE) = FALSE Then
-		DBM("Cannot open file! " + MakeStr(FileName))
-		ErrMes(hMainWnd, "SRAMを保存できませんでした。", "File I/O Error", 0, GetLastError())
-		ExitSub
-	End If
-*/	
+		
 	Dim sraminfo As *SFC_SRAM_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
+	Dim nextAddress As SfcMmcSramNextAddressFunc
 	
-	sraminfo = VarPtr(mmap->sram)
+	sraminfo = VarPtr(mmodel->sram)
+	nextAddress = mmodel->sram.next_cb
+	if nextAddress = NULL Then nextAddress = AddressOf(SramGeneric_nextAddress)
 	
-	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
-	End If
-	
+	if mmodel->sram.init_cb Then mmodel->sram.init_cb(hSerial, info)
+
 	bankCount = Int(info->SramSize / sraminfo->bankSize)
 	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
-	buf = calloc(sraminfo->bankSize)
+	buf = sram
 	
 	SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
 
@@ -383,11 +386,11 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL,
 			If progress->isCancel() Then DBM(ex"\r\nCanceled by the user."):GoTo *EXIT_SRAM_DUMP
 		End If
 
-		readAddr = sraminfo->adr + i * sraminfo->bankStep
+		readAddr = nextAddress(hSerial, info, mmodel, i)
 		
 		SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
 		ReadROM(hSerial, buf, 0, readAddr, sraminfo->bankSize, FALSE)
-		memcpy(sram+(i * sraminfo->bankSize), buf, sraminfo->bankSize)
+		buf += sraminfo->bankSize
 		i++
 		
 		if progress Then progress->Step(1, readAddr)
@@ -395,104 +398,47 @@ Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmap As *SFC_MMAP_MODEL,
 	Loop
 	
 	If lastDumpSize > 0 Then
-		readAddr = sraminfo->adr + i * sraminfo->bankStep
-		ReadROM(hSerial, buf, 0, readAddr, lastDumpSize, FALSE)
-		memcpy(sram+(i * sraminfo->bankSize), buf, lastDumpSize)		
+		readAddr = nextAddress(hSerial, info, mmodel, i)
+		ReadROM(hSerial, buf, 0, readAddr, lastDumpSize, FALSE)		
 		if progress Then progress->Step(lastDumpSize, readAddr)
 	End If
 	
 	
 *EXIT_SRAM_DUMP
-	If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM ENABLE
-	End If
+
+	if mmodel->sram.exit_cb Then mmodel->sram.exit_cb(hSerial, info, sram)
 	
 	SendControl(hSerial, CBUS_DEFAULT)
 
 	if progress Then progress->Final()
 	
 '	fout.close()
-	free(buf)
+'	free(buf)
 		
 End Sub
 
 'Writing SA-1 SRAM routine is based on sanni's cartreader.
 
-Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
-	Dim fin As File
+Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, sram As BytePtr, progress AS * ProgressCallback)
 	
 	'諸計算
 	Dim sraminfo As *SFC_SRAM_MODEL
 	Dim bankCount As DWord
 	Dim lastDumpSize As DWord
 	Dim buf As BytePtr
+	Dim nextAddress As SfcMmcSramNextAddressFunc
 	
-	sraminfo = VarPtr(mmap->sram)
+	sraminfo = VarPtr(mmodel->sram)
 	bankCount = Int(info->SramSize / sraminfo->bankSize)
 	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
 	buf = sram
 	
+	nextAddress = mmodel->sram.next_cb
+	if nextAddress = NULL Then nextAddress = AddressOf(SramGeneric_nextAddress)
 	
 	if progress Then progress->Init(bankCount)
 
-	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
-		SA1_SramInit(hSerial)	
-		
-	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
-
-	Else if sraminfo->ctrlBus And SRAM_CTRL_XBAND Then
-		/* 
-			https://problemkaputt.de/fullsnes.htm#snescartxbandmisc
-			  D00000h-DFFFFFh  1MB ROM (executed here, not at C00000h-CFFFFFh)
-			  E00000h-E0FFFFh  64K SRAM (in two 32Kx8 chips) (unknown if BOTH have battery)
-			  FBC000h-FBC17Fh  I/O Ports (unknown functions?)
-			  FBC180h-FBC1BFh  I/O Ports (Rockwell Modem Chip)
-			  FBFC02h          I/O Port  (unknown functions?)
-		here→FBFE00h          I/O Port  (unknown functions?)
-			  FFC000h          I/O Port  (unknown functions?)
-			  004F02h          I/O Port  (unknown functions?)
-			  00F000h          Dummy/strobe read?
-			  00FFE0h          Dummy/strobe read?
-		*/
-		/*
-			FE02h - ControlReg (aka reghere)
-			;control bits for control register ;aka "kControlReg"? and/or "kCtlRegSoft"?
-
-			  0   EnTwoRam:        equ     $01 ;<-- maybe disable one of the two SRAMs?
-			  1   EnSafeRom:       equ     $02 ;<-- maybe SRAM read-only? or FlashROM?
-			  2   RomHi:           equ     $04 ;
-			  3   EnInternal:      equ     $08 ;<-- maybe disable ports C000h..C1FFh?
-			  4   EnFixedInternal: equ     $10 ;<-- maybe whatever related to above?
-			  5   EnSNESExcept:    equ     $20 ;
-			  6-7 Unknown/unused
-		*/
-		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_CTRL_REG, XBAND_CTRL_EnTwoRam or XBAND_CTRL_EnSafeRom, FALSE)
-
-		/*
-			XBAND LED: (正面から)
-				LED1: ???
-				LED3: モデム？
-				LED5: 電源？
-		*/
-		Const XBAND_LED_POWER = &H20
-		Const XBAND_LED_MODEM = &H08
-		Const XBAND_LED_LED1  = &H02
-		Const XBAND_LED_ALL  = XBAND_LED_POWER or XBAND_LED_MODEM or XBAND_LED_LED1
-
-		Const XBAND_CTRL_EnTwoRam = &H01
-		Const XBAND_CTRL_EnSafeRom = &H02
-
-		Const XBAND_IOP_BANK = &HFB
-		Const XBAND_IOP_CTRL_REG = &HFE02
-		Const XBAND_IOP_LED_DATA = &HC168
-		Const XBAND_IOP_LED_DIR  = &HC16A
-
-		'なんとなくLEDを光らせる
-		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, XBAND_LED_ALL, FALSE)
-		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  XBAND_LED_ALL, FALSE)
-
-	End If
+	if sraminfo->init_cb Then sraminfo->init_cb(hSerial, info)
 	
 	'ライト開始
 	SendControl(hSerial, (sraminfo->ctrlBus or CBUS_OE) As Byte)
@@ -503,15 +449,13 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 			if progress->isCancel() Then ExitDo
 		End If
 		If i = > bankCount Then ExitDo
-		
-		writeAddr = sraminfo->adr + i * sraminfo->bankStep
-		If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
-			SA1_SramBankSel(hSerial, i As Byte)
-			writeAddr = sraminfo->adr
-		End If
+
+		writeAddr = nextAddress(hSerial, info, mmodel, i)
 		
 		SendControl(hSerial, (sraminfo->ctrlBus or CBUS_WE) As Byte)
-		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, writeAddr, sraminfo->bankSize, FALSE)
+		WriteROM(hSerial, buf, 0, writeAddr, sraminfo->bankSize, FALSE)
+
+		buf += sraminfo->bankSize
 		
 		i++
 		if progress Then progress->Step(1, writeAddr)
@@ -519,20 +463,13 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 	Loop
 	
 	If lastDumpSize > 0 Then
-		WriteROM(hSerial, buf + i * sraminfo->bankSize, 0, sraminfo->adr + i * sraminfo->bankStep, lastDumpSize, FALSE)
+		writeAddr = nextAddress(hSerial, info, mmodel, i)
+		WriteROM(hSerial, buf, 0, writeAddr, lastDumpSize, FALSE)
 		if progress Then progress->Step(1, writeAddr)
 	End If
+		
+	if sraminfo->exit_cb Then sraminfo->exit_cb(hSerial, info, sram)
 	
-	If sraminfo->ctrlBus And SRAM_CTRL_SA1 Then
-		SA1_SramExit(hSerial, buf)
-		
-	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
-		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
-		
-	Else If sraminfo->ctrlBus And SRAM_CTRL_XBAND Then
-		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  0, FALSE)
-		
-	End If
 	
 	SendControl(hSerial, CBUS_DEFAULT)
 	
