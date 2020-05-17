@@ -34,6 +34,7 @@ Enum SFC_MAP_TYPE
 	SFC_MAP_SDD1
 	SFC_MAP_SPC7110
 	SFC_MAP_XBAND
+	SFC_MAP_SFTURBO
 	SFC_MAP_SpLoROM '衛星対応カートリッジでかつLoROMで3MBのもの(ダビスタ)
 	SFC_MAP_BSX
 	SFC_MAP_JRAPAT
@@ -54,7 +55,8 @@ Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE__NUM] = [
 	"SA-1 HiROM"		,
 	"S-DD1"				,
 	"SPC7110"			,
-	"XBAND HiROM"		,
+	"XBAND BIOS"		,
+	"Sufami Turbo"		,
 	"SpecialLoROM"		,
 	"LoROM (BS-X)"		,
 	"LoROM (JRA PAT)"	,
@@ -260,7 +262,8 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 			info->SramSize = (1024 * 128) As DWord
 		End If
 	End If
-			
+	
+
 	'SpecialLoROMはLoROMの衛星対応カートリッジで3MB目を吸うときにバンク切り替えが必要
 	'品番がSHVC-ZxxJであるものは衛星対応カートリッジ
 	'ここではダビスタ96とサウンドノベルツクールとBSXがヒットするはず。
@@ -275,23 +278,27 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 		End If
 	End If
 	
-	'タイトルがMENU PROGRAMならSFM確定
 	If lstrcmp("MENU PROGRAM", info->Title) = 0 Then
+		' SFメモリカセット
 		info->MapType = SFC_MAP_SF_MENU
 		info->enableChecksum = FALSE
-	End If
-
-	If lstrcmp("XBND", info->GameCode) = 0 Then
-		info->MapType = SFC_MAP_XBAND
-'		info->RomSize = (1 * 1024 * 1024) AS DWord
-	End If
 	
-
-	'SUPER FOMATION SOCCERのタイトルーオーバランを修正
-	If lstrcmp("SUPER FORMATION SOCCE", info->Title) = 0 Then
+	ElseIf lstrcmp("SUPER FORMATION SOCCE", info->Title) = 0 Then
+		'SUPER FOMATION SOCCERのタイトルーオーバランを修正
 		lstrcat(info->Title, "R")
 		info->MapType = SFC_MAP_LoROM
+
+	Elseif lstrcmp("XBND", info->GameCode) = 0 Then
+		info->MapType = SFC_MAP_XBAND
+
+	Else If lstrcmp("A9PJ", info->GameCode) = 0 Then
+		' スーファミターボ
+		info->MapType = SFC_MAP_SFTURBO
+		info->RomSize = 256 * 1024
+		info->CheckSum1 = &H35CC	' チェックサムが空のでつける
+		info->CheckSum2 = &HCA33
 	End If
+	
 
 			
 EndSub

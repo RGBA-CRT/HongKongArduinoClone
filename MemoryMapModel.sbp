@@ -228,6 +228,15 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->rom.isLoROM   =  TRUE
 
 
+		Case SFC_MAP_SFTURBO
+			model->sram.adr      =  &H608000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST' or CBUS_ROMSEL
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+
+
 		Case Else
 			debug
 	End Select
