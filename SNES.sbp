@@ -25,7 +25,7 @@ Enum HKAC_DUMPROM_RESULT
 	HKAC_DUMPROM_RETRY_OVER
 	HKAC_DUMPROM_COPRO_ERROR
 	HKAC_DUMPROM_USER_CANCEL
-	HKAC_DUMPROM_PTRERROR
+	HKAC_DUMPROM_PARAMATER_ERROR
 End Enum
 
 Function DumpRom(info As * SFC_CART_INFO, Path As BytePtr, RomOffset As DWord) As Long
@@ -272,14 +272,15 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	Dim retry As DWord, retryLimit As DWord
 	Dim romBuffer AS BytePtr, bufferSize AS DWord
 
-	if mmodel=NULL or rom=NULL Then DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
-	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): 	DumpRom2 = HKAC_DUMPROM_PTRERROR: ExitFunction
-
-	DumpRom2 = HKAC_DUMPROM_OK
+	DumpRom2 = HKAC_DUMPROM_PARAMATER_ERROR
+	if mmodel=NULL or rom=NULL Then ExitFunction
+	if mmodel->rom.next_cb=NULL Then DBM("next callback is NULL"): ExitFunction
 
 	' 設定読み出し
 	retryLimit = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
 	bufferSize = GetDumpBufferSize()
+
+	if info->RomSize < bufferSize Then  DBMf("RomSize:0x%08X < bufferSize:0x%08X", info->RomSize, bufferSize):ExitFunction
 
 	' 初期アドレスセット
 	currentAddress = mmodel->rom.adr
@@ -292,6 +293,8 @@ Function DumpRom2(hSerial AS HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMA
 	romBuffer = calloc(bufferSize)
 
 	if progress Then progress->Init( info->RomSize )
+
+	DumpRom2 = HKAC_DUMPROM_OK
 
 	Do
 		'ESCキーでキャンセル
@@ -437,6 +440,58 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 		
 	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
+
+	Else if sraminfo->ctrlBus And SRAM_CTRL_XBAND Then
+		/* 
+			https://problemkaputt.de/fullsnes.htm#snescartxbandmisc
+			  D00000h-DFFFFFh  1MB ROM (executed here, not at C00000h-CFFFFFh)
+			  E00000h-E0FFFFh  64K SRAM (in two 32Kx8 chips) (unknown if BOTH have battery)
+			  FBC000h-FBC17Fh  I/O Ports (unknown functions?)
+			  FBC180h-FBC1BFh  I/O Ports (Rockwell Modem Chip)
+			  FBFC02h          I/O Port  (unknown functions?)
+		here→FBFE00h          I/O Port  (unknown functions?)
+			  FFC000h          I/O Port  (unknown functions?)
+			  004F02h          I/O Port  (unknown functions?)
+			  00F000h          Dummy/strobe read?
+			  00FFE0h          Dummy/strobe read?
+		*/
+		/*
+			FE02h - ControlReg (aka reghere)
+			;control bits for control register ;aka "kControlReg"? and/or "kCtlRegSoft"?
+
+			  0   EnTwoRam:        equ     $01 ;<-- maybe disable one of the two SRAMs?
+			  1   EnSafeRom:       equ     $02 ;<-- maybe SRAM read-only? or FlashROM?
+			  2   RomHi:           equ     $04 ;
+			  3   EnInternal:      equ     $08 ;<-- maybe disable ports C000h..C1FFh?
+			  4   EnFixedInternal: equ     $10 ;<-- maybe whatever related to above?
+			  5   EnSNESExcept:    equ     $20 ;
+			  6-7 Unknown/unused
+		*/
+		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_CTRL_REG, XBAND_CTRL_EnTwoRam or XBAND_CTRL_EnSafeRom, FALSE)
+
+		/*
+			XBAND LED: (正面から)
+				LED1: ???
+				LED3: モデム？
+				LED5: 電源？
+		*/
+		Const XBAND_LED_POWER = &H20
+		Const XBAND_LED_MODEM = &H08
+		Const XBAND_LED_LED1  = &H02
+		Const XBAND_LED_ALL  = XBAND_LED_POWER or XBAND_LED_MODEM or XBAND_LED_LED1
+
+		Const XBAND_CTRL_EnTwoRam = &H01
+		Const XBAND_CTRL_EnSafeRom = &H02
+
+		Const XBAND_IOP_BANK = &HFB
+		Const XBAND_IOP_CTRL_REG = &HFE02
+		Const XBAND_IOP_LED_DATA = &HC168
+		Const XBAND_IOP_LED_DIR  = &HC16A
+
+		'なんとなくLEDを光らせる
+		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, XBAND_LED_ALL, FALSE)
+		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  XBAND_LED_ALL, FALSE)
+
 	End If
 	
 	'ライト開始
@@ -473,6 +528,9 @@ Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmap As *SFC_MMAP_MODE
 		
 	Else If sraminfo->ctrlBus And SRAM_CTRL_SPC7110 Then
 		SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
+		
+	Else If sraminfo->ctrlBus And SRAM_CTRL_XBAND Then
+		SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  0, FALSE)
 		
 	End If
 	

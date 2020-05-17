@@ -78,7 +78,7 @@ Si5351 clockgen;
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //バッファ
-#define BUFFER_LEN 0xFF //ホスト側とサイズを合わせる
+#define BUFFER_LEN 0x100 //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 
@@ -95,8 +95,8 @@ inline void serial_send(byte data) {
 }
 
 // recive to buffer
-inline void serial_receive(byte length) {
-  byte i = 0;
+inline void serial_receive(word length) {
+  word i = 0;
   while (i < length) {
     while (Serial.available() < 1);
     buf[i] = Serial.read();
@@ -213,7 +213,7 @@ void writeCart(int isLoROM = false) {
   BB_DIR_OUTPUT();
 
   word goalAdr = address + datasize;
-  byte bufpos = RX_BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
+  word bufpos = RX_BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
 
   while (1) {
     //データ受信

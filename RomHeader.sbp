@@ -33,6 +33,7 @@ Enum SFC_MAP_TYPE
 	SFC_MAP_SA1
 	SFC_MAP_SDD1
 	SFC_MAP_SPC7110
+	SFC_MAP_XBAND
 	SFC_MAP_SpLoROM '衛星対応カートリッジでかつLoROMで3MBのもの(ダビスタ)
 	SFC_MAP_BSX
 	SFC_MAP_JRAPAT
@@ -53,6 +54,7 @@ Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE__NUM] = [
 	"SA-1 HiROM"		,
 	"S-DD1"				,
 	"SPC7110"			,
+	"XBAND HiROM"		,
 	"SpecialLoROM"		,
 	"LoROM (BS-X)"		,
 	"LoROM (JRA PAT)"	,
@@ -277,6 +279,11 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	If lstrcmp("MENU PROGRAM", info->Title) = 0 Then
 		info->MapType = SFC_MAP_SF_MENU
 		info->enableChecksum = FALSE
+	End If
+
+	If lstrcmp("XBND", info->GameCode) = 0 Then
+		info->MapType = SFC_MAP_XBAND
+'		info->RomSize = (1 * 1024 * 1024) AS DWord
 	End If
 	
 

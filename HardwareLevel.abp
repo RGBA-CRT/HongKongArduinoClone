@@ -253,7 +253,7 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 
 	Do
-		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN)
+		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 

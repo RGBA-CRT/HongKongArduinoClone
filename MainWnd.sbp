@@ -612,7 +612,8 @@ Sub MainWnd_CommandButton4_Click()
 	
 	If info.isFlashSave Then
 		ErrMes(hMainWnd, "フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "未実装", 0)
-		If GetKeyState(VK_ESCAPE) And &H80 = 0 Then exitsub
+		If (GetKeyState(VK_ESCAPE) And &H80) = 0 Then exitsub
+		DBMf("key%x", GetKeyState(VK_ESCAPE))
 	End If
 	
 #ifndef _DEBUG

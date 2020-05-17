@@ -2,8 +2,9 @@
 ' SRAM Memory Model
 '---------------------------
 
-Const SRAM_CTRL_SA1	 = &H01000000
+Const SRAM_CTRL_SA1	 	= &H01000000
 Const SRAM_CTRL_SPC7110 = &H02000000
+Const SRAM_CTRL_XBAND 	= &H04000000
 Typedef SfcMmcInitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO) As BOOL
 Typedef SfcMmcNextAddressFunc = *Function(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
 Typedef SfcMmcExitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO)
@@ -95,6 +96,34 @@ Function SPC7110_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS D
 	End If
 End Function
 
+
+' ============== CX4 =============
+Function CX4_init_x2(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("CX4 for ROCKMAN X2")
+	
+	' https://sd2snes.de/files/cx4_notes.txt
+	/*
+	$7f52: ROM configuration select
+	       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
+	              1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
+
+	       HiROM: 0: 2x  8Mbit (A20 switches)
+	              1: 2x 16Mbit (A21 switches)
+	*/
+	' Set ROM configuration to 2xROM (8Mx2)
+	SetCartRegister(0, &H7f52, 0)
+	
+	CX4_init_x2 = TRUE
+End Function
+
+Function CX4_init_x3(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("CX4 for ROCKMAN X3")
+	
+	' Set ROM configuration to 1xROM (16Mx1)
+	SetCartRegister(0, &H7f52, 1)
+		
+	CX4_init_x3 = TRUE
+End Function
 
 ' ============== SpLoROM =============
 Function SpLoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
@@ -243,11 +272,55 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
 			model->rom.exit_cb   =  NULL
 
-/* todo
-	SFC_MAP_SF_MENU 'SFメモリカートリッジ
-	SFC_MAP_CX4_2DC0N ' ロックマンX2,  8Mbit ROM x2
-	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
-*/
+
+		Case SFC_MAP_CX4_2DC0N
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  AddressOf(CX4_init_x2)
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_CX4_1DC0N
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  AddressOf(CX4_init_x3)
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_SF_MENU
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H008000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(LoROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
+		Case SFC_MAP_XBAND
+			model->sram.adr      =  &HE00000
+			model->sram.bankStep =  &H008000
+			model->sram.bankSize =  &H008000	' 32kbit x2 SRAM
+			model->sram.ctrlBus  =  CBUS_RST OR SRAM_CTRL_XBAND
+			model->rom.adr       =  HiROM_START_ADR
+			model->rom.isLoROM   =  TRUE
+			model->rom.init_cb   =  NULL
+			model->rom.next_cb   =  AddressOf(HiROM_nextAddress)
+			model->rom.exit_cb   =  NULL
+
+
 		'JRA PAT用（Flash）
 		Case SFC_MAP_JRAPAT
 			model->sram.adr      =  &HC00000
