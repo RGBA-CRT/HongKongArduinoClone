@@ -38,218 +38,10 @@ Const LoROM_OFFSET_ADR = &H008000
 Const HiROM_START_ADR  = &HC00000
 TypeDef MODEL_ARRAY_TYPE = DWord '本当はVoidPtrのほうが良いけどキャストが面倒
 
-' ============== LoROM =============
-Function LoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	LoROM_nextAddress = adr + readSize
-	if (LoROM_nextAddress And &HFFFF) < &H8000 Then LoROM_nextAddress += &H8000
-End Function
 
-' ============== HiROM =============
-Function HiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	HiROM_nextAddress = adr + readSize
-End Function
-
-' ============== ExHiROM =============
-Function ExHiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	ExHiROM_nextAddress = adr + readSize
-	' $C0:0000～$FF:FFFFまで吸ったら次は$40:0000～$7F:FFFF
-	if ExHiROM_nextAddress > &HFFFFFF Then ExHiROM_nextAddress = &H400000
-End Function
-
-' ============== SDD1 =============
-Function SDD1_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	' 最初はROMバンク0～3を吸い出す
-	SDD1_SetBanks(hCOM, 0)
-	SDD1_PrintBanks(hCOM)
-		
-	SDD1_init = TRUE
-End Function
-
-Function SDD1_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	SDD1_nextAddress = adr + readSize
-	If SDD1_nextAddress > &HFFFFFF Then
-		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
-		SDD1_SetBanks(hCOM, 4)
-		SDD1_PrintBanks(hCOM)
-		
-		SDD1_nextAddress = HiROM_START_ADR
-	End If
-End Function
-
-' ============== SA1 =============
-Function SA1_SRAM_READ_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	SA1_SramInit(hSerial)
-End Function
-
-Function SA1_SRAM_WRITE_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
-	SA1_SramBankSel(hSerial, bank As Byte)
-	SA1_SRAM_WRITE_nextAddress = mmodel->sram.adr
-End Function
-
-Function SA1_SRAM_READ_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
-	SA1_SramExit(hCOM, romBuffer)
-End Function
-
-' ============== SPC7110 =============
-Function SPC7110_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	DBM("Checking SPC7110...")
-	If SPC7110_SetBanks(hSerial, 1, FALSE) = FALSE or _
-						SPC7110_SetBanks(hCOM, 0, FALSE) = FALSE Then
-		ErrMes(hMainWnd, ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。", "SPC7110 Bank Control Error", 0)
-		ExitSub
-	End If
-	SPC7110_PrintBanks(hCOM)
-		
-	SPC7110_init = TRUE
-End Function
-
-Function SPC7110_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	SPC7110_nextAddress = adr + readSize
-	If SPC7110_nextAddress > &HFFFFFF Then
-		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
-		DBM("")
-		SPC7110_SetBanks(hSerial, 1, FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
-		SPC7110_nextAddress = HiROM_START_ADR + &H300000 'F0:0000からリスタート
-	End If
-End Function
-
-Function SPC7110_SRAM_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
-End Function
-
-Function SPC7110_SRAM_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
-	SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
-End Function
-
-
-Function SramGeneric_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
-	SramGeneric_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
-End Function
-
-
-' ============== CX4 =============
-Function CX4_init_x2(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	DBM("CX4 for ROCKMAN X2")
-	
-	' https://sd2snes.de/files/cx4_notes.txt
-	/*
-	$7f52: ROM configuration select
-	       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
-	              1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
-
-	       HiROM: 0: 2x  8Mbit (A20 switches)
-	              1: 2x 16Mbit (A21 switches)
-	*/
-	' Set ROM configuration to 2xROM (8Mx2)
-	SetCartRegister(0, &H7f52, 0)
-	
-	CX4_init_x2 = TRUE
-End Function
-
-Function CX4_init_x3(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	DBM("CX4 for ROCKMAN X3")
-	
-	' Set ROM configuration to 1xROM (16Mx1)
-	SetCartRegister(0, &H7f52, 1)
-		
-	CX4_init_x3 = TRUE
-End Function
-
-' ============== SpLoROM =============
-Function SpLoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	SpLoROM_nextAddress = adr + readSize
-	if (SpLoROM_nextAddress And &HFFFF) < &H8000 Then SpLoROM_nextAddress += &H8000
-	
-	if SpLoROM_nextAddress = &H408000 Then
-		SpLoROM_nextAddress = &H808000
-		DBM(ex"\r\nSpLoROM アドレスジャンプ $80:8000～")
-	End If
-End Function
-
-' ============== XBAND =============
-Function XBAND_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
-	/* 
-		https://problemkaputt.de/fullsnes.htm#snescartxbandmisc
-		  D00000h-DFFFFFh  1MB ROM (executed here, not at C00000h-CFFFFFh)
-		  E00000h-E0FFFFh  64K SRAM (in two 32Kx8 chips) (unknown if BOTH have battery)
-		  FBC000h-FBC17Fh  I/O Ports (unknown functions?)
-		  FBC180h-FBC1BFh  I/O Ports (Rockwell Modem Chip)
-		  FBFC02h          I/O Port  (unknown functions?)
-	here→FBFE00h          I/O Port  (unknown functions?)
-		  FFC000h          I/O Port  (unknown functions?)
-		  004F02h          I/O Port  (unknown functions?)
-		  00F000h          Dummy/strobe read?
-		  00FFE0h          Dummy/strobe read?
-	*/
-	/*
-		FE02h - ControlReg (aka reghere)
-		;control bits for control register ;aka "kControlReg"? and/or "kCtlRegSoft"?
-
-		  0   EnTwoRam:        equ     $01 ;<-- maybe disable one of the two SRAMs?
-		  1   EnSafeRom:       equ     $02 ;<-- maybe SRAM read-only? or FlashROM?
-		  2   RomHi:           equ     $04 ;
-		  3   EnInternal:      equ     $08 ;<-- maybe disable ports C000h..C1FFh?
-		  4   EnFixedInternal: equ     $10 ;<-- maybe whatever related to above?
-		  5   EnSNESExcept:    equ     $20 ;
-		  6-7 Unknown/unused
-	*/
-	/*
-		XBAND LED: (正面から)
-			LED1: ???
-			LED3: モデム？
-			LED5: 電源？
-	*/
-	Const XBAND_LED_POWER = &H20
-	Const XBAND_LED_MODEM = &H08
-	Const XBAND_LED_LED1  = &H02
-	Const XBAND_LED_ALL  = XBAND_LED_POWER or XBAND_LED_MODEM or XBAND_LED_LED1
-
-	Const XBAND_CTRL_EnTwoRam = &H01
-	Const XBAND_CTRL_EnSafeRom = &H02
-
-	Const XBAND_IOP_BANK = &HFB
-	Const XBAND_IOP_CTRL_REG = &HFE02
-	Const XBAND_IOP_LED_DATA = &HC168
-	Const XBAND_IOP_LED_DIR  = &HC16A
-
-	' 2つ目のSRAMを有効にする
-	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_CTRL_REG, XBAND_CTRL_EnTwoRam or XBAND_CTRL_EnSafeRom, FALSE)
-
-	'なんとなくLEDを光らせる
-	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, XBAND_LED_ALL, FALSE)
-	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  XBAND_LED_ALL, FALSE)
-
-	XBAND_init = TRUE
-End Function
-
-Sub XBAND_LedBlink(hSerial As HANDLE)
-	Dim led As Byte, reg As Byte
-	ReadROM(hSerial, VarPtr(reg), 0, XBAND_IOP_BANK<<16 or XBAND_IOP_LED_DATA, 1, FALSE)
-	reg = NOT(reg) And XBAND_LED_ALL
-	led = ((reg>>1) And 1) or (((reg>>3) And 1)<<1) or (((reg>>5) And 1)<<2)
-	led = (led+1) Mod 8
-	reg = ((led And 1)<<1) or ((led And 2)<<2) or ((led And 4)<<3) 
-	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, reg, FALSE)
-End Sub
-
-Function XBAND_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-	if (adr And &H020000) And ((adr and &HFFFF)=&H8000) Then XBAND_LedBlink(hSerial)
-
-	XBAND_nextAddress = HiROM_nextAddress(hSerial, info, adr, readSize)
-End Function
-
-Function XBAND_SRAM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
-	XBAND_LedBlink(hSerial)
-	XBAND_SRAM_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
-End Function
-
-Function XBAND_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
-	'なんとなくLEDを光らせる
-	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, &H00, FALSE)
-End Function
-
+' MemoryModelを決定する
 Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
-	' デフォルトNULL
+	' コールバックは省略可能
 	model->rom.init_cb   =  NULL
 	model->rom.next_cb   =  NULL
 	model->rom.exit_cb   =  NULL
@@ -297,9 +89,9 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 				model->sram.bankStep =  &H010000
 				model->sram.bankSize =  &H002000
 				model->sram.ctrlBus  =  CBUS_RST
-				model->sram.init_cb  =  AddressOf(SA1_SRAM_READ_init)
+				model->sram.init_cb  =  AddressOf(SA1_SRAM_WRITE_init)
 				model->sram.next_cb  =  AddressOf(SA1_SRAM_WRITE_nextAddress)
-				model->sram.exit_cb  =  AddressOf(SA1_SRAM_READ_exit)
+				model->sram.exit_cb  =  AddressOf(SA1_SRAM_WRITE_exit)
 				model->rom.adr       =  HiROM_START_ADR
 				model->rom.isLoROM   =  FALSE
 			Else
@@ -343,7 +135,7 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.adr      =  &H700000
 			model->sram.bankStep =  &H010000
 			model->sram.bankSize =  &H008000
-			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
+			model->sram.ctrlBus  =  CBUS_RST 'or CBUS_ROMSEL
 			model->rom.adr       =  LoROM_OFFSET_ADR
 			model->rom.isLoROM   =  TRUE
 			model->rom.init_cb   =  NULL
@@ -417,7 +209,7 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->sram.bankSize =  &H008000	' 32kbit x2 SRAM
 			model->sram.ctrlBus  =  CBUS_RST
 			model->sram.init_cb  =  AddressOf(XBAND_init)
-			model->sram.next_cb  =  AddressOf(XBAND_SRAM_nextAddress)
+			model->sram.next_cb  =  NULL 'AddressOf(XBAND_SRAM_nextAddress)
 			model->sram.exit_cb  =  AddressOf(XBAND_exit)
 			model->rom.adr       =  HiROM_START_ADR
 			model->rom.isLoROM   =  FALSE
@@ -441,4 +233,383 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 	End Select
 
 End Function
+
+
+
+'------------------------------
+' Memory Controller Functions
+'------------------------------
+
+' ============== common memory mapping LoROM/HiROM =============
+Function LoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	LoROM_nextAddress = adr + readSize
+	if (LoROM_nextAddress And &HFFFF) < &H8000 Then LoROM_nextAddress += &H8000
+End Function
+
+Function HiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	HiROM_nextAddress = adr + readSize
+End Function
+
+Function SramGeneric_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+	SramGeneric_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
+End Function
+
+
+
+
+' ============== SpLoROM =============
+Function SpLoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SpLoROM_nextAddress = adr + readSize
+	if (SpLoROM_nextAddress And &HFFFF) < &H8000 Then SpLoROM_nextAddress += &H8000
+	
+	if SpLoROM_nextAddress = &H408000 Then
+		SpLoROM_nextAddress = &H808000
+		DBM(ex"\r\nSpLoROM アドレスジャンプ $80:8000～")
+	End If
+End Function
+
+
+
+
+' ============== ExHiROM =============
+Function ExHiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	ExHiROM_nextAddress = adr + readSize
+	' $C0:0000～$FF:FFFFまで吸ったら次は$40:0000～$7F:FFFF
+	if ExHiROM_nextAddress > &HFFFFFF Then ExHiROM_nextAddress = &H400000
+End Function
+
+
+
+
+' ============== SDD1 =============
+Function SDD1_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	' 最初はROMバンク0～3を吸い出す
+	SDD1_SetBanks(hCOM, 0)
+	SDD1_PrintBanks(hCOM)
+		
+	SDD1_init = TRUE
+End Function
+
+Function SDD1_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SDD1_nextAddress = adr + readSize
+	If SDD1_nextAddress > &HFFFFFF Then
+		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
+		SDD1_SetBanks(hCOM, 4)
+		SDD1_PrintBanks(hCOM)
+		
+		SDD1_nextAddress = HiROM_START_ADR
+	End If
+End Function
+
+'SDD1のバンクをセットアップ
+'SNESバンクC0, D0, E0, F0にbankStartから始まるROMバンク(1MByteごと)を割り当て
+Sub SDD1_SetBanks(hCOM As HANDLE, bankStart As Long)
+	Dim buf[3] As Byte, i As Long
+	DBM(sprintfStr("Setting S-DD1 bank %d-%d...", bankStart, bankStart + 3))
+	
+	For i = 0 To 3
+		buf[i] = (bankStart + i) As Byte
+	Next i
+	
+	SendControl(hCOM, CBUS_RST Or CBUS_OE)
+	WriteROM(hCOM, buf, 0, &H004804, 4, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+End Sub
+
+'現在のSDD1のバンク設定をGUIに出力
+
+Sub SDD1_PrintBanks(hCOM As HANDLE)
+	Dim buf[3] As Byte, i As Long
+	
+	SendControl(hCOM, CBUS_DEFAULT)
+	ReadROM(hCOM, buf, 0, &H004804, 4, FALSE)
+	
+	For i = 0 To 3
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d", &HC + i, &HC + i, buf[i]))
+	Next i
+	
+End Sub
+
+
+
+
+
+' ============== SA1 =============
+Function SA1_SRAM_WRITE_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	SA1_SramInit(hSerial)
+End Function
+
+Function SA1_SRAM_WRITE_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+	SA1_SramBankSel(hSerial, bank As Byte)
+	SA1_SRAM_WRITE_nextAddress = mmodel->sram.adr
+End Function
+
+Function SA1_SRAM_WRITE_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+	SA1_SramExit(hCOM, romBuffer)
+End Function
+
+/*
+Sub SA1_Init(hSerial As HANDLE)
+	SetCPU_Clock(hSerial, HKAC_CLOCK_CPU_OVERCLOCKED)
+	SetCPU_Clock(hSerial, HKAC_CLOCK_CPU_ENABLED)
+	
+	Sleep(500)
+End Sub
+
+Sub SA1_DeInit(hSerial As HANDLE)
+	SetCPU_Clock(hSerial, HKAC_CLOCK_NORMAL)
+End Sub
+
+Sub SA1_BankCtrl(hSerial As HANDLE, startBank As Long)
+	SetCartRegister(&H00, &H2220, startBank + 0, FALSE)
+	SetCartRegister(&H00, &H2221, startBank + 1, FALSE)
+	SetCartRegister(&H00, &H2222, startBank + 2, FALSE)
+	SetCartRegister(&H00, &H2223, startBank + 3, FALSE)
+End Sub
+*/
+Sub SA1_SramInit(hSerial As HANDLE)
+	'SA-1レジスタセットアップ
+
+	' バス釣り：OVERCLOCKだと成功する, NORMALだと書きこぼしがある
+	' 星：OVERCLOCKだと下記こぼす, NORMALだと成功する
+	'  -> WRITEパルス伸ばして解決
+
+	SetCPU_Clock(hCOM,HKAC_CLOCK_CPU_ENABLED) 'Enable CPU Clock for Writing SA-1 Register 
+	Sleep(500)
+
+	SetCartRegister(&H00, &H2224, &H00, FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+	SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+	SetCartRegister(&H00, &H2228, &H00, FALSE) 'BW-RAM Write-Protected Area (W)
+	Sleep(100)
+End Sub
+
+Sub SA1_SramBankSel(hSerial As HANDLE, bank As Byte)
+	'SA-1 SRAM バンク切り替え
+	SetCartRegister(&H00, &H2224, bank As Byte , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+	SetCartRegister(&H00, &H2226, &H80	  , FALSE) 'SNES CPU BW-RAM Write Enable (W)
+End Sub
+
+Sub SA1_SramExit(hSerial As HANDLE, sramBuffer As BytePtr)
+	'SRAMを最後まで書き込んだ後、何故かSRAMの先頭バイトが0x00になってしまうので再度書き込み
+	SendControl(hSerial,CBUS_RST OR CBUS_ROMSEL OR CBUS_OE OR CBUS_WE)
+	SetCartRegister(&H00, &H2224, 0   , FALSE) 'SNES CPU BW-RAM Mapping to 6000h-7FFFh (W)
+	SetCartRegister(&H00, &H2226, &H80, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+	SetCartRegister(&H00, &H6000, sramBuffer[0], FALSE) 'Rewrite First Byte
+	Sleep(100)
+	SetCartRegister(&H00, &H2226, &H00, FALSE) 'SNES CPU BW-RAM Write Enable (W)
+	
+	'CPUクロックを停止してフィニッシュ
+	SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL)
+End Sub
+
+
+
+
+
+' ============== SPC7110 =============
+Function SPC7110_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("Checking SPC7110...")
+	If SPC7110_SetBanks(hSerial, 1, FALSE) = FALSE or _
+						SPC7110_SetBanks(hCOM, 0, FALSE) = FALSE Then
+		ErrMes(hMainWnd, ex"SPC7110のセットアップに失敗しました。\nSA-1追加回路が接続されているか確認し、Arduinoを再起動してください。", "SPC7110 Bank Control Error", 0)
+		ExitSub
+	End If
+	SPC7110_PrintBanks(hCOM)
+		
+	SPC7110_init = TRUE
+End Function
+
+Function SPC7110_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	SPC7110_nextAddress = adr + readSize
+	If SPC7110_nextAddress > &HFFFFFF Then
+		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
+		DBM("")
+		SPC7110_SetBanks(hSerial, 1, FALSE) 'D0:1,E0:2,F0:3 ... F0:0000にデータROMのバンク3をマップ
+		SPC7110_nextAddress = HiROM_START_ADR + &H300000 'F0:0000からリスタート
+	End If
+End Function
+
+Function SPC7110_SRAM_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
+End Function
+
+Function SPC7110_SRAM_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+	SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
+End Function
+
+Const SNES_SPC7110_VBANKS_COUNT = 3
+Const SNES_SPC7110_MMC_REG_SIZE = SNES_SPC7110_VBANKS_COUNT+2
+Const SNES_SPC7110_MMC_ADR = &H4830
+Function SPC7110_SetBanks(hCOM As HANDLE,bank As Long,bSRAM_Enable As BOOL) As BOOL
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long
+
+	If bSRAM_Enable Then
+		DBM("[SPC7110]SRAM Enable")
+	Else
+		DBM("[SPC7110]SRAM Disable")
+	End If 
+
+	'RESET
+	SendControl(hCOM,CBUS_WE or CBUS_ROMSEL or CBUS_OE)
+
+	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
+		buf[i+1] = (bank+i) As Byte
+		DBM(sprintfStr("[SPC7110]SET_VBANK%X:%0d ",i,buf[i+1]))
+	Next i
+	buf[0]=(bSRAM_Enable<<7) As Byte
+	buf[4]=&H03 '3バンク変更する
+
+	SendControl(hCOM, CBUS_RST or CBUS_ROMSEL or CBUS_OE)
+	WriteROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
+
+	'check bank
+	SPC7110_SetBanks=TRUE
+	For i=0 To SNES_SPC7110_VBANKS_COUNT-1
+		If buf[i+1] <> bank+i Then SPC7110_SetBanks=FALSE :	ExitFor
+	Next i
+
+	If SPC7110_SetBanks=FALSE Then
+		DBM("bank change failed")
+	End If
+End Function
+
+Sub SPC7110_PrintBanks(hCOM As HANDLE)
+	Dim buf[SNES_SPC7110_MMC_REG_SIZE] As Byte, i As Long '	SendControl(hCOM,CBUS_RST or CBUS_WE)
+	SendControl(hCOM, CBUS_DEFAULT)
+	ReadROM(hCOM, buf, 0, SNES_SPC7110_MMC_ADR, SNES_SPC7110_MMC_REG_SIZE, FALSE)
+
+	If buf[0] And &H80 Then
+		DBM("SRAM-ENABLE")
+	Else
+		DBM("SRAM-DISABLE")
+	End If
+
+	For i = 1 To SNES_SPC7110_VBANKS_COUNT
+		DBM(sprintfStr("%X00000h-%XFFFFFh : ROM bank%d", & HC + i, & HC + i, buf[i]))
+	Next i
+
+	DBM("Logical-MaxBank : " + Str$(buf[4]))
+End Sub
+
+
+
+
+' ============== CX4 =============
+Function CX4_init_x2(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("CX4 for ROCKMAN X2")
+	
+	' https://sd2snes.de/files/cx4_notes.txt
+	/*
+	$7f52: ROM configuration select
+	       LoROM: 0: 2x  8Mbit (A21 switches between ROM /CE1 and /CE2)
+	              1: 1x 16Mbit (maybe A22 switches but 40-7f/c0-ff are inactive)
+
+	       HiROM: 0: 2x  8Mbit (A20 switches)
+	              1: 2x 16Mbit (A21 switches)
+	*/
+	' Set ROM configuration to 2xROM (8Mx2)
+	SetCartRegister(0, &H7f52, 0)
+	
+	CX4_init_x2 = TRUE
+End Function
+
+Function CX4_init_x3(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	DBM("CX4 for ROCKMAN X3")
+	
+	' Set ROM configuration to 1xROM (16Mx1)
+	SetCartRegister(0, &H7f52, 1)
+		
+	CX4_init_x3 = TRUE
+End Function
+
+
+
+
+
+' ============== XBAND =============
+Function XBAND_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+	/* 
+		https://problemkaputt.de/fullsnes.htm#snescartxbandmisc
+		  D00000h-DFFFFFh  1MB ROM (executed here, not at C00000h-CFFFFFh)
+		  E00000h-E0FFFFh  64K SRAM (in two 32Kx8 chips) (unknown if BOTH have battery)
+		  FBC000h-FBC17Fh  I/O Ports (unknown functions?)
+		  FBC180h-FBC1BFh  I/O Ports (Rockwell Modem Chip)
+		  FBFC02h          I/O Port  (unknown functions?)
+	here→FBFE00h          I/O Port  (unknown functions?)
+		  FFC000h          I/O Port  (unknown functions?)
+		  004F02h          I/O Port  (unknown functions?)
+		  00F000h          Dummy/strobe read?
+		  00FFE0h          Dummy/strobe read?
+	*/
+	/*
+		FE02h - ControlReg (aka reghere)
+		;control bits for control register ;aka "kControlReg"? and/or "kCtlRegSoft"?
+
+		  0   EnTwoRam:        equ     $01 ;<-- maybe disable one of the two SRAMs?
+		  1   EnSafeRom:       equ     $02 ;<-- maybe SRAM read-only? or FlashROM?
+		  2   RomHi:           equ     $04 ;
+		  3   EnInternal:      equ     $08 ;<-- maybe disable ports C000h..C1FFh?
+		  4   EnFixedInternal: equ     $10 ;<-- maybe whatever related to above?
+		  5   EnSNESExcept:    equ     $20 ;
+		  6-7 Unknown/unused
+	*/
+	/*
+		XBAND LED: (正面から)
+			LED1: ???
+			LED3: モデム？
+			LED5: 電源？
+	*/
+	Const XBAND_LED_POWER = &H20
+	Const XBAND_LED_MODEM = &H08
+	Const XBAND_LED_LED1  = &H02
+	Const XBAND_LED_ALL  = XBAND_LED_POWER or XBAND_LED_MODEM or XBAND_LED_LED1
+
+	Const XBAND_CTRL_EnTwoRam = &H01
+	Const XBAND_CTRL_EnSafeRom = &H02
+
+	Const XBAND_IOP_BANK = &HFB
+	Const XBAND_IOP_CTRL_REG = &HFE02
+	Const XBAND_IOP_LED_DATA = &HC168
+	Const XBAND_IOP_LED_DIR  = &HC16A
+
+	' 2つ目のSRAMを有効にする
+	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_CTRL_REG, XBAND_CTRL_EnTwoRam or XBAND_CTRL_EnSafeRom, FALSE)
+
+	'なんとなくLEDを光らせる
+	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, XBAND_LED_ALL, FALSE)
+	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DIR,  XBAND_LED_ALL, FALSE)
+
+	XBAND_init = TRUE
+End Function
+
+' 呼ばれるたびにLEDの点灯パターンを変える関数
+Sub XBAND_LedBlink(hSerial As HANDLE)
+	Dim led As Long, reg As Byte
+	ReadROM(hSerial, VarPtr(reg), 0, XBAND_IOP_BANK<<16 or XBAND_IOP_LED_DATA, 1, FALSE)
+	reg = (NOT(reg) And XBAND_LED_ALL) AS Byte
+	led = ((reg>>1) And 1) or (((reg>>3) And 1)<<1) or (((reg>>5) And 1)<<2)
+	led = ((led+1) Mod 8) AS Byte
+	reg = (((led And 1)<<1) or ((led And 2)<<2) or ((led And 4)<<3) ) As Byte
+	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, reg, FALSE)
+End Sub
+
+Function XBAND_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+	if (adr And &H020000) And ((adr and &HFFFF)=&H8000) Then XBAND_LedBlink(hSerial)
+
+	XBAND_nextAddress = HiROM_nextAddress(hSerial, info, adr, readSize)
+End Function
+
+Function XBAND_SRAM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+	XBAND_LedBlink(hSerial)
+	XBAND_SRAM_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
+End Function
+
+Function XBAND_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, &H00, FALSE)
+End Function
+
+' ======================== MEMORY MODEL CALLBACKS ========================
+
 

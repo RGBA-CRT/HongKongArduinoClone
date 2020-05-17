@@ -1,32 +1,11 @@
 'ファーム制御系
+Const CBUS_OE = 1
+Const CBUS_ROMSEL = 2
+Const CBUS_WE = 4
+Const CBUS_RST= 8
 
-Function GetComBaudrate(hSerial AS HANDLE) AS DWord
-	Dim dcb As DCB_SETTING
-	GetCommState(hSerial, dcb)
-	GetComBaudrate = dcb.BaudRate
-End Function
+Const CBUS_DEFAULT = &H0C	'CBUS_RST CBUS_WE
 
-Function SetComTimeOut(hSerialPort AS HANDLE, TimeOut AS DWord) AS Byte
-	Dim ct AS COMMTIMEOUTS
-	ct.ReadIntervalTimeout = TimeOut '連続受信タイムアウト
-	ct.ReadTotalTimeoutConstant = TimeOut 'Constant+Multiplier*バイト数＝タイムアウト
-	ct.ReadTotalTimeoutMultiplier = 20
-	ct.WriteTotalTimeoutConstant = TimeOut
-	ct.WriteTotalTimeoutMultiplier = 20
-	
-	SetCommTimeouts(hSerialPort, VarPtr(ct))
-End Function
-
-Sub ChangeComBaudrate(hSerial AS HANDLE, rate AS DWord)
-	Dim dcb As DCB_SETTING
-	GetCommState(hSerial, dcb)
-	dcb.BaudRate = rate '転送速度の指定
-	SetCommState(hSerial, dcb)
-	
-	FlushCom(hSerial)
-	
-	GetCommState(hSerial, dcb)
-End Sub
 
 Sub ChangeBaudrate(hSerial AS HANDLE, rate AS DWord)
 	'Arduinoレート変更コマンド送信

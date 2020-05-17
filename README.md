@@ -31,7 +31,8 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
  * [OK] SA-1
  * [OK] SPC7110
  * [OK] ST018 (Game ROM, BIOS[Program, Data]に対応)
- * [NG] CX4
+ * [OK] CX4
+ * [OK] XBAND
   
 「クロックモジュール回路」を追加すると以下のことができるようになります。
  * SA-1 ROM Dump, SRAM Read, SRAM Write

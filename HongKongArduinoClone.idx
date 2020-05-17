@@ -9,7 +9,6 @@
 
 'プロジェクト内のプログラム ファイル
 #include "HardwareLevel.abp"
-#include "SNES.sbp"
 #include "LicenceList.abp"
 #include "SFMemWnd.sbp"
 #include "MainWnd.sbp"
@@ -20,6 +19,7 @@
 #include "SubClassWindow.abp"
 #include "RomHeader.sbp"
 #include "MemoryMapModel.sbp"
+#include "CartridgeRW.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"
