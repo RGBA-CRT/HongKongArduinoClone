@@ -1,0 +1,250 @@
+' カートリッジのメモリ(MaskROM/SRAM) のダンプ/書き込みロジックのコード
+
+'----------------
+' ROM Functions
+'----------------
+
+'ROMの吸出し
+Enum HKAC_DUMPROM_RESULT
+	HKAC_DUMPROM_OK = 0
+	HKAC_DUMPROM_COMMERROR
+	HKAC_DUMPROM_RETRY_OVER
+	HKAC_DUMPROM_COPRO_ERROR
+	HKAC_DUMPROM_USER_CANCEL
+	HKAC_DUMPROM_PARAMATER_ERROR
+End Enum
+
+
+Const LoROM_BANK_SIZE = &H8000
+Const MAXIMUM_DUMP_BUFFER_SIZE = LoROM_BANK_SIZE ' LoROMの範囲跨がれると困る
+
+Function GetDumpBufferSize() As DWord
+	Dim bufferSize As DWord
+	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	If bufferSize < 1 Then 
+		bufferSize = DEFAULT_DUMP_SIZE * 1024
+	ElseIf bufferSize > (MAXIMUM_DUMP_BUFFER_SIZE/1024) Then
+		bufferSize = LoROM_BANK_SIZE
+	Else
+		'LoROMバンクをまたいだバンクサイズだとバンク切り替えできないので　丸める(脳死アルゴリズム)
+		*MARU
+		If LoROM_BANK_SIZE Mod bufferSize Then bufferSize--:Goto *MARU
+		bufferSize *= 1024
+	End If
+	GetDumpBufferSize = bufferSize
+End Function
+
+' refactored new dump logic
+Function DumpRom2(hSerial As HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, rom As BytePtr, progress As * ProgressCallback) As HKAC_DUMPROM_RESULT
+	Dim dwReadByte As DWord
+	Dim totalReadBytes As DWord
+	Dim currentAddress As DWord
+	Dim retry As DWord, retryLimit As DWord
+	Dim romBuffer As BytePtr, bufferSize As DWord
+	Dim nextAddress As SfcMmcNextAddressFunc
+
+	DumpRom2 = HKAC_DUMPROM_PARAMATER_ERROR
+	If mmodel=NULL or rom=NULL Then ExitFunction
+
+	' 設定読み出し
+	retryLimit = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
+	bufferSize = GetDumpBufferSize()
+
+	If info->RomSize < bufferSize Then  DBMf("RomSize:0x%08X < bufferSize:0x%08X", info->RomSize, bufferSize):ExitFunction
+
+	' 初期アドレスセット
+	currentAddress = mmodel->rom.adr
+	SendControl(hCOM, CBUS_DEFAULT)
+
+	' アドレスをすすめる関数を取得
+	nextAddress = mmodel->rom.next_cb
+	If nextAddress = NULL Then
+		If mmodel->rom.isLoROM Then
+			nextAddress = AddressOf(LoROM_nextAddress)
+		Else
+			nextAddress = AddressOf(HiROM_nextAddress)
+		End If
+	End If
+
+	' MMC初期化
+	If mmodel->rom.init_cb Then mmodel->rom.init_cb(hSerial, info)
+
+	' ダンプバッファの作成
+	romBuffer = calloc(bufferSize)
+
+	If progress Then progress->Init( info->RomSize )
+
+	DumpRom2 = HKAC_DUMPROM_OK
+
+	Do
+		'ESCキーでキャンセル
+		If progress Then
+			If progress->isCancel() Then DumpRom2 = HKAC_DUMPROM_USER_CANCEL: Goto *EXIT_DUMP2
+		End If
+
+		'吸出し＆データチェック
+		Dim ret As Long
+		ret = ReadROM(hSerial, romBuffer, 0, currentAddress, bufferSize, FALSE)
+		If ret = 0 Then
+			DumpRom2=HKAC_DUMPROM_COMMERROR
+			Goto *EXIT_DUMP2
+		Else If ret<>bufferSize Then
+			retry++
+			If progress Then progress->ErrorRetry(retry, retryLimit)
+			If retry>retryLimit Then DumpRom2=HKAC_DUMPROM_RETRY_OVER:Goto *EXIT_DUMP2
+			Continue
+		Else
+			retry=0
+		End If
+
+		'出力
+		memcpy(rom + totalReadBytes, romBuffer, bufferSize)
+		
+		If progress Then progress->Step( bufferSize , currentAddress)
+
+		totalReadBytes += bufferSize
+		If totalReadBytes >= info->RomSize Then ExitDo
+
+		currentAddress = nextAddress(hSerial, info, currentAddress, bufferSize)
+
+	Loop
+	
+	If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hSerial, info, romBuffer)
+
+*EXIT_DUMP2
+	If progress<>NULL Then progress->Final()
+
+	free(romBuffer)	
+	
+End Function
+
+
+
+'---------------------------
+' SRAM Functions
+'---------------------------
+Sub DumpSRAM(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, sram As BytePtr, progress As * ProgressCallback)
+	If info->SramSize = 0 Then
+		DBM("SRAM Size is zero.")
+		ExitSub
+	End If
+		
+	Dim sraminfo As *SFC_SRAM_MODEL
+	Dim bankCount As DWord
+	Dim lastDumpSize As DWord
+	Dim buf As BytePtr
+	Dim nextAddress As SfcMmcSramNextAddressFunc
+	
+	sraminfo = VarPtr(mmodel->sram)
+	nextAddress = mmodel->sram.next_cb
+	If nextAddress = NULL Then nextAddress = AddressOf(SramGeneric_nextAddress)
+	
+	If mmodel->sram.init_cb Then mmodel->sram.init_cb(hSerial, info)
+
+	bankCount = Int(info->SramSize / sraminfo->bankSize)
+	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
+	buf = sram
+	
+	SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
+
+	If progress Then progress->Init(bankCount)
+
+	Dim i As Long, readAddr As DWord
+	Do
+		If i = > bankCount Then ExitDo	
+		If progress Then 
+			If progress->isCancel() Then DBM(ex"\r\nCanceled by the user."):GoTo *EXIT_SRAM_DUMP
+		End If
+
+		readAddr = nextAddress(hSerial, info, mmodel, i)
+		
+		SendControl(hSerial, (sraminfo->ctrlBus Or CBUS_WE) As Byte)
+		ReadROM(hSerial, buf, 0, readAddr, sraminfo->bankSize, FALSE)
+		buf += sraminfo->bankSize
+		i++
+		
+		If progress Then progress->Step(1, readAddr)
+		PumpMessage()
+	Loop
+	
+	If lastDumpSize > 0 Then
+		readAddr = nextAddress(hSerial, info, mmodel, i)
+		ReadROM(hSerial, buf, 0, readAddr, lastDumpSize, FALSE)		
+		If progress Then progress->Step(lastDumpSize, readAddr)
+	End If
+	
+	
+*EXIT_SRAM_DUMP
+
+	If mmodel->sram.exit_cb Then mmodel->sram.exit_cb(hSerial, info, sram)
+	
+	SendControl(hSerial, CBUS_DEFAULT)
+
+	If progress Then progress->Final()
+	
+'	fout.close()
+'	free(buf)
+		
+End Sub
+
+'Writing SA-1 SRAM routine is based on sanni's cartreader.
+
+Sub WriteSRAM(hSerial As HANDLE, info As * SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, sram As BytePtr, progress As * ProgressCallback)
+	
+	'諸計算
+	Dim sraminfo As *SFC_SRAM_MODEL
+	Dim bankCount As DWord
+	Dim lastDumpSize As DWord
+	Dim buf As BytePtr
+	Dim nextAddress As SfcMmcSramNextAddressFunc
+	
+	sraminfo = VarPtr(mmodel->sram)
+	bankCount = Int(info->SramSize / sraminfo->bankSize)
+	lastDumpSize = info->SramSize - bankCount * sraminfo->bankSize
+	buf = sram
+	
+	nextAddress = mmodel->sram.next_cb
+	If nextAddress = NULL Then nextAddress = AddressOf(SramGeneric_nextAddress)
+	
+	If progress Then progress->Init(bankCount)
+
+	If sraminfo->init_cb Then sraminfo->init_cb(hSerial, info)
+	
+	'ライト開始
+	SendControl(hSerial, (sraminfo->ctrlBus or CBUS_OE) As Byte)
+	
+	Dim i As DWord, writeAddr As DWord
+	Do
+		If progress Then 
+			If progress->isCancel() Then ExitDo
+		End If
+		If i = > bankCount Then ExitDo
+
+		writeAddr = nextAddress(hSerial, info, mmodel, i)
+		
+		SendControl(hSerial, (sraminfo->ctrlBus or CBUS_WE) As Byte)
+		WriteROM(hSerial, buf, 0, writeAddr, sraminfo->bankSize, FALSE)
+
+		buf += sraminfo->bankSize
+		
+		i++
+		If progress Then progress->Step(1, writeAddr)
+		'PumpMessage()
+	Loop
+	
+	If lastDumpSize > 0 Then
+		writeAddr = nextAddress(hSerial, info, mmodel, i)
+		WriteROM(hSerial, buf, 0, writeAddr, lastDumpSize, FALSE)
+		If progress Then progress->Step(1, writeAddr)
+	End If
+		
+	If sraminfo->exit_cb Then sraminfo->exit_cb(hSerial, info, sram)
+	
+	
+	SendControl(hSerial, CBUS_DEFAULT)
+	
+	SetAddress(hSerial, &H000000 , FALSE)
+
+	If progress Then progress->Final()
+	
+End Sub
