@@ -87,7 +87,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4144 As BytePtr, "Toho", 
 	&H4146 As BytePtr, "Namcot/Namco Ltd. (2)", 
 	&H4231 As BytePtr, "ASCII", 
-	&H4232 As BytePtr, "BanDai America", 
+	&H4232 As BytePtr, "BanDai", ' Bandai Americaとなっていたが国内もそうだった。スーファミターボで確認
 	&H4234 As BytePtr, "Enix", 
 	&H4236 As BytePtr, "Namco", 
 	&H4241 As BytePtr, "Culture Brain", 

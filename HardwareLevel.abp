@@ -287,84 +287,36 @@ Function hasClockModule(hSerial AS HANDLE) AS BOOL
 	End If
 End Function
 
-'Arduinoに書かれているファームをチェック(別のスケッチか識別)
-'msgをFALSEにするとsilentモード
-Function CheckFirmware(hSerial AS HANDLE, msg As BOOL) AS BOOL
-	Dim cmd[2] AS Byte, rsv[10] As byte, FwVer AS Byte, retry AS Long
-	Dim dwWD As DWord, ioOk AS BOOL
-	Dim cs AS COMSTAT
-	cmd[0] = Asc("v")
-*SEND_VER_CHECK
-	ioOk = WriteFile(hSerial, cmd, 1, VarPtr(dwWD), ByVal NULL)
-	ioOk = ioOk And ReadFile(hSerial, rsv, 5 , VarPtr(dwWD), ByVal NULL)
-	if ioOk = 0 Then
-		DBM("[通信エラー] Connection Error.")
-		ExitFunction
+Const HKAC_GETFIRM_RETRY = 20
+Const HKAC_GETFIRM_WAIT = 10
+Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord) As BOOL
+	Dim cmd[2] AS Byte
+	Dim dwWD As DWord, ioOk AS BOOL, retry As DWord
+
+	GetFirmware = FALSE
+
+*HW_GF_RETRY
+	ioOk = WriteFile(hSerial, "v", 1, VarPtr(dwWD), ByVal NULL)
+	if ioOk<>TRUE Then ExitFunction
+
+	Sleep(10)
+
+	printf(ex"\n[GetFirm%d] ", retry)
+	dwWD = ReceiveFromReader(hSerial, firmStr, firmStrLen, 10)
+	if dwWD<>firmStrLen Then 	
+		printf(ex" retry #%d, %d ", retry, dwWD)
+		if retry>=HKAC_GETFIRM_RETRY Then ExitFunction
+		FlushCom(hSerial)
+		Sleep(HKAC_GETFIRM_WAIT)
+		retry++
+		Goto *HW_GF_RETRY
 	End If
-	
-	
-	FwVer = rsv[4]
-	rsv[4] = 0
-	
-	if lstrcmp(rsv, FIRMWARE_ID) = 0 Then
-		if FwVer = FIRMWARE_VERSION Then
-			CheckFirmware = TRUE
-			
-		Elseif FwVer < FIRMWARE_VERSION Then
-			if msg = FALSE Then
-				CheckFirmware = TRUE
-				ExitFunction
-			end if
-			if MessageBox(hMainWnd,
-				sprintfStr(ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\nDevice：v%c\nHost：v%c\n\n続行しますか？",
-				FwVer,
-				FIRMWARE_VERSION
-				),
-				"Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
-				
-				CheckFirmware = TRUE
-			Else
-				CheckFirmware = FALSE
-			End If
-		Else
-			if msg = TRUE Then
-				MessageBox(hMainWnd,
-				sprintfStr(ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nArduino : FW.v%c\nRequest : FW.v%c",
-				FwVer,
-				FIRMWARE_VERSION
-				), "Detected higher number of Firmware version",
-				MB_ICONINFORMATION
-				)
-				
-			End If
-			
-			DBM("FW ver mismatch")
-			CheckFirmware = TRUE
-		End If
-	Else
-		if retry>3 Then
-			if msg = TRUE Then MessageBox(hMainWnd, ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。", "Firmware mismatch", MB_ICONERROR)
-			DBM("VerCheck Failed.")
-			CheckFirmware = FALSE
-		Else
-			retry++
-			DBM("VerCheck retry...")
-			PumpMessage()
-			
-			if GetKeyState(VK_ESCAPE) And &H80 Then
-				DBM("cancel")
-				CheckFirmware = FALSE
-			Else
-				FlushCom(hSerial)
-				Goto * SEND_VER_CHECK
-			End If
-		End If
-	End If
-	
-	if msg = TRUE Then
-		DBM(sprintfStr("FirmwareID : %s%c", rsv AS DWord, FwVer))
-	End If
+
+	FlushCom(hSerial)
+	printf(ex"\n")
+	GetFirmware = TRUE
 End Function
+
 
 Sub FlushCom(hSerial AS HANDLE)
 	PurgeComm(hSerial, PURGE_TXABORT)
@@ -372,19 +324,16 @@ Sub FlushCom(hSerial AS HANDLE)
 	
 	Dim cs AS COMSTAT, dwErrors AS DWord
 	ClearCommError(hSerial, VarPtr(dwErrors), cs)
-	
-	'理由はわからないがこのSleepを外すとファームチェックに失敗する
-	Sleep(10)
-	
+		
+'	printf("[flush] i%d o%d", cs.cbInQue, cs.cbOutQue)
 	if cs.cbInQue = 0 Then ExitSub
 	
 	'受信バッファを全部取り出す
 	Dim tmp aS BytePtr
 	tmp = calloc(cs.cbInQue)
 	LoadFile(hSerial, tmp, cs.cbInQue)
-	'	printf(ex"ゴミ(%d bytes)：\n",cs.cbInQue)
-	'	Dump(tmp,cs.cbInQue)
-	'	printf(ex"%d bytes\n",cs.cbInQue)
+	printf("ゴミ %d", cs.cbInQue)
+	Dump(tmp, cs.cbInQue)
 	
 	free(tmp)
 	tmp = NULL

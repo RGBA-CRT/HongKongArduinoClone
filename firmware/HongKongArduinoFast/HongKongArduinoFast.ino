@@ -9,8 +9,9 @@
 //シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
-#define FIRMWARE_ID "HKAF"
-#define FIRMWARE_VERSION '4' // FWのAPIが変わったらインクリメント
+#define FIRMWARE_NAME "HKAF"
+#define FIRMWARE_VERSION "4" // FWのAPIが変わったらインクリメント
+const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 
 //クロック回路有効
 #define _ENABLE_CIC
@@ -300,7 +301,7 @@ bool st018_reset() {
     waitCount++;
     delayMicroseconds(8000);
   }
-  
+
   return false;
 }
 
@@ -309,7 +310,7 @@ void st018_memread(byte cmd, byte n_kb) {
 
   // 1バイト読み捨て
   st018_readData();
-  
+
   for (byte j = 0; j < n_kb; j++) {
     for (word i = 0; i < 1024; i++) {
       //serial_send(st018_readData());
@@ -329,7 +330,7 @@ void st018_memread(byte cmd, byte n_kb) {
 bool st018_biosDump(byte cmd) {
   // ROMと違ってI/OポートなのでCSは非アクティブである必要がある
   digitalWrite(CS, HIGH);
-  
+
   // reset
   if (st018_reset()) {
     Serial.print("RST ERR");
@@ -557,8 +558,19 @@ void loop() {
                                      | (unsigned long)Serial.read() << 24;
         Serial.end();
         Serial.begin(new_boudrate);
+        //        for (byte i = 0; i < 10; i++) {
+        //          if (Serial.available() < 0) {
+        //            if (Serial.read() == 'v') {
+        //              Serial.print(FIRMWARE_ID);
+        //              break;
+        //            }
+        //          }
+        //          Serial.print("dummy!");
+        Serial.flush();
+        //}
         //このあと、ファームチェックで値が正常に帰ってくることを確認してから
         //各種コマンドを投げてください
+        setAddress(0xFF, 0xFFFF, false);
       } break;
 
     case 'c':
@@ -683,8 +695,7 @@ void loop() {
     case 'v':
       { //Return fimware version
         Serial.write(FIRMWARE_ID);
-        Serial.write((char)FIRMWARE_VERSION);
-
+        setAddress(0x00, lastadr[1] << 8, false);
       } break;
 
     case 'z':
