@@ -469,6 +469,11 @@ A5 READ-WAIT(81)(81);
 
 */
 
+/*
+ダウンロードの途中で止まった8Mメモリーパックのヘッダについて
+https://twitter.com/LuigiBlood/status/1345369665086873602
+*/
+
 
 /*
 TODO: リファクタリング
@@ -486,7 +491,7 @@ TODO: リファクタリング
 	[OK]SRAMベリファイ
 	[OK]自動ボーレート調整->初回失敗時のメッセージに変更
 	[  ]スーファミターボ
-	[  ]XBAND
+	[OK]XBAND
 */
 
 /*
@@ -583,5 +588,6 @@ Enum SFC_MAP_TYPE
 	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
 	SFC_MAP_TYPE__NUM
 End Enum
+
 
 */

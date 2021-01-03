@@ -111,7 +111,24 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	MoveWindow(hMainWnd, 0, 0, 505, 330, TRUE)
 #endif
 	
-	SetWindowText(MWnd(EditBox6), Str$(baudrate))
+	' setup baudrate combobox
+	Dim default_baudrates[15] = [115200, 230400, 460800, 500000, 921600, 1000000, 1500000, 2000000, 0] As Long
+	i=0
+'	SetWindowText(MWnd(EditBox6), Str$(baudrate))
+	Do 
+		if default_baudrates[i] <> 0 Then
+			wsprintf(buf, "%d", default_baudrates[i])
+			SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf)
+		Else
+			wsprintf(buf, "%d", baudrate)
+			if SendMessage(MWnd(EditBox6), CB_FINDSTRING, 0, buf) = CB_ERR Then
+				SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf)
+			endif
+			SendMessage(MWnd(EditBox6), CB_SELECTSTRING, 0, buf)
+			ExitDo
+		endif
+		i++
+	Loop
 
 	wsprintf(buf, "%s %s", ProgramName, VerStr)
 	SetWindowText(hMainWnd, buf)
@@ -119,6 +136,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	hFont_LogBox=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,50,"MS Gothic")
 	SendMessage(GetDlgItem(hMainWnd,EditBox1),WM_SETFONT,hFont_LogBox As WPARAM,0)
 End Sub
+
 
 Sub SetIniPath()
 	'INIファイルへのパスを記録
@@ -241,7 +259,7 @@ Sub BaudrateErrorMessage()
 	' 初回
 	if isFirstBaudrateError = FALSE Then
 		Dim text_jpn=ex"通信に失敗しました。\nリトライしても治らない場合はボーレートを調整してください。(詳細はReadme参照)\n\n推奨ボーレートは使用しているArduino（シリアルコンバータ）に依存します。\n例:\n  [公式Arduino UNO] ATmega8U2: 500,000 bps\n  [Arduino互換機] CH340: 1,000,000 bps" As BytePtr
-		Dim text_eng=ex"Communication failed. Please adjust baudrate for your Arduino (see README.md)" As BytePtr
+		Dim text_eng=ex"Communication failed. \r\nPlease adjust baudrate for your Arduino (see README.md)" As BytePtr
 		DBM(text_eng)
 		DBM(ex"Recommended baudrate:\r\n- Offical Arduino: 500000bps\r\n- Compatible(CH340): 1000000bps")
 		MessageBox(hMainWnd, text_jpn, text_eng, MB_OK OR MB_ICONERROR)
@@ -254,70 +272,87 @@ Sub MainWnd_CommandButton5_Click()
 	SaveIniFile()
 	
 	If hCOM = 0 then
-		'接続
-		Dim txCom As BytePtr, rate As DWord, i As Long
-		
-		rate = GetDlgItemInt(hMainWnd, EditBox6, NULL, FALSE)
-		If rate = 0 Then
-			ErrMes(hMainWnd, "ボーレートが不正です。", "Invalid baud rate", 0)
-			ExitSub
-		End If
-		
-		txCom = GetWndTextMalloc(GetDlgItem(hMainWnd, ComList))
-		DBMN("Connect to "): DBM(txCom)
-		for i=0 To 10
-			if txCom[i] = 0 Then ExitFor
-			if txCom[i] = &H20 Then
-				txCom[i] = 0
-				ExitFor
-			End If
-		Next i
-		
-		'bufferlen
-		Dim bufferSize AS DWord
-		bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
-		If bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
-		
-		'connect and reset ボーレート
-		hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
-		free(txCom)
-*RESET_ARDUINO
-		FlushCom(hCOM)
-		ResetArduino(hCOM)
-		
-		SetWindowText(MWnd(CommandButton5), "&Close")
-		SetDlgEnable(STATUS_CONNECTED)
-		
-		'正常なデータ通信を確立(できるようになるまでリトライ）
-		If CheckFirmware(hCOM, TRUE, hMainWnd) = FALSE Then
-			'	ErrMes(hMainWnd,"指定されたデバイスはHongKoongArduinoではありません。",0,0)
-			goto * HKAF_CON_ERR
-		End If
-		DBM(ex"Connection Stage2 OK.\r\n")
-		
-		'ボーレート変更コマンド送信
-		if rate <> INITIAL_BAUDRATE Then
-			ChangeBaudrate(hCOM, rate)
-			DBM("baudrate=" + Str$(rate) + "bps")
-			
-			'変更後の正常なデータ通信を確立
-			DBM("changeing baudrate...")
-			If CheckFirmware(hCOM, FALSE, hMainWnd) = FALSE Then
-				DBM("invailde baudrate")
-				BaudrateErrorMessage()
-				goto * HKAF_CON_ERR
-			End If
-		End If
-		
-		DBM(ex"Connection Successful!!!\r\n")
-		
-		'GetCartInfo
-		MainWnd_CommandButton1_Click()
-		
+		ConnectDevice()
 	Else
 		'切断
 		DisconnectDevice()		
 	End If
+
+End Sub
+
+Sub ConnectDevice()
+	'接続
+	Dim txCom As BytePtr, rate As DWord, i As Long
+
+	SetWindowText(MWnd(CommandButton5), "&Close")
+	SetDlgEnable(STATUS_CONNECTED)
+
+	Dim buf[1024] As Byte
+	GetDlgItemText(hMainWnd, EditBox6, buf, 1024)
+	rcAsciiToInt(buf, VarPtr(rate))
+	If rate = 0 Then
+		ErrMes(hMainWnd, "ボーレートが不正です。", "Invalid baud rate", 0)
+		ExitSub
+	End If
+	
+	GetDlgItemText(hMainWnd, ComList, buf, 1024)
+	txCom = buf
+	DBMf("Connecting to %s...",txCom)
+	for i=0 To 10
+		if txCom[i] = 0 Then ExitFor
+		if txCom[i] = &H20 Then
+			txCom[i] = 0
+			ExitFor
+		End If
+	Next i
+	
+	'bufferlen
+	Dim bufferSize AS DWord
+	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	If bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
+	
+	Dim retry=0 As Long
+*RECONNECT
+	'connect and reset ボーレート
+	hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
+
+*RESET_ARDUINO
+	FlushCom(hCOM)
+	ResetArduino(hCOM)
+
+	'正常なデータ通信を確立(できるようになるまでリトライ）
+	If CheckFirmware(hCOM, TRUE, hMainWnd) = FALSE Then
+		goto * HKAF_CON_ERR
+	End If
+	DBM(ex"Connection Stage2 OK.\r\n")
+	
+	'ボーレート変更コマンド送信
+	if rate <> INITIAL_BAUDRATE Then
+		ChangeBaudrate(hCOM, rate)
+		
+		'変更後の正常なデータ通信を確立
+		DBMf("Switch baudrate to %dbps...", rate)
+		If CheckFirmware(hCOM, FALSE, hMainWnd) = FALSE Then
+			'ちゃんとリトライカウントつけること
+			FlushCom(hCOM)
+			CloseHandle(hCOM): hCOM=NULL
+			Sleep(500)
+			
+			retry++
+			if retry<3 Then
+				Goto *RECONNECT
+			endif
+
+			DBM(ex"failed. retry.\r\n")
+			BaudrateErrorMessage()
+			goto * HKAF_CON_ERR
+		End If
+	End If
+	
+	DBM(ex"Connection Successful!!!\r\n")
+	
+	'GetCartInfo
+	MainWnd_CommandButton1_Click()
 	
 	ExitSub
 *HKAF_CON_ERR
@@ -330,9 +365,10 @@ Sub MainWnd_CommandButton5_Click()
 End Sub
 
 Sub DisconnectDevice()
-	If hCOM = 0 Then ExitSub
-	CloseHandle(hCOM)
-	hCOM = 0
+	If hCOM <> 0 Then
+		CloseHandle(hCOM)
+		hCOM = 0
+	endif
 	SetWindowText(MWnd(CommandButton5), "&Connect")
 	SetDlgEnable(STATUS_CLOSED)
 	
@@ -351,7 +387,7 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(ComList), isEnable)
 	EnableWindow(MWnd(EditBox6), isEnable)
 	EnableWindow(MWnd(Static9), isEnable)
-	EnableWindow(MWnd(Static10), isEnable)
+'	EnableWindow(MWnd(Static10), isEnable)
 	
 	If Mode = STATUS_DUMPING Then isEnable = NOT(isEnable) And &H01
 	
@@ -1012,16 +1048,17 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
 	
 	'ヘッダ位置候補 HiROM,LoROM,HiROM(ヘッダ付き),LoROM(ヘッダ付き)
-	Dim headerAdrs[4] = [&HFFB0, &H7FB0, &HFFB0 + &H200, &H7FB0 + &H200] AS DWord
+	Dim headerAdrs[4] = [&H7FB0, &HFFB0, &H7FB0 + &H200, &HFFB0 + &H200] AS DWord
 	For i = 0 To 3
 		file.setFilePtr(headerAdrs[i])
 		file.read(VarPtr(header), SFC_SPEC_HEADER_SIZE)
+		SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
 		
-		If isSnesHeader(VarPtr(header)) = TRUE Then ExitFor
+		If isSnesHeader(VarPtr(cartInfo)) = TRUE Then ExitFor
 	Next i
 	
 	
-	If isSnesHeader(VarPtr(header)) = FALSE Then
+	If isSnesHeader(VarPtr(cartInfo)) = FALSE Then
 		DBM(ex"ROM Header not found!\r\n")
 		MessageBeep(MB_ICONEXCLAMATION)
 		ExitSub
@@ -1041,7 +1078,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	rombuf = calloc(file.length())
 	file.setFilePtr(0)
 	file.read(rombuf, file.length())
-	DBMf("actualSum: %04X", CalcSnesChecksum(VarPtr(cartInfo), rombuf))
+	DBMf("checksum: ACT=%04X, HED=%04X", CalcSnesChecksum(VarPtr(cartInfo), rombuf, file.length()), cartInfo.CheckSum2)
 	free(rombuf)
 	file.close()
 
@@ -1495,7 +1532,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 		End If
 
 		Dim actualSum AS Word
-		actualSum = CalcSnesChecksum(info, rom)
+		actualSum = CalcSnesChecksum(info, rom, info->RomSize )
 		DBMf("HeaderSum: %04X, %04X", info->CheckSum2, info->CheckSum1)
 		DBMf("ActualSum: %04X, %04X", actualSum And &HFFFF, NOT(actualSum) And &HFFFF)
 
@@ -1536,7 +1573,8 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 
 *SEND_VER_CHECK
 	if GetFirmware(hSerial, rsv, 5) <> TRUE Then
-		DBM("[FirmCheck] Communication error.")
+		if msg=TRUE Then ErrMes(hMainWnd, "接続エラーが発生しました。",0,0,GetLastError())
+		DBMf("[FirmCheck] Communication error. GLE=%d", GetLastError())
 		ExitFunction
 	End If
 	
@@ -1603,3 +1641,15 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 		DBM(sprintfStr("FirmwareID : %s%c", rsv AS DWord, FwVer))
 	End If
 End Function
+
+Sub MainWnd_ComboBox1_EditChange()
+
+End Sub
+
+Sub MainWnd_EditBox66_Change()
+
+End Sub
+
+Sub MainWnd_EditBox6_EditChange()
+
+End Sub

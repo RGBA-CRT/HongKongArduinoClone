@@ -556,18 +556,10 @@ void loop() {
                                      | (unsigned long)Serial.read() << 8
                                      | (unsigned long)Serial.read() << 16
                                      | (unsigned long)Serial.read() << 24;
+
         Serial.end();
         Serial.begin(new_boudrate);
-        //        for (byte i = 0; i < 10; i++) {
-        //          if (Serial.available() < 0) {
-        //            if (Serial.read() == 'v') {
-        //              Serial.print(FIRMWARE_ID);
-        //              break;
-        //            }
-        //          }
-        //          Serial.print("dummy!");
-        Serial.flush();
-        //}
+        //Serial.flush();
         //このあと、ファームチェックで値が正常に帰ってくることを確認してから
         //各種コマンドを投げてください
         setAddress(0xFF, 0xFFFF, false);

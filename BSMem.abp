@@ -85,7 +85,7 @@ Dim BSX_MEMPACK_ADR_TABLE[BSM_PACK_TYPE_NUM] = [
 ] AS DWord
 
 Function BSM_GetMempackAdress(slotTypeIdx AS DWord) AS DWord
-	if slotTypeIdx < BSM_SLOT_TYPE_NUM Then
+	If slotTypeIdx < BSM_SLOT_TYPE_NUM Then
 		BSM_GetMempackAdress=BSX_MEMPACK_ADR_TABLE[slotTypeIdx]
 	Else
 		BSM_GetMempackAdress=0
@@ -93,8 +93,8 @@ Function BSM_GetMempackAdress(slotTypeIdx AS DWord) AS DWord
 End Function
 
 Function BSM_GetMempackSize(packTypeIdx AS DWord) AS DWord
-	if packTypeIdx < BSM_PACK_TYPE_NUM Then
-		if packTypeIdx=BSM_GNEXT or packTypeIdx=BSM_SAMEGAME Then
+	If packTypeIdx < BSM_PACK_TYPE_NUM Then
+		If packTypeIdx=BSM_GNEXT or packTypeIdx=BSM_SAMEGAME Then
 			BSM_GetMempackSize=512*1024
 		Else
 			BSM_GetMempackSize=1024*1024
@@ -105,7 +105,7 @@ Function BSM_GetMempackSize(packTypeIdx AS DWord) AS DWord
 End Function
 
 Function BSM_isLoROM(slotTypeIdx AS DWord) AS BOOL
-	if slotTypeIdx < BSM_SLOT_TYPE_NUM And slotTypeIdx=BSM_SLOT_SpLoROM Then
+	If slotTypeIdx < BSM_SLOT_TYPE_NUM And slotTypeIdx=BSM_SLOT_SpLoROM Then
 		BSM_isLoROM=TRUE
 	Else
 		BSM_isLoROM=FALSE
@@ -119,38 +119,38 @@ Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
 Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
 	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long,nextOffset AS DWord
 	Dim file AS File
-	if isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
+	If isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
 
 	curAdr=baseAddress
 	while (curAdr-baseAddress) < BSM_CAP_MAX
-		if isSerial Then
+		If isSerial Then
 			tmp=BSM_getHeaderFromSerial(path_or_handle,curAdr,isLoROM)		
 		Else
 			tmp=BSM_getHeader(file.getHandle(),curAdr)
 		End If
 
-		if tmp=NULL Then
+		If tmp=NULL Then
 			curAdr = curAdr + 128 * 1024 
 			continue
 		End If
 
-		if headerList[i]<> NULL Then free(headerList[i])
+		If headerList[i]<> NULL Then free(headerList[i])
 		headerList[i]=tmp
 
 		i++
-		if i>BSM_SLOT_MAX then exit while
+		If i>BSM_SLOT_MAX then exit while
 
 		nextOffset=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
-		if nextOffset=0 Then ExitWhile
+		If nextOffset=0 Then ExitWhile
 		curAdr+=nextOffset
 	Wend
 
-	if isSerial=FALSE Then file.close()
+	If isSerial=FALSE Then file.close()
 	
 	'terminate
 	headerList[i]=NULL
 
-	if i=0 Then
+	If i=0 Then
 		BSM_genHeaderList=FALSE
 	Else
 		BSM_genHeaderList=TRUE
@@ -170,13 +170,13 @@ function BSM_getHeader(hFile AS HANDLE,baseAddress AS DWord) AS *BSM_FILE_INFO
 	_file.setFilePtr(baseAddress+BSM_FILE_HEADER_ADR_Lo)
 	_file.read(VarPtr(tmp),sizeof(BSM_FILE_INFO))
 
-	if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+	If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 		'check hirom
 		_file.setFilePtr(baseAddress+BSM_FILE_HEADER_ADR_Hi)
 		_file.read(VarPtr(tmp),sizeof(BSM_FILE_INFO))
 		
 		'not bsm image
-		if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+		If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 			BSM_getHeader=NULL
 			ExitFunction
 		End If
@@ -197,13 +197,15 @@ function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,isLoROM AS
 
 	'check lorom
 	ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Lo,sizeof(BSM_FILE_HEADER),isLoROM)
+	Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),baseAddress+BSM_FILE_HEADER_ADR_Lo)
 
-	if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+	If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 		'check hirom
 		ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Hi,sizeof(BSM_FILE_HEADER),isLoROM)
+		Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),baseAddress+BSM_FILE_HEADER_ADR_Hi)
 		
 		'not bsm image
-		if BSM_isHeader(VarPtr(tmp)) =FALSE Then
+		If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 			BSM_getHeaderFromSerial=NULL
 			ExitFunction
 		End If
@@ -221,15 +223,18 @@ End Function
 
 Function BSM_isHeader(header As *BSM_FILE_HEADER) AS BOOL
 	BSM_isHeader=FALSE
-	if header->checksum1 <> (NOT(header->checksum2) And &HFFFF) Then ExitFunction
+	If header->checksum1 <> (NOT(header->checksum2) And &HFFFF) Then 
+		' If deleted, the checksum 4 bytes are zero cleared.
+		If (header->checksum1 <> 0) And (header->checksum2 <> 0) Then ExitFunction
+	Endif
 
-	if (header->mapMode And &H0F) > 1 Then ExitFunction
+	If (header->mapMode And &HE0) <> &H20 Then ExitFunction
 	BSM_isHeader=TRUE
 End Function
 
 Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	Dim str AS StringClass
-	Dim title[16] AS Byte, blocks AS Long, status As StringClass
+	Dim title[16] AS Byte, blocks AS Long, limit As StringClass, status As StringClass
 	Dim header AS *BSM_FILE_HEADER
 	header=_header AS *BSM_FILE_HEADER
 
@@ -237,48 +242,66 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 	blocks=countBits(header->blockAllocation)
 
 	'generate status string 
-	if (header->limit And &H8000) Then
-		status.sprintf("left %d ",countBits(header->limit And &H7FFF))
+	If (header->limit And &H8000) Then
+		limit.sprintf("left %d ",countBits(header->limit And &H7FFF))
 	Else
-		status.cat("no limit")
+		limit.cat("unlimited")
 	End If
-	if header->dummy33<>&H33 or header->limit=&H8000 Then
-		status.cat("[deleted]")
-	End If
+	If header->month = &HFF _
+		And header->day=&HFF _
+		And header->dummy33=&HFF And _
+		header->blockAllocation=&HFFFFFFFF Then
+		status.cat(ex"deleted, \r\n   Download not completed.")
+	Else
+		If header->dummy33=&HFF Then
+			status.cat(ex"deleted, \r\n   may be download was not completed.")
+		Else If header->limit=&H8000 Then
+			status.cat(ex"deleted,\r\n   playable count is zero.")
+		Else If header->dummy33=&H00 Then
+			status.cat(ex"deleted,\r\n   fixed 33h is zero cleared.")
+		Else If header->dummy33=&H33 Then
+			status.cat(ex"playable")
+		Else
+			status.cat(ex"may be deleted\r\n   unknown status.")
+			Dump(header,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
+			Print "-GUIDE-- |BlockAlloca|§ ŒÀ|ŒŽ|“ú|}|Šø|33|Šg|cksum|/sum |"
+		End If
+	End if
 
 	'Flag
 	Dim flagStr AS StringClass
 	flagStr.cat(" - Sound Link: ")
-	if header->exeFlags And &H10 Then
+	If header->exeFlags And &H10 Then
 		flagStr.cat(ex"NO (RSV OFF)\r\n")
 	Else
 		flagStr.cat(ex"YES (RSV ON)\r\n")
 	End If
 
 	flagStr.cat(" - St.GIGA Logo: ")
-	if (header->exeFlags And &H80) Then
+	If (header->exeFlags And &H80) Then
 		flagStr.cat(ex"Skip\r\n")
 	Else
 		flagStr.cat(ex"Display\r\n")
 	End If
 
 	flagStr.cat(" - Execution Area: ")
-	if (header->exeFlags And &H60) >> 5 = 0 Then
-		flagStr.cat(ex"Memory Pack\r\n")
+	If (header->exeFlags And &H60) >> 5 = 0 Then
+		flagStr.cat(ex"Memory Pack")
 	Else
-		flagStr.cat(ex"PSRAM\r\n")
+		flagStr.cat(ex"PSRAM")
 	End If
 
-
-
-	str.sprintf(ex"- Name: %s\r\n- Date: %02dŒŽ%02d“ú\r\n- Usage: %d blocks (%d KB)\r\n- Offset: %Xh\r\n- Status: %s\r\n- RomType: Mode%02X %s%s\r\n- Flag: %02Xh \r\n%s\r\n", _
+	str.sprintf(ex"- Name  : %s\r\n- Date  : %02dŒŽ%02d“ú\r\n- Usage : %d blocks (%d KB)\r\n- Offset: %Xh\r\n", _
 		(title) As DWord,_ 
 		(header->month >> 4) As DWord , (header->day >> 3) As DWord , _
 		(blocks) As DWord , (blocks*128) As DWord , _
 		(_header->offset) As DWord , _
-		(status.ptr) As DWord , _
+	)
+	str.sprintf(ex"- RomType: Mode%02X %s%s\r\n- Limit  : %s\r\n- Status : %s\r\n- Flag: %02Xh \r\n%s\r\n", _
 		header->mapMode, (RawHeader_GetRomSpeedString(header->mapMode)) As DWord , (RawHeader_GetRomMapString(header->mapMode)) As DWord , _
-		(header->exeFlags) As DWord , (flagStr.ptr) As DWord
+		(limit.ptr) As DWord , _
+		(status.ptr) As DWord , _
+		(header->exeFlags) As DWord , (flagStr.ptr) As DWord _
 	)
 
 	str.copyToNewPtr(BSM_printInfo)
@@ -288,6 +311,6 @@ End Function
 Function countBits(int As DWord) AS DWord
 	Dim i As Long
 	for i=0 To 31
-		if int And (1<<i) Then countBits++
+		If int And (1<<i) Then countBits++
 	Next i
 End Function

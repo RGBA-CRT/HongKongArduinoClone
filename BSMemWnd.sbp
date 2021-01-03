@@ -21,20 +21,20 @@ End Function
 '-----------------------------------------------------------------------------
 ' ここから下は、イベントプロシージャを記述するための領域になります。
 Sub BSM_open()
-	if hBSMem = NULL Then CreateDialog(hMainWnd, "BSMemWnd")
+	If hBSMem = NULL Then CreateDialog(hMainWnd, "BSMemWnd")
 	MainWnd_Move(0, 0)
 	BSMW_bMove = FALSE
 End Sub
 
 Sub BSM_close()
-	if hBSMem = NULL Then ExitSub
+	If hBSMem = NULL Then ExitSub
 	SendMessage(hBSMem, WM_CLOSE, 0, 0)
 End Sub
 
 Dim BSMW_bMove AS BOOL
 
 Sub BSMemWnd_Move(x As Integer, y As Integer)
-	if BSMW_bMove = TRUE Then ExitSub
+	If BSMW_bMove = TRUE Then ExitSub
 	
 	Dim sfrect aS RECT
 	GetWindowRect(hBSMem, sfrect)
@@ -50,14 +50,14 @@ Sub BSMemWnd_Move(x As Integer, y As Integer)
 End Sub
 
 Sub BSMemWnd_ListBox1_SelChange()
-	if headerList[0] = NULL Then ExitSub
+	If headerList[0] = NULL Then ExitSub
 	
 	Dim idx As Long
 	idx = SendMessage(BSMWnd(ListBox1), LB_GETCURSEL, 0, 0)
-	if idx<0 or idx>BSM_SLOT_MAX + 1 then ExitSub
+	If idx<0 or idx>BSM_SLOT_MAX + 1 then ExitSub
 	
 	Dim str AS BytePtr
-	if headerList[idx]<>NULL Then
+	If headerList[idx]<>NULL Then
 		DBM("BSM File #" + Str$(idx))
 		str = BSM_printInfo(headerList[idx])
 		DBM(str)
@@ -100,8 +100,8 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo
 	slot_idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) 
 	pack_idx = SendMessage(BSMWnd(BSM_MT), CB_GETCURSEL, 0, 0)
 
-	if slot_idx=-1 Then DBM("Slot Type not selected."):exitsub
-	if pack_idx=-1 Then DBM("Mempack Type not selected."):exitsub
+	If slot_idx=-1 Then DBM("Slot Type not selected."):exitsub
+	If pack_idx=-1 Then DBM("Mempack Type not selected."):exitsub
 
 	With virtualHeader
 		lstrcpy(.Title, "BSX Mempack")
@@ -116,7 +116,7 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo
 		.rom.next_cb = NULL
 	End With
 
-	if pack_idx = BSM_SAMEGAME or pack_idx = BSM_GNEXT Then
+	If pack_idx = BSM_SAMEGAME or pack_idx = BSM_GNEXT Then
 		virtualHeader.RomSize = 512 * 1024
 	End If
 End Sub
@@ -124,7 +124,7 @@ End Sub
 Sub BSMemWnd_CommandButton1_Click()
 	Dim slot_idx As Long
 	slot_idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0)
-	if slot_idx = BSM_SLOT_SA1 Then
+	If slot_idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(TRUE)
 	End If
 	
@@ -135,7 +135,7 @@ Sub BSMemWnd_CommandButton1_Click()
 	Dim path AS BytePtr
 #ifndef _DEBUG
 	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", virtualHeader.Title)
-	if path = 0 Then ExitSub
+	If path = 0 Then ExitSub
 #else
 	path = "bsdump.bs"
 #endif
@@ -145,7 +145,7 @@ Sub BSMemWnd_CommandButton1_Click()
 #ifndef _DEBUG
 	free(path)
 #endif
-	if slot_idx = BSM_SLOT_SA1 Then
+	If slot_idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(FALSE)
 	End If
 End sub
@@ -155,7 +155,7 @@ Sub BSMemWnd_Destroy()
 End Sub
 
 Sub BSMemWnd_BSM_MT_SelChange()
-	if SendMessage(BSMWnd(BSM_MT), CB_GETCURSEL, 0, 0) > BSM_8M_TYPE4 Then
+	If SendMessage(BSMWnd(BSM_MT), CB_GETCURSEL, 0, 0) > BSM_8M_TYPE4 Then
 		SetWindowText(BSMWnd(EditBox1), "512")
 	Else
 		SetWindowText(BSMWnd(EditBox1), "1024")
@@ -165,7 +165,7 @@ End Sub
 'SA-1のバンク切り替えでメモリパックにアクセスできるようにする
 
 Sub BSM_SA1_MemPackAccess(isStart AS BOOL)
-	if isStart Then
+	If isStart Then
 		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED)
 		Sleep(500)
 		SetCartRegister(&H00, &H2223, &H04, FALSE)
@@ -176,19 +176,19 @@ Sub BSM_SA1_MemPackAccess(isStart AS BOOL)
 End Sub
 
 Sub BSMemWnd_CommandButton3_Click()
-	if hCOM = NULL Then ExitSub
+	If hCOM = NULL Then ExitSub
 	
 	Dim info As * BSM_MEMPACK_INFO
 	info = calloc(sizeof(BSM_MEMPACK_INFO))
 	BSM_GetMemPackInfo(info)
 	
 	Dim mpstatus AS BytePtr
-	if info->MP = &H504D Then
+	If info->MP = &H504D Then
 		mpstatus = "OK"
 	Else
 		mpstatus = "NG"
 	End If
-	if SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) = BSM_SLOT_SA1 Then
+	If SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) = BSM_SLOT_SA1 Then
 		DBM("MemoryPackInfo is not supported on SA-1")
 	Else
 		DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s (%c%c)\r\n FlashType : %d\r\n Capacity  : %dKB\r\n", _
@@ -200,10 +200,10 @@ Sub BSMemWnd_CommandButton3_Click()
 	Dim typeNumber AS Long
 	typeNumber = info->DeviceInfo>>4
 	
-	if typeNumber>1 And typeNumber<4 Then
+	If typeNumber>1 And typeNumber<4 Then
 		SendMessage(BSMWnd(BSM_MT), CB_SETCURSEL, typeNumber -1, 0)
-	Else if headerList[0]<>NULL Then
-		if lstrcmpi(headerList[0]->raw.title, "さめがめＲＯＭ！") = 0 Then
+	Else If headerList[0]<>NULL Then
+		If lstrcmpi(headerList[0]->raw.title, "さめがめＲＯＭ！") = 0 Then
 			SendMessage(BSMWnd(BSM_MT), CB_SETCURSEL, BSM_SAMEGAME, 0)
 		End If
 	Else
@@ -224,7 +224,7 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	
 	'	DBM("Bank:"+Hex$(cmdBank)+" isLoROM:"+Str$(isLoROM))
 	
-	if idx = BSM_SLOT_BIOS Then
+	If idx = BSM_SLOT_BIOS Then
 		'Disable BS-X MCC Write Protects
 		SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED)
 		Sleep(100)
@@ -233,7 +233,8 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 		SetCartRegister(&H0C, &H5000, &H80, FALSE)
 		SetCartRegister(&H0D, &H5000, &H80, FALSE)
 		SetCartRegister(&H0E, &H5000, &H80, FALSE)
-	Else if idx = BSM_SLOT_SA1 Then
+		Sleep(3)
+	Else If idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(TRUE)
 	End If
 	
@@ -250,7 +251,7 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	'WAIT
 	
 	ReadROM(hCOM, info, 0, (cmdBank<<16) + &H00FF00, 16, isLoROM)
-	'	Dump(info,16)
+	Dump(info,16)
 	
 	'request chip info part2
 	SetCartRegister(cmdBank, &H0000, &H72, isLoROM)
@@ -269,7 +270,7 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	Dim virtualHeader As SFC_CART_INFO, mmap AS SFC_MMAP_MODEL
 	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
-	if BSM_genHeaderList(TRUE, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
+	If BSM_genHeaderList(TRUE, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
 		DBM(ex"MemoryPack is not working...\r\n")
 		SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Empty)" As Long)
@@ -279,9 +280,9 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	DBM(ex"MemoryPack has found!\r\n")
 	
 	* BSM_DITECT_BTN_EXIT
-	if idx = BSM_SLOT_BIOS Then
+	If idx = BSM_SLOT_BIOS Then
 		SetCPU_Clock(hCOM, HKAC_CLOCK_NORMAL)
-	Elseif idx = BSM_SLOT_SA1 Then
+	ElseIf idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(FALSE)
 	End If
 End Function
@@ -296,7 +297,7 @@ Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Loop
 	DragFinish(hDrop)
 	
-	if BSM_genHeaderList(FALSE, buf, 0, FALSE) = FALSE Then
+	If BSM_genHeaderList(FALSE, buf, 0, FALSE) = FALSE Then
 		DBM("This is not BS Memory Image File.")
 		ExitSub
 	End If
@@ -308,7 +309,7 @@ End Sub
 Sub BSM_listupFiles()
 	SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 	
-	if headerList[0] = NULL Then
+	If headerList[0] = NULL Then
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Press detect button)" As Long)
 		ExitSub
 	End If

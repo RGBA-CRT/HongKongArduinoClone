@@ -1,6 +1,6 @@
 'source from http://devster.monkeeh.com/6502/snesrom.html
 
-Const SNES_LICENCE_LIST_NUM = 131
+Const SNES_LICENCE_LIST_NUM = 133
 Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3031 As BytePtr, "Nintendo", 
 	&H3035 As BytePtr, "Zamuse", 
@@ -17,6 +17,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3143 As BytePtr, "Tecmo (1)", 
 	&H3145 As BytePtr, "Forum", 
 	&H3146 As BytePtr, "Park Place Productions / VIRGIN", 
+	&H3230 As BytePtr, "KSS", 
 	&H3231 As BytePtr, "Tokai Engeneering (SUNSOFT?)", 
 	&H3232 As BytePtr, "POW", 
 	&H3233 As BytePtr, "Loriciel / Micro World", 
@@ -106,6 +107,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4344 As BytePtr, "Meldac/KAZe", 
 	&H4345 As BytePtr, "PONY CANYON", 
 	&H4346 As BytePtr, "Sotsu Agency", 
+	&H434B As BytePtr, "AXELA",	'Œ¶‘z—·’c
 	&H4431 As BytePtr, "Sofel", 
 	&H4432 As BytePtr, "Quest Corp.", 
 	&H4433 As BytePtr, "Sigma", 
@@ -158,5 +160,6 @@ Function GetMakerString(code AS DWord) aS BytePtr
 		'printf(ex"[%d][%d]%s\n",i,SFC_Licences[i].id,SFC_Licences[i].str)
 	Next
 	GetMakerString = "(unknown)"
+
 	
 End Function

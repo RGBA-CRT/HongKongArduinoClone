@@ -365,8 +365,8 @@ Function GetMappingString(maptype AS Long) As BytePtr
 	GetMappingString = SFC_MAP_TYPE_LABEL[maptype]
 End Function
 
-Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
-	Dim label AS BytePtr
+Function GetChipsetString(info As *SFC_CART_INFO)(pIsKnown As *BOOL) AS BytePtr
+	Dim label AS BytePtr, isKnown=TRUE As BOOL
 	
 	'http://snesemu.black-ship.net/misc/hardware/-from%20nsrt.edgeemu.com-chipinfo.htm
 	Select Case info->Chipset>>4
@@ -378,7 +378,7 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 				Case &H03 : label = "ROM+DSP"
 				Case &H04 : label = "ROM+DSP+RAM"
 				Case &H05 : label = "ROM+DSP+RAM+BAT"
-				Case Else : label = "ROM (?)"
+				Case Else : label = "ROM (?)" : isKnown=FALSE
 			End Select
 		Case &H01 'SuperFX
 			Select Case info->Chipset And &H0F
@@ -386,7 +386,7 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 				Case &H04 : label = "[SFX]ROM+GSU+RAM"
 				Case &H05 : label = "[SFX]ROM+GSU+RAM+BAT"
 				Case &H0A : label = "[SFX]ROM+GSU1+RAM+BAT"
-				Case Else : label = "[SFX]ROM+GSU (?)"
+				Case Else : label = "[SFX]ROM+GSU (?)" : isKnown=FALSE
 			End Select
 		Case &H02 : label = "ROM+OBC1+RAM+BAT"
 		Case &H03 
@@ -395,7 +395,7 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 			Elseif info->Chipset = &H35 then
 				 label = "ROM+SA-1+RAM+BAT"
 			Else
-				label = "ROM+SA1 (?)"
+				label = "ROM+SA1 (?)" : isKnown=FALSE
 			End If
 		Case &H04
 			If (info->Chipset And &H0F) = 3 Then
@@ -403,14 +403,14 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 			Elseif info->Chipset = &H45 then
 				label = "ROM+SDD1+RAM+BAT"
 			Else
-				label = "ROM+SDD1 [unknown:4xh]"
+				label = "ROM+SDD1 [unknown:4xh]" : isKnown=FALSE
 			End If
 		Case &H05 : label = "S-RTC+RAM+BAT"
 		Case &H0E 
 			Select Case info->Chipset And &H0F
 				Case &H03 : label = "ROM+SGBCPU+ICD2+2xRAM+GB slot"
-				Case &H05 : label = "ROM+2xRAM+MCCBSC+BAT"
-				Case Else : label = "ROM+Co-processor (?)"
+				Case &H05 : label = "ROM+PSRAM+MCC-BSC+SRAM+BAT"
+				Case Else : label = "ROM+Co-processor (?)" : isKnown=FALSE
 			End Select
 		Case &H0F
 			Select Case info->rawHeader.ChipsetSub
@@ -420,7 +420,7 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 					Elseif info->Chipset = &HF9 Then
 						label = "ROM+SPC7110+RTC+RAM+BAT"
 					Else
-						label = "ROM+SPC7110 (?)"
+						label = "ROM+SPC7110 (?)" : isKnown=FALSE
 					End If
 
 				Case &H01
@@ -432,13 +432,14 @@ Function GetChipsetString(info As *SFC_CART_INFO) AS BytePtr
 
 				Case &H02 : label = "ROM+ST018+RAM+BAT"
 				Case &H10 : label = "ROM+CX4"
-				Case Else : label = "ROM+Co-processor (?)"
+				Case Else : label = "ROM+Co-processor (?)" : isKnown=FALSE
 			End Select
 		Case Else
-			label = "ROM (? unknown chipset)"
+			label = "ROM (? unknown chipset)" : isKnown=FALSE
 	End Select
 
 	GetChipsetString = label
+	if pIsKnown Then SetDWord(pIsKnown, isKnown)
 End Function
 
 
@@ -563,15 +564,20 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 End Function
 
 ' ヘッダかどうか判定
-Function isSnesHeader(header As * SFC_CART_HEADER) As BOOL
+Function isSnesHeader(header As * SFC_CART_INFO) As BOOL
 	Dim i As Long
 	For i = 0 To 19
-		If header->GameTitle[i] < &H20 Then
-			If Not(i>4 And header->GameTitle[i] = 0) Then GoTo * ISH_ERR
+		If header->rawHeader.GameTitle[i] < &H20 Then
+			If Not(i>4 And header->rawHeader.GameTitle[i] = 0) Then GoTo * ISH_ERR
 		End If
 	Next i
 	'サイズチェック
-	If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
+	'If header->RomSize > &H0D Then GoTo * ISH_ERR 'Over 64Mbit
+	Dim isKnown As BOOL
+	GetChipsetString(header, VarPtr(isKnown))
+	If isKnown = FALSE Then GoTo * ISH_ERR
+
+	
 	isSnesHeader = TRUE
 	ExitFunction
 	
@@ -594,16 +600,16 @@ Function SumSnesChecksum(data As BytePtr,length As DWord) As DWord
 	SumSnesChecksum=0
 	Do
 		SumSnesChecksum += data[i]
-		If i => length-1 Then ExitDo
+		If i+1 => length Then ExitDo
 		i++
 	Loop
 End Function
 
 'チェックサム計算（ROM単位）
-Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr) AS Word
-	CalcSnesChecksum = SumSnesChecksum(rom, info->RomSize) As Word
+Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr, size As DWord) AS Word
+	CalcSnesChecksum = SumSnesChecksum(rom, size) As Word
 
-	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024*1024) Then
+	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024*1024) And size = info->RomSize Then
 		'3MBの時はラスト8Mbitを再加算
 		CalcSnesChecksum += SumSnesChecksum(rom+1024*1024*2, 1024*1024)
 	End If

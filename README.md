@@ -56,12 +56,6 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 ## SFメモリカセットについて / About NP FLASH Cart
 + [接続手順](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/SF-Memory)
 
-## SPC7110の注意 / SPC7110 Warning
-+ SPC7110のカートリッジ(天外魔境ZEROなど)は特定の手順で接続しないと、セーブが消えます。詳しくは以下から。
-+ If you don't connect the cartridge of SPC7110 (Far East of Eden Zero) in a special procedure,
-  Save RAM will break. For details, please see below.
-+ <https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/SPC7110-SRAM-Read-Write>
-
 ## 既知の問題 / Known issues
 + 問題が起きたときに読んでください
 + [click here](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Known-Issues)

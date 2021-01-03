@@ -9,11 +9,15 @@ Const CBUS_DEFAULT = &H0C	'CBUS_RST CBUS_WE
 
 Sub ChangeBaudrate(hSerial AS HANDLE, rate AS DWord)
 	'Arduinoレート変更コマンド送信
-	Dim cmd[5] AS Byte, dwAB AS DWord
+	Dim cmd[7] AS Byte, dwAB AS DWord
 	cmd[0] = Asc("b")
 	memcpy(cmd + 1, VarPtr(rate), 4)
 	
 	if WriteFile(hSerial, cmd, 5, VarPtr(dwAB), ByVal NULL) = FALSE or dwAB<>5 Then DBM("BC_ERR " + Str$(GetLastError()))
+
+	'待たないと送信途中でパケットが
+	Sleep(29) ' 1.44 byte/s * 5bytes * 4倍(安全)
+
 	FlushFileBuffers(hSerial)
 	FlushCom(hSerial)
 	
@@ -287,7 +291,7 @@ Function hasClockModule(hSerial AS HANDLE) AS BOOL
 	End If
 End Function
 
-Const HKAC_GETFIRM_RETRY = 20
+Const HKAC_GETFIRM_RETRY = 25
 Const HKAC_GETFIRM_WAIT = 10
 Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord) As BOOL
 	Dim cmd[2] AS Byte
@@ -303,7 +307,7 @@ Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord)
 
 	printf(ex"\n[GetFirm%d] ", retry)
 	dwWD = ReceiveFromReader(hSerial, firmStr, firmStrLen, 10)
-	if dwWD<>firmStrLen Then 	
+		if dwWD<>firmStrLen Then 	
 		printf(ex" retry #%d, %d ", retry, dwWD)
 		if retry>=HKAC_GETFIRM_RETRY Then ExitFunction
 		FlushCom(hSerial)
