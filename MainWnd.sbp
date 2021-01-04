@@ -310,7 +310,7 @@ Sub ConnectDevice()
 	Dim bufferSize AS DWord
 	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
 	If bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
-	
+
 	Dim retry=0 As Long
 *RECONNECT
 	'connect and reset ボーレート
@@ -340,10 +340,10 @@ Sub ConnectDevice()
 			
 			retry++
 			if retry<3 Then
+				DBM(ex"failed. retry.\r\n")
 				Goto *RECONNECT
 			endif
 
-			DBM(ex"failed. retry.\r\n")
 			BaudrateErrorMessage()
 			goto * HKAF_CON_ERR
 		End If
@@ -853,6 +853,13 @@ Sub SetRomInfoToDlg_FromROM()
 	
 	If cartInfo.MapType=SFC_MAP_SF_MENU Then
 		SFM_open()
+		SFTurbo_close()
+	Else If cartInfo.MapType=SFC_MAP_SFTURBO Then
+		SFTurbo_open()
+		SFM_close()
+	Else
+		SFM_close()
+		SFTurbo_close()
 	End If	
 
 	SetCheckBox(MWnd(CheckBox7),hasClockModule(hCOM))
@@ -1125,6 +1132,9 @@ Sub MainWnd_Move(x As Integer, y As Integer)
 	End If
 	If hBSMem<>NULL Then
 		MoveChildWindow(hMainWnd, hBSMem)
+	End If
+	If hSFTurbo<>NULL Then
+		MoveChildWindow(hMainWnd, hSFTurbo)
 	End If
 End Sub
 

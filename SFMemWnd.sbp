@@ -26,6 +26,11 @@ Sub SFM_open()
 	SFMW_bMove = FALSE
 End Sub
 
+Sub SFM_close()
+	If hSFMem = NULL Then ExitSub
+	SendMessage(hSFMem, WM_CLOSE, 0, 0)
+End Sub
+
 Dim SFMW_bMove AS BOOL
 
 Sub SFMemWnd_Move(x As Integer, y As Integer)

@@ -112,3 +112,30 @@ WINDOW:BSMemWnd
     ITEM      = CommandButton3,7,234,55,21,"Detect",&H50000000,&H00000000,1
     ITEM      = ListBox1,6,116,182,112,"",&H50200001,&H00000200,8
 END
+WINDOW:SFTurbo
+    HANDLE    = hSFTurbo
+    POINT     = -2147483648,-2147483648
+    SIZE      = 259,305
+    CAPTION   = "SFTurbo"
+    STYLE     = &H10c80000
+    EXSTYLE   = &H00000000
+    ID        = 0
+    BGCOLOR   = 15
+    FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
+    ICONID    = IDI_ICON1
+    CLASS     = "NORMAL"
+    CALLBACK  = SFTurboProc
+    TYPE      = 3
+    FILEPATH  = SFTurbo.sbp
+    ITEM      = RB_SLOT_A,21,18,52,19,"Slot A",&H50001309,&H00000000,10
+    ITEM      = RB_SLOT_B,21,44,52,19,"Slot B",&H50001f09,&H00000000,10
+    ITEM      = EditBox1,15,96,220,117,"",&H50000844,&H00000200,4
+    ITEM      = CommandButton1,105,231,90,21,"DumpROM",&H50000000,&H00000000,1
+    ITEM      = CommandButton2,49,255,90,21,"DumpSRAM",&H50000000,&H00000000,1
+    ITEM      = CommandButton3,151,255,90,21,"WriteSRAM",&H50000000,&H00000000,1
+    ITEM      = GroupBox1,6,0,238,70,"SLOT Status",&H50000007,&H00000000,5
+    ITEM      = CommandButton4,8,231,90,21,"GetSlotInfo",&H50000000,&H00000000,1
+    ITEM      = GroupBox2,6,78,238,143,"Infomation",&H50000007,&H00000000,5
+    ITEM      = EB_TITLE_A,79,19,152,18,"",&H50000880,&H00000200,4
+    ITEM      = EB_TITLE_B,79,45,152,18,"",&H50000880,&H00000200,4
+END

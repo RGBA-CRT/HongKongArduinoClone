@@ -8,7 +8,7 @@
 
 #PLATFORM=32
 
-#USEWINDOW=3
+#USEWINDOW=4
 
 #OPTION=&H00010000
 
@@ -32,3 +32,4 @@ SubClassWindow.abp
 RomHeader.sbp
 MemoryMapModel.sbp
 CartridgeRW.sbp
+SFTurbo.sbp

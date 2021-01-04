@@ -20,6 +20,7 @@
 #include "RomHeader.sbp"
 #include "MemoryMapModel.sbp"
 #include "CartridgeRW.sbp"
+#include "SFTurbo.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"
