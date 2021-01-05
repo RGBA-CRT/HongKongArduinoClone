@@ -263,7 +263,7 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 			status.cat(ex"playable")
 		Else
 			status.cat(ex"may be deleted\r\n   unknown status.")
-			Dump(header,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
+			Dump(header As BytePtr,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
 			Print "-GUIDE-- |BlockAlloca|êß å¿|åé|ì˙|ê}|ä¯|33|äg|cksum|/sum |"
 		End If
 	End if

@@ -7,7 +7,8 @@
 ' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
 Dim SFTW_bMove As BOOL
 
-dim hFont_InfoBox As HANDLE
+Dim hFont_InfoBox As HANDLE
+Dim crc32 As HashCrc32
 
 '-----------------------------------------------------------------------------
 ' ウィンドウメッセージを処理するためのコールバック関数
@@ -57,11 +58,11 @@ Sub SFTurbo_Move(x As Integer, y As Integer)
 End Sub
 
 
-Function SFTWnd(child AS Long) AS HWND
+Function SFTWnd(child As Long) As HWND
 	SFTWnd = GetDlgItem(hSFTurbo, child)
 End Function
 
-Function SFTWnd_GetTitleBoxHandle(index As Long) AS HWND	
+Function SFTWnd_GetTitleBoxHandle(index As Long) As HWND	
 	Dim SFTWnd_EB_TITLE_TABLE[SFT_SLOT_MAX-1] = [ _
 		EB_TITLE_A, _
 		EB_TITLE_B _
@@ -70,7 +71,7 @@ Function SFTWnd_GetTitleBoxHandle(index As Long) AS HWND
 	SFTWnd_GetTitleBoxHandle = GetDlgItem(hSFTurbo, SFTWnd_EB_TITLE_TABLE[index])
 End Function
 
-Function SFTWnd_GetRadioButtonHandle(index As Long) AS HWND	
+Function SFTWnd_GetRadioButtonHandle(index As Long) As HWND	
 	Dim TABLE[SFT_SLOT_MAX-1] = [ _
 		RB_SLOT_A, _
 		RB_SLOT_B _
@@ -80,13 +81,316 @@ Function SFTWnd_GetRadioButtonHandle(index As Long) AS HWND
 End Function
 
 
-Sub SFTWnd_SetTitleBox(index AS Long, header As *SFT_ROM_HEADER)
+Sub SFTWnd_SetTitleBox(index As Long, header As *SFT_ROM_HEADER)
 	if IsSlotEmpty(header) Then
 		SetWindowText(SFTWnd_GetTitleBoxHandle(index), "<NOT SLOTTED>")
 	Else
 		SetWindowText(SFTWnd_GetTitleBoxHandle(index), header->title)
 	End If
 End Sub
+
+Sub SFTWnd_SetEnable(enable AS BOOL)
+	EnableWindow(SFTWnd(CommandButton1), enable)
+	EnableWindow(SFTWnd(CommandButton2), enable)
+	EnableWindow(SFTWnd(CommandButton3), enable)
+	EnableWindow(SFTWnd(CommandButton4), enable)
+	
+	EnableWindow(SFTWnd(RB_SLOT_A), enable)
+	EnableWindow(SFTWnd(RB_SLOT_B), enable)
+	
+	EnableWindow(SFTWnd(EB_TITLE_A), enable)
+	EnableWindow(SFTWnd(EB_TITLE_B), enable)
+	
+	EnableWindow(SFTWnd(GroupBox1), enable)
+	EnableWindow(SFTWnd(GroupBox2), enable)
+
+	EnableWindow(SFTWnd(EditBox1), enable)
+End Sub
+
+Sub SFTurbo_CommandButton1_Click()
+	Dim outFile As File
+	Dim index As Long
+	Dim mmapModel As SFC_MMAP_MODEL, pc As *DumpRomProgressCallBack
+	Dim header As SFT_ROM_HEADER
+	Dim path As BytePtr, filter_index As DWord
+	Dim marged_rom_mode As BOOL
+	Dim rom As BytePtr, rom_size As DWord
+
+	if GetCheckBox(SFTWnd_GetRadioButtonHandle(0)) Then
+		index=0
+	Elseif GetCheckBox(SFTWnd_GetRadioButtonHandle(1)) Then
+		index=1
+	Else
+		SetWindowText(SFTWnd(EditBox1), "Please Select SLOT!")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
+	GetSFTurboRomHeader(index, VarPtr(header))
+
+	if header.rom_size = 0 Then
+		DBM("ROM Size is zero.")
+		ExitFunction
+	End If
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(_
+	'	ex"SFTurboイメージファイル(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROMイメージファイル(*.sfc)\0*.sfc\0BIOS混合ファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0",_
+		ex"SFTurboイメージファイル(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0",_
+		"st", _
+		header.title,_
+		VarPtr(filter_index)
+	)
+	'if filter_index = 4 Then marged_rom_mode = TRUE
+	If path=0 Then ExitSub
+#else
+	path="dump.st"
+#endif
+
+	if outFile.openFile(path, GENERIC_WRITE) = FALSE Then
+		DBM("File open error")
+#ifndef _DEBUG
+		free(path)
+#endif
+		ExitFunction
+	End If
+
+	GetSFTurboMmapModel(index, marged_rom_mode, VarPtr(mmapModel))
+	pc = new_DumpRomProgressCallBack()
+
+	if marged_rom_mode Then
+		DBM("marged_rom_mode")	
+		rom_size = &H400000
+	Else	
+		rom_size = 128 * 1024 * header.rom_size 
+	End If
+
+	SFTWnd_SetEnable(FALSE)
+
+	rom = calloc( rom_size )
+	DumpRom2(hCOM, rom, rom_size, VarPtr(mmapModel), pc)
+	outFile.write(rom, rom_size)	
+	outFile.close()
+
+	dim Hash As DWord
+	Hash = crc32.GetHash(rom,rom_size)
+	DBMf(ex"SFTurbo ROM dump successful.\r\nCRC32: %08X", Hash)
+
+	free(rom)
+
+#ifndef _DEBUG
+	free(path)
+#endif
+
+	SFTWnd_SetEnable(TRUE)
+End Sub
+
+
+Sub SFTurbo_CommandButton2_Click()
+	Dim outFile As File
+	Dim index As Long
+	Dim mmapModel As SFC_MMAP_MODEL, pc As *SramProgressCallBack
+	Dim header As SFT_ROM_HEADER
+	Dim path As BytePtr
+	Dim sram_buf As BytePtr, sram_size As DWord
+
+	if GetCheckBox(SFTWnd_GetRadioButtonHandle(0)) Then
+		index=0
+	Elseif GetCheckBox(SFTWnd_GetRadioButtonHandle(1)) Then
+		index=1
+	Else
+		SetWindowText(SFTWnd(EditBox1), "Please Select SLOT!")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
+	GetSFTurboRomHeader(index, VarPtr(header))
+
+	if header.sram_size = 0 Then
+		DBM("SRAM size is zero.")
+		ExitFunction
+	End If
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",header.title)
+	If path=0 Then ExitSub
+#else
+	path="dump.sf.sram"
+#endif
+
+	if outFile.openFile(path, GENERIC_WRITE) = FALSE Then
+		DBM("File open error")
+#ifndef _DEBUG
+		free(path)
+#endif
+		ExitFunction
+	End If
+
+	GetSFTurboMmapModel(index, FALSE, VarPtr(mmapModel))
+	pc = new_SramProgressCallBack(VarPtr(mmapModel), FALSE)
+
+
+	sram_size = 2 * 1024 * header.sram_size 
+	sram_buf = calloc( sram_size )
+
+	DumpSRAM(hCOM, sram_buf, sram_size, VarPtr(mmapModel), pc)
+
+	outFile.write(sram_buf, sram_size)	
+	outFile.close()
+
+	free(sram_buf)
+
+#ifndef _DEBUG
+	free(path)
+#endif
+
+	DBM(ex"SFTurbo SRAM dump successful.\r\n")
+	MessageBeep(MB_ICONASTERISK)
+End Sub
+
+
+Sub SFTurbo_CommandButton3_Click()
+	Dim inFile As File
+	Dim index As Long
+	Dim mmapModel As SFC_MMAP_MODEL, pc As *SramProgressCallBack
+	Dim header As SFT_ROM_HEADER
+	Dim path As BytePtr
+	Dim sram_buf As BytePtr, sram_size As DWord
+
+	if GetCheckBox(SFTWnd_GetRadioButtonHandle(0)) Then
+		index=0
+	Elseif GetCheckBox(SFTWnd_GetRadioButtonHandle(1)) Then
+		index=1
+	Else
+		SetWindowText(SFTWnd(EditBox1), "Please Select SLOT!")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
+	GetSFTurboRomHeader(index, VarPtr(header))
+
+	if header.sram_size = 0 Then
+		DBM("SRAM size is zero.")
+		ExitFunction
+	End If
+
+#ifndef _DEBUG
+	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",header.title)
+	If path=0 Then ExitSub
+#else
+	path="write.srm"
+#endif
+
+	if inFile.openFile(path, GENERIC_READ) = FALSE Then
+		DBM("File open error")
+#ifndef _DEBUG
+		free(path)
+#endif
+		ExitFunction
+	End If
+
+	GetSFTurboMmapModel(index, FALSE, VarPtr(mmapModel))
+	pc = new_SramProgressCallBack(VarPtr(mmapModel), TRUE)
+
+	sram_size = 2 * 1024 * header.sram_size 
+	sram_buf = calloc( sram_size )
+
+	inFile.read(sram_buf, sram_size)
+	inFile.close()
+
+	DBM("Writing SRAM...")
+	WriteSRAM(hCOM, sram_buf, sram_size, VarPtr(mmapModel), pc)
+
+	dim verify_buf As BytePtr
+	verify_buf=calloc(sram_size)
+
+	DBMN("Verify...")
+	DumpSRAM(hCOM, verify_buf, sram_size, VarPtr(mmapModel), NULL)
+
+	Dim diffPos AS DWord
+	if compareBinaly(sram_buf, verify_buf, sram_size, VarPtr(diffPos)) Then
+		DBM("OK")
+		DBM(ex"SFTurbo SRAM write successful.\r\n")
+		MessageBeep(MB_ICONASTERISK)
+	Else
+		DBMf(ex"NG at 0x%08X", diffPos)
+		DBM(ex"Failed to write SRAM.\r\n")
+		printf(ex"=== write ===\n")
+		Dump(sram_buf+(diffPos And &HFFFFFFF0), 32)
+		printf(ex"=== actual ===\n")
+		Dump(verify_buf+(diffPos And &HFFFFFFF0), 32)
+
+		MessageBeep(MB_ICONHAND)
+	End If
+
+	free(sram_buf)
+	free(verify_buf)
+
+#ifndef _DEBUG
+	free(path)
+#endif
+End Sub
+
+
+Sub SFTurbo_CommandButton4_Click()
+	Dim slot[1] As SFT_ROM_HEADER
+	Dim i As Long
+	Dim info As StringClass
+
+	for i=0 to SFT_SLOT_MAX-1
+		if GetSFTurboRomHeader(i,VarPtr(slot[i]))=FALSE Then
+			ErrMes(hSFTurbo,"ROM io error.",0,0):	ExitSub
+		endif
+		
+		Dump(VarPtr(slot[i]),sizeof(SFT_ROM_HEADER))
+
+		info.sprintf(ex"%s:\r\n", SFT_SLOT_NAME_TABLE[i] As DWord)
+		SFTurboRomHeaderToStringSimple(VarPtr(info), VarPtr(slot[i]))
+		info.cat(ex"\r\n")
+
+		SetCheckBox(SFTWnd_GetRadioButtonHandle(i), FALSE)
+	Next	
+
+	SetWindowText(SFTWnd(EditBox1), info.ptr)
+End Sub
+
+Sub OnSelectSlot(index As Long)
+	Dim slot As SFT_ROM_HEADER
+	Dim sram As SFT_SRAM_HEADER
+	if GetSFTurboRomHeader(index,VarPtr(slot))=FALSE Then
+		ErrMes(hSFTurbo,"ROM I/O ERROR.",0,0):	ExitSub
+	endif	
+	if GetSFTurboSramHeader(index,VarPtr(sram))=FALSE Then
+		ErrMes(hSFTurbo,"SRAM io error.",0,0):	ExitSub
+	endif
+
+	Dump(VarPtr(slot), sizeof(SFT_ROM_HEADER))
+	Dump(VarPtr(sram), sizeof(SFT_SRAM_HEADER))
+	'SFTWnd_SetTitleBox(index, VarPtr(slot) )
+
+	Dim info As StringClass
+	info.sprintf(ex"%s Infomation:\r\n", SFT_SLOT_NAME_TABLE[index] As DWord)
+	SFTurboRomHeaderToString(VarPtr(info), VarPtr(slot) )
+	SFTurboSramHeaderToString(VarPtr(info), VarPtr(slot), VarPtr(sram) )
+
+	SetWindowText(SFTWnd(EditBox1), info.ptr)
+End Sub
+
+Sub SFTurbo_RB_SLOT_A_Click()
+	OnSelectSlot(0)
+End Sub
+
+Sub SFTurbo_RB_SLOT_B_Click()
+	OnSelectSlot(1)
+End Sub
+
+Sub SFTurbo_Create(ByRef CreateStruct As CREATESTRUCT)
+	hFont_InfoBox=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,50,"MS Gothic")
+	SendMessage(SFTWnd(EditBox1),WM_SETFONT,hFont_InfoBox As WPARAM,0)
+
+	SFTurbo_CommandButton4_Click()
+End Sub
+
 
 ' ==========================================================================================================
 
@@ -138,11 +442,11 @@ Const SFT_ROM_MAGIC = "BANDAI SFC-ADX"
 /*
   0000h 15 ID "SFC-ADX BACKUP",0   ;Other = begin of free memory
   000Fh 1  Zero
-  0010h 14 Title (same as 0010h..001Dh in ROM Header)
+  0010h 14 Title (same As 0010h..001Dh in ROM Header)
   001Eh 1  Zero
   001Fh 1  Zero (except, 01h in Poi Poi Ninja)
-  0020h 4  Unique ID and Index in Series (same as 0030h..0033h in ROM Header)
-  0024h 1  Filesize (in 2Kbyte units)    (same as 0037h in ROM Header)
+  0020h 4  Unique ID and Index in Series (same As 0030h..0033h in ROM Header)
+  0024h 1  Filesize (in 2Kbyte units)    (same As 0037h in ROM Header)
   0025h 11 Zero-filled
 */
 Type Align(1) SFT_SRAM_HEADER
@@ -174,43 +478,18 @@ Dim SFT_SLOT_NAME_TABLE[SFT_SLOT_MAX] = [ _
 ] As BytePtr
 
 
-Sub SFTurbo_CommandButton4_Click()
-	dim slot[1] as SFT_ROM_HEADER
-	dim sram[1] as SFT_SRAM_HEADER
-	Dim i As Long
-	Dim info As StringClass
-
-	for i=0 to SFT_SLOT_MAX-1
-		if GetSFTurboRomHeader(i,VarPtr(slot[i]))=FALSE Then
-			ErrMes(hSFTurbo,"ROM io error.",0,0):	ExitSub
-		endif
-		
-		Dump(VarPtr(slot[i]),sizeof(SFT_ROM_HEADER))
-		Dump(VarPtr(sram[i]),sizeof(SFT_SRAM_HEADER))
-
-		SFTWnd_SetTitleBox(i, VarPtr(slot[i]))
-
-		info.sprintf(ex"%s:\r\n", SFT_SLOT_NAME_TABLE[i])
-		SFTurboRomHeaderToStringSimple(VarPtr(info), VarPtr(slot[i]))
-		info.cat(ex"\r\n")
-
-		SetCheckBox(SFTWnd_GetRadioButtonHandle(i), FALSE)
-	Next	
-
-	SetWindowText(SFTWnd(EditBox1), info.ptr)
-End Sub
-
-Function GetSFTurboRomHeader(index As Long, header As *SFT_ROM_HEADER) AS BOOL
-	if ReadROM(hCOM,header,0, SFT_ROM_OFFSET_TABLE[index], sizeof(SFT_ROM_HEADER),FALSE)=FALSE Then
+Function GetSFTurboRomHeader(index As Long, header As *SFT_ROM_HEADER) As BOOL
+	if ReadROM(hCOM,header As BytePtr,0, SFT_ROM_OFFSET_TABLE[index], sizeof(SFT_ROM_HEADER),FALSE)=FALSE Then
 		GetSFTurboRomHeader=FALSE
-		ExitFunction
+	Else
+		GetSFTurboRomHeader=TRUE
 	End If
 
-	GetSFTurboRomHeader=TRUE
+	SFTWnd_SetTitleBox(index, header)
 End Function
 
-Function GetSFTurboSramHeader(index As Long, header As *SFT_SRAM_HEADER) AS BOOL
-	if ReadROM(hCOM,header,0, SFT_SRAM_OFFSET_TABLE[index], sizeof(SFT_SRAM_HEADER),FALSE)=FALSE Then
+Function GetSFTurboSramHeader(index As Long, header As *SFT_SRAM_HEADER) As BOOL
+	if ReadROM(hCOM,header As BytePtr,0, SFT_SRAM_OFFSET_TABLE[index], sizeof(SFT_SRAM_HEADER),FALSE)=FALSE Then
 		GetSFTurboSramHeader=FALSE
 		ExitFunction
 	End If
@@ -218,7 +497,7 @@ Function GetSFTurboSramHeader(index As Long, header As *SFT_SRAM_HEADER) AS BOOL
 	GetSFTurboSramHeader=TRUE
 End Function
 
-Function IsSlotEmpty(header As *SFT_ROM_HEADER) AS BOOL
+Function IsSlotEmpty(header As *SFT_ROM_HEADER) As BOOL
 	if lstrcmp(header->magic, SFT_ROM_MAGIC) = 0 then
 		IsSlotEmpty = FALSE
 	Else
@@ -226,7 +505,7 @@ Function IsSlotEmpty(header As *SFT_ROM_HEADER) AS BOOL
 	End If
 End Function
 
-Sub SFTurboRomHeaderToString(str AS *StringClass, header As *SFT_ROM_HEADER)
+Sub SFTurboRomHeaderToString(str As *StringClass, header As *SFT_ROM_HEADER)
 	if IsSlotEmpty(header) Then
 		str->cat(ex"- mini cartridge is not inserted.\r\n")
 		ExitSub
@@ -234,11 +513,11 @@ Sub SFTurboRomHeaderToString(str AS *StringClass, header As *SFT_ROM_HEADER)
 
 	str->sprintf( _
 		ex"- Magic : %s\r\n- Title : %s\r\n- GameID: %08Xh (Series No.%d)\r\n", _
-		header->magic, header->title, _
-		ChangeEndianDW2(header->game_id), header->game_id >> 24 _
+		header->magic As DWord, header->title As DWord, _
+		ChangeEndianDW2(header->game_id) As DWord, (header->game_id >> 24) As DWord _
 	)
 
-	dim RomSpeedText As BytePtr
+	Dim RomSpeedText As BytePtr
 	Select Case header->rom_speed
 		Case 0
 			RomSpeedText = "Slow/2.68MHz"
@@ -248,7 +527,7 @@ Sub SFTurboRomHeaderToString(str AS *StringClass, header As *SFT_ROM_HEADER)
 			RomSpeedText = "Unknown"
 	End Select
 
-	dim ChipsetText As BytePtr
+	Dim ChipsetText As BytePtr
 	Select Case header->chipset
 		Case 0
 			ChipsetText = "Simple"
@@ -260,7 +539,7 @@ Sub SFTurboRomHeaderToString(str AS *StringClass, header As *SFT_ROM_HEADER)
 			ChipsetText = "Unknown"
 	End Select
 
-	dim SramSize[23] As Byte
+	Dim SramSize[23] As Byte
 	if header->sram_size = 0 Then
 		lstrcpy(SramSize,"none")
 	Else
@@ -269,21 +548,21 @@ Sub SFTurboRomHeaderToString(str AS *StringClass, header As *SFT_ROM_HEADER)
 
 	str->sprintf( _
 		ex"- RomSize : %d KB [%2d Mbit]\r\n- SramSize: %s\r\n- RomSpeed: %02Xh %s\r\n- Chipset : %02Xh %s\r\n", _
-		128*header->rom_size,header->rom_size,_
-		SramSize, _
-		header->rom_speed, RomSpeedText,_
-		header->chipset, ChipsetText,_
+		128*header->rom_size As DWord,header->rom_size As DWord,_
+		SramSize As DWord, _
+		header->rom_speed As DWord, RomSpeedText As DWord,_
+		header->chipset As DWord, ChipsetText As DWord,_
 	)
 	
 End Sub
 
-Sub SFTurboRomHeaderToStringSimple(str AS *StringClass, header As *SFT_ROM_HEADER)
+Sub SFTurboRomHeaderToStringSimple(str As *StringClass, header As *SFT_ROM_HEADER)
 	if IsSlotEmpty(header) Then
 		str->cat(ex"- mini cartridge is not inserted.\r\n")
 		ExitSub
 	End If
 
-	dim SramSize[23] As Byte
+	Dim SramSize[23] As Byte
 	if header->sram_size = 0 Then
 		lstrcpy(SramSize,"none")
 	Else
@@ -292,14 +571,14 @@ Sub SFTurboRomHeaderToStringSimple(str AS *StringClass, header As *SFT_ROM_HEADE
 
 	str->sprintf( _
 		ex"- Title : %s\r\n- GameID: %08X\r\n- ROM %dKB / SRAM %s\r\n", _
-		header->title, _
-		ChangeEndianDW2(header->game_id), _
-		128*header->rom_size, SramSize
+		header->title As DWord, _
+		ChangeEndianDW2(header->game_id) As DWord, _
+		(128*header->rom_size) As DWord, SramSize As DWord
 	)
 End Sub
 
 
-Function IsValidSram(header As *SFT_SRAM_HEADER) AS BOOL
+Function IsValidSram(header As *SFT_SRAM_HEADER) As BOOL
 	if lstrcmp(header->magic, SFT_SRAM_MAGIC) = 0 then
 		IsValidSram = FALSE
 	Else
@@ -307,7 +586,7 @@ Function IsValidSram(header As *SFT_SRAM_HEADER) AS BOOL
 	End If
 End Function
 
-Sub SFTurboSramHeaderToString(str AS *StringClass, rom As *SFT_ROM_HEADER, header As *SFT_SRAM_HEADER)
+Sub SFTurboSramHeaderToString(str As *StringClass, rom As *SFT_ROM_HEADER, header As *SFT_SRAM_HEADER)
 	if rom Then
 		if rom->sram_size = 0 Then
 			str->cat(ex"- SRAM is none.\r\n")
@@ -321,41 +600,27 @@ Sub SFTurboSramHeaderToString(str AS *StringClass, rom As *SFT_ROM_HEADER, heade
 	End If
 
 	str->sprintf(ex"- SramFile: %s (%d KB)\r\n",_
-		header->title, _
-		2*header->file_size
+		header->title As DWord, _
+		(2*header->file_size) As DWord
 	)
 
 End Sub
 
-Sub OnSelectSlot(index As Long)
-	dim slot As SFT_ROM_HEADER
-	dim sram As SFT_SRAM_HEADER
-	if GetSFTurboRomHeader(index,VarPtr(slot))=FALSE Then
-		ErrMes(hSFTurbo,"ROM I/O ERROR.",0,0):	ExitSub
-	endif	
-	if GetSFTurboSramHeader(index,VarPtr(sram))=FALSE Then
-		ErrMes(hSFTurbo,"SRAM io error.",0,0):	ExitSub
-	endif
+Function GetSFTurboMmapModel(index As Long, marged_mode As BOOL, model As *SFC_MMAP_MODEL) As BOOL
+	if marged_mode = FALSE Then
+		model->rom.adr = SFT_ROM_OFFSET_TABLE[index]
+	Else
+		model->rom.adr = LoROM_OFFSET_ADR
+	End If
+	
+	model->rom.isLoROM = TRUE
+	model->rom.init_cb = NULL
+	model->rom.next_cb = NULL
+	model->rom.exit_cb = NULL
 
-	SFTWnd_SetTitleBox(index, VarPtr(slot) )
-
-	Dim info As StringClass
-	info.sprintf(ex"%s Infomation:\r\n", SFT_SLOT_NAME_TABLE[index])
-	SFTurboRomHeaderToString(VarPtr(info), VarPtr(slot) )
-	SFTurboSramHeaderToString(VarPtr(info), VarPtr(slot), VarPtr(sram) )
-
-	SetWindowText(SFTWnd(EditBox1), info.ptr)
-End Sub
-
-Sub SFTurbo_RB_SLOT_A_Click()
-	OnSelectSlot(0)
-End Sub
-
-Sub SFTurbo_RB_SLOT_B_Click()
-	OnSelectSlot(1)
-End Sub
-
-Sub SFTurbo_Create(ByRef CreateStruct As CREATESTRUCT)
-	hFont_InfoBox=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,50,"MS Gothic")
-	SendMessage(SFTWnd(EditBox1),WM_SETFONT,hFont_InfoBox As WPARAM,0)
-End Sub
+	model->sram.adr      =  SFT_SRAM_OFFSET_TABLE[index]
+	model->sram.bankStep =  &H010000
+	model->sram.bankSize =  &H008000
+	model->sram.ctrlBus  =  CBUS_RST
+	'BIOS混合に対応するならnextをカスタムしてやる必要がある
+End Function

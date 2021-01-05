@@ -2,12 +2,12 @@
 ' SRAM Memory Model
 '---------------------------
 
-Typedef SfcMmcInitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO) As BOOL
-Typedef SfcMmcNextAddressFunc = *Function(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
-Typedef SfcMmcExitFunc = *Function(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+Typedef SfcMmcInitFunc = *Function(hCOM AS HANDLE) As BOOL
+Typedef SfcMmcNextAddressFunc = *Function(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
+Typedef SfcMmcExitFunc = *Function(hCOM AS HANDLE, romBuffer As BytePtr)
 ' romBufferは、SA1の先頭バイトが削れる問題に対処するためつける
 
-Typedef SfcMmcSramNextAddressFunc = *Function(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+Typedef SfcMmcSramNextAddressFunc = *Function(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
 
 Const SFC_SRAM_MODEL_LENGTH = 3 'sizeof(SFC_SRAM_MODEL)/4-1
 Type SFC_ROM_MODEL
@@ -250,16 +250,16 @@ End Function
 '------------------------------
 
 ' ============== common memory mapping LoROM/HiROM =============
-Function LoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function LoROM_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	LoROM_nextAddress = adr + readSize
 	if (LoROM_nextAddress And &HFFFF) < &H8000 Then LoROM_nextAddress += &H8000
 End Function
 
-Function HiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function HiROM_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	HiROM_nextAddress = adr + readSize
 End Function
 
-Function SramGeneric_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+Function SramGeneric_nextAddress(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
 	SramGeneric_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
 End Function
 
@@ -267,7 +267,7 @@ End Function
 
 
 ' ============== SpLoROM =============
-Function SpLoROM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function SpLoROM_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	SpLoROM_nextAddress = adr + readSize
 	if (SpLoROM_nextAddress And &HFFFF) < &H8000 Then SpLoROM_nextAddress += &H8000
 	
@@ -281,7 +281,7 @@ End Function
 
 
 ' ============== ExHiROM =============
-Function ExHiROM_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function ExHiROM_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	ExHiROM_nextAddress = adr + readSize
 	' $C0:0000～$FF:FFFFまで吸ったら次は$40:0000～$7F:FFFF
 	if ExHiROM_nextAddress > &HFFFFFF Then ExHiROM_nextAddress = &H400000
@@ -299,7 +299,7 @@ Function SDD1_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
 	SDD1_init = TRUE
 End Function
 
-Function SDD1_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function SDD1_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	SDD1_nextAddress = adr + readSize
 	If SDD1_nextAddress > &HFFFFFF Then
 		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
@@ -348,7 +348,7 @@ Function SA1_SRAM_WRITE_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
 	SA1_SramInit(hSerial)
 End Function
 
-Function SA1_SRAM_WRITE_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+Function SA1_SRAM_WRITE_nextAddress(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
 	SA1_SramBankSel(hSerial, bank As Byte)
 	SA1_SRAM_WRITE_nextAddress = mmodel->sram.adr
 End Function
@@ -428,7 +428,7 @@ Function SPC7110_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
 	SPC7110_init = TRUE
 End Function
 
-Function SPC7110_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function SPC7110_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	SPC7110_nextAddress = adr + readSize
 	If SPC7110_nextAddress > &HFFFFFF Then
 		'ROMバンク0-3を吸い出したので、4-7バンクを吸い出す
@@ -604,13 +604,13 @@ Sub XBAND_LedBlink(hSerial As HANDLE)
 	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, reg, FALSE)
 End Sub
 
-Function XBAND_nextAddress(hSerial AS HANDLE, info As *SFC_CART_INFO, adr AS DWord, readSize AS DWord) As DWord
+Function XBAND_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
 	if (adr And &H020000) And ((adr and &HFFFF)=&H8000) Then XBAND_LedBlink(hSerial)
 
-	XBAND_nextAddress = HiROM_nextAddress(hSerial, info, adr, readSize)
+	XBAND_nextAddress = HiROM_nextAddress(hSerial, adr, readSize)
 End Function
 
-Function XBAND_SRAM_nextAddress(hSerial As HANDLE, info As *SFC_CART_INFO, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
+Function XBAND_SRAM_nextAddress(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
 	XBAND_LedBlink(hSerial)
 	XBAND_SRAM_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
 End Function

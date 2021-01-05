@@ -118,13 +118,13 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	Do 
 		if default_baudrates[i] <> 0 Then
 			wsprintf(buf, "%d", default_baudrates[i])
-			SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf)
+			SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf As Long)
 		Else
 			wsprintf(buf, "%d", baudrate)
-			if SendMessage(MWnd(EditBox6), CB_FINDSTRING, 0, buf) = CB_ERR Then
-				SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf)
+			if SendMessage(MWnd(EditBox6), CB_FINDSTRING, 0, buf As Long) = CB_ERR Then
+				SendMessage(MWnd(EditBox6), CB_ADDSTRING, 0, buf As Long)
 			endif
-			SendMessage(MWnd(EditBox6), CB_SELECTSTRING, 0, buf)
+			SendMessage(MWnd(EditBox6), CB_SELECTSTRING, 0, buf As Long)
 			ExitDo
 		endif
 		i++
@@ -297,7 +297,7 @@ Sub ConnectDevice()
 	
 	GetDlgItemText(hMainWnd, ComList, buf, 1024)
 	txCom = buf
-	DBMf("Connecting to %s...",txCom)
+	DBMf("Connecting to %s...",txCom As DWord)
 	for i=0 To 10
 		if txCom[i] = 0 Then ExitFor
 		if txCom[i] = &H20 Then
@@ -536,6 +536,11 @@ Sub MainWnd_CommandButton3_Click()
 		ExitSub
 	End If
 
+	if info.SramSize=0 Then 
+		DBM("SRAM size is zero.")
+		ExitSub
+	End If
+
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",info.Title)
 	If path=0 Then ExitSub
@@ -563,7 +568,7 @@ Sub MainWnd_CommandButton3_Click()
 	Dim pc AS *SramProgressCallBack 
 	pc = new_SramProgressCallBack(VarPtr(mmap), FALSE)
 
-	DumpSRAM(hCOM, VarPtr(info), VarPtr(mmap), sram,  pc As *ProgressCallBack)
+	DumpSRAM(hCOM, sram, info.SramSize, VarPtr(mmap), pc As *ProgressCallBack)
 
 	delete_SramProgressCallBack(pc)
 	DBM(ex"SRAM dumping successful!!!\r\n")
@@ -591,6 +596,11 @@ Sub MainWnd_CommandButton4_Click()
 		ExitSub
 	End If
 	
+	if info.SramSize=0 Then 
+		DBM("SRAM size is zero.")
+		ExitSub
+	End If
+
 	If info.isFlashSave Then
 		ErrMes(hMainWnd, "フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "未実装", 0)
 		If (GetKeyState(VK_ESCAPE) And &H80) = 0 Then exitsub
@@ -636,7 +646,7 @@ Sub MainWnd_CommandButton4_Click()
 	pc = new_SramProgressCallBack(VarPtr(mmap), TRUE)
 
 	DBM("Writing SRAM...")
-	WriteSRAM(hCOM, VarPtr(info), VarPtr(mmap), writeBuffer, pc)
+	WriteSRAM(hCOM, writeBuffer, info.SramSize, VarPtr(mmap), pc)
 
 	delete_SramProgressCallBack(pc)
 
@@ -645,7 +655,7 @@ Sub MainWnd_CommandButton4_Click()
 	Dim verifyBuffer As BytePtr, diffPos AS DWord
 	verifyBuffer = calloc(info.SramSize)
 	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
-	DumpSRAM(hCOM, VarPtr(info),  VarPtr(mmap), verifyBuffer, NULL)
+	DumpSRAM(hCOM, verifyBuffer, info.SramSize,  VarPtr(mmap), NULL)
 	if compareBinaly(verifyBuffer, writeBuffer, info.SramSize, VarPtr(diffPos)) Then
 		DBM("OK")
 		DBM(ex"SRAM writing successful!!!\r\n")
@@ -687,7 +697,7 @@ Function compareBinaly(dat1 AS BytePtr, dat2 AS BytePtr,length aS DWord)( pos As
 	compareBinaly=TRUE
 End Function
 
-Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As BytePtr) As BytePtr
+Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As BytePtr,filterIndex As *DWord) As BytePtr
 	Dim tOfn As OPENFILENAME, i As DWord
 	
 	'ファイルオープン構造体の初期化
@@ -699,7 +709,7 @@ Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As ByteP
 	tOfn.Flags = OFN_OVERWRITEPROMPT
 	tOfn.lpstrDefExt = StrPtr(ext)'"wav"
 	tOfn.lpstrFile = calloc(MAX_PATH + 10)
-	If defFileName<>0 Then lstrcpy(tOfn.lpstrFile, defFileName)
+	If defFileName Then lstrcpy(tOfn.lpstrFile, defFileName)
 	
 	'ファイルオープンダイアログを表示する
 	If GetSaveFileName(tOfn) = 0 Then
@@ -709,6 +719,8 @@ Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As ByteP
 	SaveDialogCalloc = calloc(lstrlen(tOfn.lpstrFile) + 1)
 	lstrcpy(SaveDialogCalloc, tOfn.lpstrFile)
 	free(tOfn.lpstrFile)
+
+	if filterIndex Then SetDWord(filterIndex,tOfn.nFilterIndex)
 End Function
 
 Function LoadDialogCalloc(filter As BytePtr, ext As String) As BytePtr
@@ -1525,7 +1537,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	FillMemory(rom, info->RomSize, &HDD)
 	
 	Dim ret AS Long
-	ret = DumpRom2(hCOM, info, VarPtr(mmapModel), rom, pc)
+	ret = DumpRom2(hCOM, rom, info->RomSize, VarPtr(mmapModel), pc)
 	outFile.write(rom, info->RomSize)	
 
 	Dim time AS DWord
