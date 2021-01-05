@@ -19,21 +19,29 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 
 ## 対応カートリッジについて / Surpported Carts
 対応状況は以下の通りです。
- * [OK] LoROM
- * [OK] HiROM
- * [OK] SuperFX
- * [OK] DSP1
- * [OK] SFメモリカセット / NP FLASH Cart(SF Memory)
- * [OK] 特殊LoROM (ダビスタ96) / Special LoROM(3MB)
- * [OK] 8Mメモリパック / Satellaview 8M data pack
- * [OK] ExHiROM
- * [OK] S-DD1
- * [OK] SA-1
- * [OK] SPC7110
- * [OK] ST018 (Game ROM, BIOS[Program, Data]に対応)
- * [OK] CX4
- * [OK] XBAND
-  
+
+| Type               | Example Game      | ROM Dump | ROM Write | SRAM Dump | SRAM Write | Remarks |
+| ------------------ | ----------------- | -------- | --------- | --------- | ---------- | ------- |
+| LoROM　※1         | SHVC-MW / SHVC-FO | ○       | -         | ○        | ○         | DSPn, SuperFX, SGB BIOS, SFTurbo BIOSなどもLoROM |
+| HiROM              | SHVC-ACTJ         | ○       | -         | ○        | ○         |                          |
+| ExHiROM            | SHVC-ATVJ         | ○       | -         | ○        | ○         |                          |
+| SA-1               | SHVC-AKFJ         | ○       | -         | ○        | ○         | クロックモジュール回路が必要 | 
+| SDD-1              | SHVC-ARFJ         | ○       | -         | ○        | ○         |                          |
+| SPC7110            | SHVC-AZRJ         | ○       | -         | ○        | ○         | クロックモジュール回路が必要 | 
+| CX4                | SHVC-ARXJ         | ○       | -        | -         | -          |                          |
+| SpecialLoROM (3MB) | SHVC-ZDBJ         | ○       | -         | ○        | ○         |                          |
+| BS-X               | SHVC-ZBSJ         | ○       | -         | ○        | ○         |                          |
+| 8Mメモリーパック   | BSMC-HM-JPN       | ○       | ☓        | -         | -          |                          |
+| JRA PAT            | SHVC-TJCJ         | ○       | -         | ○        | ☓         | SRAMの代わりにFlash | 
+| ST010 / ST011      | SHVC-E2 / SHVC-2M | ○       | -         | -         | -          | ST011は動作未確認 | 
+| ST018              | SHVC-A2MJ         | ○       | -         | ○        | ○         | BIOS Dump:○ | 
+| MX15001            | SFメモリカセット  | ○       | ☓        | ○        | ○         |                          |
+| XBAND              | XBAND             | ○       | -        | ○        | ○         |                          |
+| SFTurbo BaseCart   | SHVC-A9PJ         | ○       | -        | -        | -         |                          |
+| SFTurbo MiniCart   | SFT-0104         | ○       | -        | ○        | ○         |                          |
+
++ 凡例 ○：対応　/　☓：非対応　/　-：無関係
+
 「クロックモジュール回路」を追加すると以下のことができるようになります。
  * SA-1 ROM Dump, SRAM Read, SRAM Write
  * SPC7110 Dump, SRAM Read, SRAM Write
