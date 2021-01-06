@@ -248,7 +248,6 @@ Sub SFTurbo_CommandButton2_Click()
 	MessageBeep(MB_ICONASTERISK)
 End Sub
 
-
 Sub SFTurbo_CommandButton3_Click()
 	Dim inFile As File
 	Dim index As Long

@@ -69,7 +69,7 @@ End Sub
 
 Sub ResetDBM()
 	SetWindowText(MWnd(EditBox1),"")
-	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016-2020.\r\nThis program is third-party impremention of HongKongArduino.\r\nOrg Copyright (C) 2014 ‚½‚É‚â‚Ü\r\n")
+	DBM(ProgramName+" "+VerStr+ex"\r\nProgrammed by RGBA_CRT 2016-2021.\r\nThis program is third-party impremention of HongKongArduino.\r\nOrg Copyright (C) 2014 ‚½‚É‚â‚Ü\r\n")
 End Sub
 
 

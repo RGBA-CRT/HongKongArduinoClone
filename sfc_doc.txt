@@ -170,6 +170,7 @@ SDD1はREFRESHをLowにしたら安定したからクロック不要かも
 ------------
 SPC7110のセーブについて
 　ほんこんに活線挿抜すると(私の環境では)確実にSRAMの中身が飛ぶ
+	→セーブ用コイン電池切れでした
 　飛ばないようにする手順↓
 
 ダンプ：
@@ -478,20 +479,22 @@ https://twitter.com/LuigiBlood/status/1345369665086873602
 /*
 TODO: リファクタリング
 	[OK]ヘッダの構造体を正規化
-	[  ]関数の分け方をもう一度考え直そう
-	[  ]SRAMのMEMORY_MODELをROMにも
+	[OK]関数の分け方をもう一度考え直そう
+	[OK]SRAMのMEMORY_MODELをROMにも
 		ROM　START
 		ROM　MODEL（LO/Hi) // LoHiの区別、ヘッダの表示にしか使わなくなった, 廃止 or nextがNULLのとき、LoHiを自動決定(APIとしてはそっちのが完成度高いかも, SRAM違いやコプロのせいでMAPMODE分けられてるのもあるわけだし)
+	[保]isLoROM廃止 ... MemoryModelへ追いやるところまで実施
 
 	[OK]PROGRESS CALLBACKを使う
 	[OK]Chips文字列の生成は関数化する
 	[PR]リファクタリング, あとBSとウィンドウ関連
 	[OK]Dump.メモリにしてチェックサムとファイルをウィンドウ持ちにしろ
-	[  ]Flash対応
+	[  ]Flash対応(SFMemory, 8M Meomory Pack, JRA_PAT, SST39SF040)
 	[OK]SRAMベリファイ
 	[OK]自動ボーレート調整->初回失敗時のメッセージに変更
-	[  ]スーファミターボ
+	[OK]スーファミターボ
 	[OK]XBAND
+	[  ]ファームウェア作り直し
 */
 
 /*

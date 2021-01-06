@@ -1,9 +1,9 @@
 /*-------------------------------------------------------------------------------------
-					HongKongArduino 高速版 [2018/08/29] 
-					HongKongArduinoClone version 1.0b
+					HongKongArduino 高速版 [2021/01/06] 
+					HongKongArduinoClone version 2.0
 	
 	オリジナルの作者 : (c) 2014 たにやま  [http://hongkongarduino.web.fc2.com/]
-	　高速版作者者　 : 2016-2018 RGBA_CRT [rgba3crt1p@gmail.com]
+	　高速版作者者　 : 2016-2021 RGBA_CRT [rgba3crt1p@gmail.com]
 -------------------------------------------------------------------------------------*/
 
 ◇概要
@@ -155,3 +155,4 @@
 	[2018/07/18]ver 0.9 - SA-1追加回路修正, サテラビューに対応
 	[2018/08/24]ver 1.0 - SRAMリードライトを改善, UIを改善, 正式版
     [2018/08/24]ver 1.0b- SA1の認識率向上
+    [2021/01/06]ver 2.0 - ST018のBIOSの吸出しに対応, ROM情報強化, CX4対応, JRA PAT対応, XBNAD対応, SufamiTurbo対応, ST01x対応, リファクタリング

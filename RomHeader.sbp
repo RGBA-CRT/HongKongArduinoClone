@@ -482,7 +482,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	Dim info AS StringClass
 	info.allocStr(HEADER_INFO_TEXT_LEN)
 
-	info.cat(ex"==== Cartridge infomation ====")
+	info.cat(ex"\r\n==== Cartridge infomation ====")
 	info.sprintf(ex"\r\n- Title: %s ", header->Title As DWord)
 	
 	Dim publisher_text AS BytePtr
@@ -550,7 +550,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	If header->isBSX Then	info.cat(ex"\r\nBS Memory Slot detected.")
 	If header->hasExtraHeader Then	info.cat(ex"\r\nExtra Header detected.")
 
-	info.cat(ex"\r\n\r\n")
+	info.cat(ex"\r\n")
 	
 
 	Dim copy_size AS SIZE_T

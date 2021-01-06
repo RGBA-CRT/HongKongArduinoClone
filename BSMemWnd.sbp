@@ -182,17 +182,20 @@ Sub BSMemWnd_CommandButton3_Click()
 	info = calloc(sizeof(BSM_MEMPACK_INFO))
 	BSM_GetMemPackInfo(info)
 	
-	Dim mpstatus AS BytePtr
+	Dim mpstatus[15] AS Byte
 	If info->MP = &H504D Then
-		mpstatus = "OK"
+		lstrcpy(mpstatus,"OK (..)")
 	Else
-		mpstatus = "NG"
+		lstrcpy(mpstatus,"NG (..)")
 	End If
+	if (info->MP And &H00FF) >= &H20 Then mpstatus[4] = (info->MP) As Byte
+	if (info->MP >> 8) >= &H20 Then mpstatus[5] = (info->MP >> 8) As Byte
+	
 	If SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) = BSM_SLOT_SA1 Then
 		DBM("MemoryPackInfo is not supported on SA-1")
 	Else
-		DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s (%c%c)\r\n FlashType : %d\r\n Capacity  : %dKB\r\n", _
-			(mpstatus) As DWord, (info->MP) As DWord, (info->MP>>8) As DWord, (info->DeviceInfo>>4) As DWord, _
+		DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s\r\n FlashType : %d\r\n Capacity  : %dKB\r\n", _
+			mpstatus As DWord, (info->DeviceInfo>>4) As DWord, _
 			(1 << (info->DeviceInfo And &H0F) ) As DWord
 		))
 	End If
@@ -200,7 +203,7 @@ Sub BSMemWnd_CommandButton3_Click()
 	Dim typeNumber AS Long
 	typeNumber = info->DeviceInfo>>4
 	
-	If typeNumber>1 And typeNumber<4 Then
+	If typeNumber>=1 And typeNumber<=4 Then
 		SendMessage(BSMWnd(BSM_MT), CB_SETCURSEL, typeNumber -1, 0)
 	Else If headerList[0]<>NULL Then
 		If lstrcmpi(headerList[0]->raw.title, "‚³‚ß‚ª‚ß‚q‚n‚lI") = 0 Then
