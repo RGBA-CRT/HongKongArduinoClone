@@ -50,7 +50,7 @@ Function DumpRom2(hSerial As HANDLE, rom As BytePtr, dump_size As DWord, mmodel 
 	retryLimit = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
 	bufferSize = GetDumpBufferSize()
 
-	If dump_size < bufferSize Then  DBMf("RomSize:0x%08X < bufferSize:0x%08X", dump_size, bufferSize):ExitFunction
+	If dump_size < bufferSize Then  DBMf("RomSize:%08Xh < bufferSize:%08Xh", dump_size, bufferSize):ExitFunction
 
 	' 初期アドレスセット
 	currentAddress = mmodel->rom.adr
@@ -91,7 +91,11 @@ Function DumpRom2(hSerial As HANDLE, rom As BytePtr, dump_size As DWord, mmodel 
 		Else If ret<>bufferSize Then
 			retry++
 			If progress Then progress->ErrorRetry(retry, retryLimit)
-			If retry>retryLimit Then DumpRom2=HKAC_DUMPROM_RETRY_OVER:Goto *EXIT_DUMP2
+			If retry>retryLimit Then
+				DBM("Too many error count.")
+				DumpRom2=HKAC_DUMPROM_RETRY_OVER
+				Goto *EXIT_DUMP2
+			Endif
 			Continue
 		Else
 			retry=0

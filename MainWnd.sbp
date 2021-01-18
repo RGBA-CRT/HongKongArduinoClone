@@ -661,7 +661,7 @@ Sub MainWnd_CommandButton4_Click()
 		DBM(ex"SRAM writing successful!!!\r\n")
 		MessageBeep(MB_ICONASTERISK)
 	Else
-		DBMf(ex"NG at 0x%08X", diffPos)
+		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
 		printf(ex"=== write ===\n")
 		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32)
@@ -1052,6 +1052,7 @@ Function Lo2Hi(Adr As DWord) As DWord
 End Function
 */
 
+Const SMC_HEADER_SIZE = &H200
 Sub MainWnd_DropFiles(hDrop As HDROP)
 	Dim buf[MAX_PATH] As Byte
 	Dim i as long
@@ -1065,16 +1066,28 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	
 	Dim file AS File, header As SFC_CART_HEADER, cartInfo AS SFC_CART_INFO
 	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
-	
-	'ヘッダ位置候補 HiROM,LoROM,HiROM(ヘッダ付き),LoROM(ヘッダ付き)
-	Dim headerAdrs[4] = [&H7FB0, &HFFB0, &H7FB0 + &H200, &HFFB0 + &H200] AS DWord
-	For i = 0 To 3
+
+	'ヘッダ位置候補
+	Dim headerAdrs[6] = [
+		&H40FFB0, _ ' ExHiROM (FFC0にもチェックサムが空のヘッダがあるので最優先）
+		&H007FB0, _	' HiROM
+		&H00FFB0, _	' LoROM
+		&H40FFB0 + SMC_HEADER_SIZE, _ 'SMCヘッダ付きoffset
+		&H007FB0 + SMC_HEADER_SIZE, _
+		&H00FFB0 + SMC_HEADER_SIZE _
+	] AS DWord
+
+	For i = 0 To 5
+		if headerAdrs[i] > file.length() Then continue
 		file.setFilePtr(headerAdrs[i])
 		file.read(VarPtr(header), SFC_SPEC_HEADER_SIZE)
 		SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
 		
 		If isSnesHeader(VarPtr(cartInfo)) = TRUE Then ExitFor
 	Next i
+
+	Dim withSmcHeader As BOOL
+	if i >= 3 Then withSmcHeader=TRUE
 	
 	
 	If isSnesHeader(VarPtr(cartInfo)) = FALSE Then
@@ -1082,7 +1095,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 		MessageBeep(MB_ICONEXCLAMATION)
 		ExitSub
 	Else
-		DBM("Found header at 0x" + Hex$(headerAdrs[i]))
+		DBMf("Found header at %08Xh",headerAdrs[i])
 	End If
 	
 	SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
@@ -1092,16 +1105,24 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	GenerateHeaderInfoText(VarPtr(cartInfo), infotext, HEADER_INFO_TEXT_LEN)
 	DBM(infotext)
 
-#ifdef _DEBUG
-	Dim rombuf As BytePtr
+'#ifdef _DEBUG
+	Dim rombuf As BytePtr, romLen AS DWord
 	rombuf = calloc(file.length())
-	file.setFilePtr(0)
-	file.read(rombuf, file.length())
-	DBMf("checksum: ACT=%04X, HED=%04X", CalcSnesChecksum(VarPtr(cartInfo), rombuf, file.length()), cartInfo.CheckSum2)
+
+	romLen=file.length()
+	if withSmcHeader then
+		file.setFilePtr(SMC_HEADER_SIZE)
+		romLen-=SMC_HEADER_SIZE
+	Else
+		file.setFilePtr(0)
+	End If
+
+	file.read(rombuf, romLen)
+	DBMf("checksum: ACT=%04Xh, HED=%04Xh", CalcSnesChecksum(VarPtr(cartInfo), rombuf, romLen), cartInfo.CheckSum2)
 	free(rombuf)
 	file.close()
 
-#endif
+'#endif
 End Sub
 
 

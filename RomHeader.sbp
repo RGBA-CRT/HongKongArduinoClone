@@ -52,14 +52,14 @@ Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE__NUM] = [
 	"LoROM"				,
 	"HiROM"				,
 	"ExHiROM"			,
-	"SA-1 HiROM"		,
+	"SA-1"				,
 	"S-DD1"				,
 	"SPC7110"			,
 	"XBAND BIOS"		,
 	"Sufami Turbo"		,
 	"SpecialLoROM"		,
-	"LoROM (BS-X)"		,
-	"LoROM (JRA PAT)"	,
+	"BS-X"				,
+	"LoROM + FlashSave" ,
 	"LoROM with ST018 "	,
 	"LoROM with ST010 "	,
 	"MX15001 (SFメモリ)",
@@ -110,7 +110,7 @@ Type Align(1) SFC_CART_HEADER
 	RomSize 	AS Byte
 	SramSize 	AS Byte
 	CountryID	AS Byte
-	OldMakerCode As Byte	'33h固定のはずだが、そうでないものも多い
+	OldMakerCode As Byte
 	Version		As Byte
 	Checksum1	AS Word
 	Checksum2 	As Word
@@ -345,13 +345,13 @@ Dim SFC_COUNTRY_LABEL[SFC_COUNTRY__NUM] = [
 	"[C] China"			,
 	"[-] Indonesia"		,
 	"[K] South Korea"	,
-	"[A] Common (0x0E)"	,
+	"[A] Common (0Eh)"	,
 	"[N] Canada"		,
 	"[B] Brazil"		,
 	"[U] Australia"		,
-	"[X] Other (0x12)"	,
-	"[Y] Other (0x13)"	,
-	"[Z] Other (0x14)"	,
+	"[X] Other (12h)"	,
+	"[Y] Other (13h)"	,
+	"[Z] Other (14h)"	,
 	"[ ] Unknown"	
 ] AS BytePtr
 
@@ -500,7 +500,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	End If
 
 	info.sprintf(ex"\r\n- Version  : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
-	info.sprintf(ex"\r\n- Checksum : 0x%04X, 0x%04X", header->CheckSum2, header->CheckSum1)
+	info.sprintf(ex"\r\n- Checksum : %04Xh ~= %04Xh", header->CheckSum2, header->CheckSum1)
 
 	Dim model AS SFC_MMAP_MODEL, lastbank As DWord
 	GetMmapModel(header, FALSE, VarPtr(model)) 
@@ -517,9 +517,9 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	Dim chipset_text AS BytePtr
 	chipset_text = GetChipsetString(header)
 	if lstrlen(chipset_text) < 15 Then
-		info.sprintf(ex"\r\n- Chipset : 0x%02X %s", header->Chipset, chipset_text As DWord)
+		info.sprintf(ex"\r\n- Chipset : %02Xh %s", header->Chipset, chipset_text As DWord)
 	Else
-		info.sprintf(ex"\r\n- Chipset : 0x%02X\r\n - %s", header->Chipset, chipset_text As DWord)
+		info.sprintf(ex"\r\n- Chipset : %02Xh\r\n - %s", header->Chipset, chipset_text As DWord)
 	End If
 
 	info.cat(ex"\r\n- SaveType: ")
@@ -543,7 +543,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 
 	If header->hasExtraHeader Then
 		if header->rawHeader.SpecialVer <> 0 Then
-			info.sprintf(ex"\r\n- SpecialVersion: 0x%02X", header->rawHeader.SpecialVer)
+			info.sprintf(ex"\r\n- SpecialVersion: %02Xh", header->rawHeader.SpecialVer)
 		Endif
 	End If
 
@@ -608,9 +608,18 @@ End Function
 'チェックサム計算（ROM単位）
 Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr, size As DWord) AS Word
 	CalcSnesChecksum = SumSnesChecksum(rom, size) As Word
-
+	
 	if (info->MapType = SFC_MAP_SpLoROM) And (info->RomSize = 3*1024*1024) And size = info->RomSize Then
-		'3MBの時はラスト8Mbitを再加算
+		'Special LoROM 3MBの時はラスト8Mbitを再加算
 		CalcSnesChecksum += SumSnesChecksum(rom+1024*1024*2, 1024*1024)
+
+	Else if (info->RomSize = 4*1024*1024) And (size = 3*1024*1024) Then	
+		'ファイルからロード時 3MBのとき
+		CalcSnesChecksum += SumSnesChecksum(rom+1024*1024*2, 1024*1024)
+
+	Elseif (info->RomSize = 8*1024*1024) And (size = 6*1024*1024) Then	
+		'ExHiROM (6MB)　の時もラスト16MBitを再加算
+		CalcSnesChecksum += SumSnesChecksum(rom+4*1024*1024, 2*1024*1024 As DWord)
 	End If
+
 End Function

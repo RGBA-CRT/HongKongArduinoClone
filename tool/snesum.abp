@@ -15,9 +15,10 @@ EndType
 
 Const SFC_SPEC_HEADER_ADDR_LoROM=&H7FC0
 Const SFC_SPEC_HEADER_ADDR_HiROM=&HFFC0
+Const SFC_SPEC_HEADER_ADDR_ExHiROM=&H40FFC0
 
 
-Print "SNES CHECKSUM UPDATER v0.1  RGBA_CRT 2018"
+Print "SNES CHECKSUM UPDATER v0.2  RGBA_CRT 2017-2020"
 Print
 
 Dim snes AS File
@@ -42,17 +43,26 @@ buf=calloc(snes.length())
 snes.read(buf,snes.length())
 
 Dim header_adr AS DWord
-if isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_LoROM) Then
-	header_adr=SFC_SPEC_HEADER_ADDR_LoROM
-	Print "MAP:LoROM"
-Elseif isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_HiROM) Then
-	header_adr=SFC_SPEC_HEADER_ADDR_HiROM
-	Print "MAP:HiROM"
+if snes.length()>&H400000 Then
+	if isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_ExHiROM) then
+		header_adr=SFC_SPEC_HEADER_ADDR_ExHiROM
+		Print "MAP:ExHiROM"
+	Else
+		Goto *CheckNormal
+	endif
 Else
-	Print "not snes rom"
-	end
+	*CheckNormal
+	if isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_LoROM) Then
+		header_adr=SFC_SPEC_HEADER_ADDR_LoROM
+		Print "MAP:LoROM"
+	Elseif isSnesHeader(buf+SFC_SPEC_HEADER_ADDR_HiROM) Then
+		header_adr=SFC_SPEC_HEADER_ADDR_HiROM
+		Print "MAP:HiROM"
+	Else
+		Print "not snes rom"
+		end
+	End If
 End If
-
 
 Dim header AS *SFC_CART_HEADER,title[21] AS Byte
 header=buf+header_adr

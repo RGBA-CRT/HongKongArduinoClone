@@ -7,7 +7,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3038 As BytePtr, "Capcom", 
 	&H3039 As BytePtr, "HOT B", 
 	&H3041 As BytePtr, "Jaleco", 
-	&H3042 As BytePtr, "STORM (Sales Curve) (1)", 
+	&H3042 As BytePtr, "COCONUTS Japan",  'Œ³‘cƒpƒ`ƒ“ƒR‰¤", 
 	&H3046 As BytePtr, "Mebio Software", 
 	&H3132 As BytePtr, "Gremlin Graphics", 
 	&H3135 As BytePtr, "COBRA Team", 
@@ -107,7 +107,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4344 As BytePtr, "Meldac/KAZe", 
 	&H4345 As BytePtr, "PONY CANYON", 
 	&H4346 As BytePtr, "Sotsu Agency", 
-	&H434B As BytePtr, "AXELA",	'Œ¶‘z—·’c
+	&H434B As BytePtr, "AXELA",
 	&H4431 As BytePtr, "Sofel", 
 	&H4432 As BytePtr, "Quest Corp.", 
 	&H4433 As BytePtr, "Sigma", 

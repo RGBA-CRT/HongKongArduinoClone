@@ -312,7 +312,7 @@ Sub SFTurbo_CommandButton3_Click()
 		DBM(ex"SFTurbo SRAM write successful.\r\n")
 		MessageBeep(MB_ICONASTERISK)
 	Else
-		DBMf(ex"NG at 0x%08X", diffPos)
+		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
 		printf(ex"=== write ===\n")
 		Dump(sram_buf+(diffPos And &HFFFFFFF0), 32)

@@ -264,7 +264,7 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 		Else
 			status.cat(ex"may be deleted\r\n   unknown status.")
 			Dump(header As BytePtr,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
-			Print "-GUIDE-- |BlockAlloca|§ ŒÀ|Œ|“ú|}|Šø|33|Šg|cksum|/sum |"
+			PrintPtr("-GUIDE-- |BlockAlloca|§ ŒÀ|Œ|“ú|}|Šø|33|Šg|cksum|/sum |")
 		End If
 	End if
 
