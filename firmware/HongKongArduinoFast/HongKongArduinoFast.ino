@@ -134,7 +134,7 @@ inline void setData(byte b)
 inline void setFF(byte ch, byte b)
 {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
-  PORTB &= ~0b00001000 << ch;
+  PORTB &= ~(0b00001000 << ch);
   setData(b);
 
   // digitalWrite(CK, HIGH);

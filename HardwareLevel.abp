@@ -66,15 +66,20 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 End Function
 
 'RST OE WE CS などを制御
-Sub SendControl(hSerial AS HANDLE,b AS Byte)
+Function SendControl(hSerial AS HANDLE,b AS Byte) As BOOL
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then DBM("CTL_ERR "+Str$(GetLastError())):debug
-End Sub
+	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then 
+		DBM("CTL_ERR "+Str$(GetLastError()))
+		SendControl=FALSE
+	Else
+		SendControl = TRUE
+	endif
+End Function
 
 'アドレスセット
-Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
+Function SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte) As BOOL
 	Dim cmd[7] AS Byte
 	Dim ReadByte As DWord
 	Dim dwReadByte As DWord
@@ -91,8 +96,13 @@ Sub SetAddress(hSerial AS HANDLE,address AS DWord, isLoROM AS Byte)
 	cmd[2] = (address >>  8) AS Byte
 	cmd[3] = (address >> 16) AS Byte
 
-	WriteFile(hSerial,cmd,4,VarPtr(dwReadByte),ByVal NULL)
-End Sub
+	if WriteFile(hSerial,cmd,4,VarPtr(dwReadByte),ByVal NULL)=FALSE or dwReadByte<>4 Then 
+		DBM("CTL_ERR "+Str$(GetLastError()))
+		SetAddress=FALSE
+	Else
+		SetAddress = TRUE
+	endif
+End Function
 
 'カートリッジからのデータ受信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり

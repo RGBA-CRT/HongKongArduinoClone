@@ -1,10 +1,10 @@
 'source from http://devster.monkeeh.com/6502/snesrom.html
 
-Const SNES_LICENCE_LIST_NUM = 133
+Const SNES_LICENCE_LIST_NUM = 137
 Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3031 As BytePtr, "Nintendo", 
 	&H3035 As BytePtr, "Zamuse", 
-	&H3038 As BytePtr, "Capcom", 
+	&H3038 As BytePtr, "Capcom", 	'ロックマンX2
 	&H3039 As BytePtr, "HOT B", 
 	&H3041 As BytePtr, "Jaleco", 
 	&H3042 As BytePtr, "COCONUTS Japan",  '元祖パチンコ王", 
@@ -12,7 +12,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3132 As BytePtr, "Gremlin Graphics", 
 	&H3135 As BytePtr, "COBRA Team", 
 	&H3136 As BytePtr, "Human/Field", 
-	&H3138 As BytePtr, "Hudson Soft", 
+	&H3138 As BytePtr, "Hudson Soft", 'HU TENGAI MAKYO ZERO
 	&H3141 As BytePtr, "Yanoman", 
 	&H3143 As BytePtr, "Tecmo (1)", 
 	&H3145 As BytePtr, "Forum", 
@@ -21,6 +21,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3231 As BytePtr, "Tokai Engeneering (SUNSOFT?)", 
 	&H3232 As BytePtr, "POW", 
 	&H3233 As BytePtr, "Loriciel / Micro World", 
+	&H3234 As BytePtr, "KONAMI", 
 	&H3236 As BytePtr, "Enix", 
 	&H3238 As BytePtr, "Kemco (1)", 
 	&H3239 As BytePtr, "Seta Co.,Ltd.", 
@@ -70,16 +71,16 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3842 As BytePtr, "Bullet-Proof Software", 
 	&H3843 As BytePtr, "Vic Tokai", 
 	&H3846 As BytePtr, "I'Max", 
-	&H3931 As BytePtr, "CHUN SOFT", 
+	&H3931 As BytePtr, "CHUN SOFT", 	' FURAI NO SIREN
 	&H3932 As BytePtr, "Video System Co., Ltd.", 
 	&H3933 As BytePtr, "BEC", 
 	&H3937 As BytePtr, "Kaneco", 
-	&H3939 As BytePtr, "Pack in Video", 
+	&H3939 As BytePtr, "Pack in Video", 	' SUPER OFFROAD
 	&H3941 As BytePtr, "Nichibutsu", 
 	&H3942 As BytePtr, "TECMO (2)", 
 	&H3943 As BytePtr, "Imagineer Co.", 
 	&H4130 As BytePtr, "Wolf Team", 
-	&H4134 As BytePtr, "Konami", 
+	&H4134 As BytePtr, "Konami", '悪魔城ドラキュラ
 	&H4135 As BytePtr, "K.Amusement", 
 	&H4137 As BytePtr, "Takara", 
 	&H4139 As BytePtr, "Technos Jap. ????", 
@@ -87,9 +88,10 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4143 As BytePtr, "Toei Animation", 
 	&H4144 As BytePtr, "Toho", 
 	&H4146 As BytePtr, "Namcot/Namco Ltd. (2)", 
+	&H4230 As BytePtr, "Acclaim", ' MORTAL KOMBAT
 	&H4231 As BytePtr, "ASCII", 
 	&H4232 As BytePtr, "BanDai", ' Bandai Americaとなっていたが国内もそうだった。スーファミターボで確認
-	&H4234 As BytePtr, "Enix", 
+	&H4234 As BytePtr, "Enix", 	 ' スターオーシャン, DQ6
 	&H4236 As BytePtr, "Namco", 
 	&H4241 As BytePtr, "Culture Brain", 
 	&H4242 As BytePtr, "Sunsoft", 
@@ -98,22 +100,23 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4246 As BytePtr, "Sammy", 
 	&H4330 As BytePtr, "Taito", 
 	&H4332 As BytePtr, "Kemco (3) ????", 
-	&H4333 As BytePtr, "Square", 
+	&H4333 As BytePtr, "Square", 'ロマサガ２
 	&H4334 As BytePtr, "NHK", 
-	&H4335 As BytePtr, "Data East", 
-	&H4336 As BytePtr, "Tonkin House", 
+	&H4335 As BytePtr, "Data East", 'メタルマックス２
+	&H4336 As BytePtr, "Tonkin House",  'Ys3
 	&H4338 As BytePtr, "KOEI", 
 	&H4341 As BytePtr, "Konami USA", 
 	&H4344 As BytePtr, "Meldac/KAZe", 
 	&H4345 As BytePtr, "PONY CANYON", 
 	&H4346 As BytePtr, "Sotsu Agency", 
 	&H434B As BytePtr, "AXELA",
+	&H4430 As BytePtr, "TAITO", ' エストポリス伝記
 	&H4431 As BytePtr, "Sofel", 
 	&H4432 As BytePtr, "Quest Corp.", 
 	&H4433 As BytePtr, "Sigma", 
 	&H4436 As BytePtr, "Naxat", 
 	&H4438 As BytePtr, "Capcom Co., Ltd. (2)", 
-	&H4439 As BytePtr, "Banpresto", 
+	&H4439 As BytePtr, "BANPRESTO", 	' 学校であった怖い話
 	&H4442 As BytePtr, "Hiro", 
 	&H4444 As BytePtr, "NCS", 
 	&H4445 As BytePtr, "Human Entertainment", 
@@ -123,16 +126,17 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4534 As BytePtr, "T&ESoft", 
 	&H4535 As BytePtr, "EPOCH Co.,Ltd.", 
 	&H4537 As BytePtr, "Athena", 
-	&H4538 As BytePtr, "Asmik", 
+	&H4538 As BytePtr, "Asmik", ' SUPER AIR DIVER    
 	&H4539 As BytePtr, "Natsume", 
 	&H4541 As BytePtr, "King/A Wave", 
-	&H4542 As BytePtr, "Atlus", 
+	&H4542 As BytePtr, "Atlus", ' 魔神転生
 	&H4543 As BytePtr, "Sony Music", 
 	&H4545 As BytePtr, "Psygnosis / igs", 
 	&H4633 As BytePtr, "Beam Software", 
 	&H4634 As BytePtr, "Tec Magik", 
 	&H4646 As BytePtr, "Hudson Soft",
-	&H454A As BytePtr, "NTT Data",
+	&H454A As BytePtr, "NTT Data",		' JRA-PAT
+	&H414A As BytePtr, "PIONEER LDC",	' ﾊﾞｳﾝﾃｨｿｰﾄﾞ
 	&H0000 AS BytePtr, NULL
 ] As BytePtr
 '↑のリストはビッグエンディアンなので注意

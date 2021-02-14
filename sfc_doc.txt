@@ -594,6 +594,17 @@ Enum SFC_MAP_TYPE
 	SFC_MAP_CX4_1DC0N ' ロックマンX3, 16Mbit ROM x1
 	SFC_MAP_TYPE__NUM
 End Enum
+*/
 
+/*
+	' 一応OldMakerCode=0x33をチェック
+	if header->hasExtraHeader Then
+		if header->rawHeader.OldMakerCode <> &H33 Then
+			DBM("invalid header: ExtraHeader flag is not 33h")
+		End If
+	End If
+	
+	ExtraHeaderは0x33ではなくMaker＋GameIDがASCIIかどうかで判定している。
+	→SUFAMI TURBOなどでOldMakerCode=0x00、拡張ヘッダありというものがあった
 
 */

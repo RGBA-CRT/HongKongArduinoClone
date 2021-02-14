@@ -166,7 +166,7 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 			ExitFor
 		End If
 	Next i
-	
+
 	' 拡張ヘッダの情報セット
 	If info->hasExtraHeader Then
 		info->MakerCode = data->MakerCode
@@ -500,6 +500,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	End If
 
 	info.sprintf(ex"\r\n- Version  : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
+	info.sprintf(ex"\r\n- Region   : %s", GetCountryString(header->Country))
 	info.sprintf(ex"\r\n- Checksum : %04Xh ~= %04Xh", header->CheckSum2, header->CheckSum1)
 
 	Dim model AS SFC_MMAP_MODEL, lastbank As DWord
@@ -512,7 +513,8 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 			fastrom[header->isFastRom And 1] 	As DWord, _
 			lohi[model.rom.isLoROM And 1]		As DWord)
 
-	info.sprintf(ex"\r\n- Mapping : %s", GetMappingString(header->MapType) As DWord)
+	' ダイアログの左に表示されているので削る（BSXだと表示があふれる）
+	' info.sprintf(ex"\r\n- Mapping : %s", GetMappingString(header->MapType) As DWord)
 
 	Dim chipset_text AS BytePtr
 	chipset_text = GetChipsetString(header)
@@ -549,6 +551,11 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 
 	If header->isBSX Then	info.cat(ex"\r\nBS Memory Slot detected.")
 	If header->hasExtraHeader Then	info.cat(ex"\r\nExtra Header detected.")
+
+	if header->CheckSum1 <> ((NOT(header->CheckSum2)) And &HFFFF) Then
+		info.cat(ex"\r\ninvalid header: checksum is incorrect.")
+	End If
+
 
 	info.cat(ex"\r\n")
 	

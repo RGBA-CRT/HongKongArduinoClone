@@ -315,6 +315,10 @@ Sub ConnectDevice()
 *RECONNECT
 	'connect and reset ボーレート
 	hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
+	if hCOM=NULL Then 
+		ErrMes(hMainWnd, "シリアルポートを開けませんでした。","Failed to open port", MB_OK,GetLastError())
+		goto * HKAF_CON_ERR
+	End If
 
 *RESET_ARDUINO
 	FlushCom(hCOM)
@@ -912,18 +916,24 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
 	
 '	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
-	SendControl(hCOM,CBUS_DEFAULT)	'default
+	if SendControl(hCOM,CBUS_DEFAULT)=FALSE Then	'default
+		Goto *GCI_ERR
+	End If
 
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
-		lstrcpy(info->Title,"[ERR]通信エラー")
-		SetCartInfo(info)
-		ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
-		DisconnectDevice()
-		ExitSub
+		Goto *GCI_ERR
 	End If
 	SloveCartInfo(buf As *SFC_CART_HEADER,info)
 
 	getCartInfo = TRUE
+	ExitFunction
+
+*GCI_ERR
+	lstrcpy(info->Title,"[ERR]通信エラー")
+	SetCartInfo(info)
+	ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
+	DisconnectDevice()
+	ExitSub
 End Function
 
 Function getSelectedMapMode() AS Long
@@ -1120,9 +1130,9 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	file.read(rombuf, romLen)
 	DBMf("checksum: ACT=%04Xh, HED=%04Xh", CalcSnesChecksum(VarPtr(cartInfo), rombuf, romLen), cartInfo.CheckSum2)
 	free(rombuf)
+'#endif
 	file.close()
 
-'#endif
 End Sub
 
 
