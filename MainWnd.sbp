@@ -9,7 +9,8 @@
 Dim hCOM As HANDLE
 Dim DlgStatus As DLG_STATUS
 Dim fWindowActive AS BOOL
-
+Dim hMinimizeRomTool As HANDLE
+Dim MinimizeRomTool As TOOLINFO
 Dim isFirstBaudrateError=FALSE As BOOL
 
 'ダイアログの状態
@@ -133,8 +134,15 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	wsprintf(buf, "%s %s", ProgramName, VerStr)
 	SetWindowText(hMainWnd, buf)
 
+	' set monoscape font
 	hFont_LogBox=CreateFont(-12,0,0,0,400,0,0,0,128,3,2,1,50,"MS Gothic")
 	SendMessage(GetDlgItem(hMainWnd,EditBox1),WM_SETFONT,hFont_LogBox As WPARAM,0)
+
+	InitCommonControls()
+	CreateTooltip(MWnd(CB_MINIMIZE_ROM), VarPtr(hMinimizeRomTool), VarPtr(MinimizeRomTool), "Detect an overdump and trim ROM automatically.")
+
+	' trim default
+	SetCheckBox(MWnd(CB_MINIMIZE_ROM), TRUE)
 End Sub
 
 
@@ -407,6 +415,8 @@ Sub SetDlgEnable(Mode As DLG_STATUS)
 	EnableWindow(MWnd(ROM_SIZE), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(SRAM_SIZE), NOT(isEnable) And &H01)
 	EnableWindow(MWnd(CB_MANUAL), NOT(isEnable) And &H01)
+'	EnableWindow(MWnd(CB_MINIMIZE_ROM), NOT(isEnable) And &H01)
+	
 	
 	If Mode = STATUS_DUMPING Then
 		EnableWindow(MWnd(CommandButton5), FALSE)
@@ -1064,6 +1074,7 @@ End Function
 
 Const SMC_HEADER_SIZE = &H200
 Sub MainWnd_DropFiles(hDrop As HDROP)
+	Dim file AS File, out As File, outPath AS FilePath
 	Dim buf[MAX_PATH] As Byte
 	Dim i as long
 	
@@ -1074,7 +1085,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	Loop
 	DragFinish(hDrop)
 	
-	Dim file AS File, header As SFC_CART_HEADER, cartInfo AS SFC_CART_INFO
+	Dim header As SFC_CART_HEADER, cartInfo AS SFC_CART_INFO
 	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
 
 	'ヘッダ位置候補
@@ -1129,6 +1140,30 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 
 	file.read(rombuf, romLen)
 	DBMf("checksum: ACT=%04Xh, HED=%04Xh", CalcSnesChecksum(VarPtr(cartInfo), rombuf, romLen), cartInfo.CheckSum2)
+
+	if GetCheckBox(MWnd(CB_MINIMIZE_ROM)) Then
+		Dim trimRomSize As DWord
+		trimRomSize = checkRomTrimmable(rombuf,romLen)
+
+		if trimRomSize>0 Then
+			if MessageBoxf(hMainWnd, "Trim ROM", MB_YESNO or MB_ICONQUESTION,_
+				ex"This ROM is trimmable.\n%d KB -> %d KB\nDo you want to trim ROM?", (romLen/1024) As DWord, (trimRomSize/1024) As DWord) = IDYES Then
+				outPath.cat(file.path.GetPath())
+				outPath.deleteExtension()
+				outPath.cat("_trim.sfc")
+
+				if out.openFile(outPath.GetPath(), GENERIC_WRITE) = TRUE Then
+					out.write(rombuf, trimRomSize)
+					out.close()
+					DBMf("Saved file to: %s", outPath.GetFileName() As DWord)
+				Else
+					DBM("write file error.")
+				End If
+
+			End If
+		End If
+	End If
+
 	free(rombuf)
 '#endif
 	file.close()
@@ -1548,6 +1583,7 @@ End Sub
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack
 	Dim outFile AS File
+	Dim outputRomSize AS DWord
 
 	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
 		DBM("File open error")
@@ -1565,11 +1601,11 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 
 	Dim rom as BytePtr
 	rom = calloc( info->RomSize )
-	FillMemory(rom, info->RomSize, &HDD)
-	
+	FillMemory(rom, info->RomSize, &HDD)	
+	outputRomSize = info->RomSize
+
 	Dim ret AS Long
 	ret = DumpRom2(hCOM, rom, info->RomSize, VarPtr(mmapModel), pc)
-	outFile.write(rom, info->RomSize)	
 
 	Dim time AS DWord
 	time = pc->GetProcessTime()
@@ -1584,6 +1620,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 			DBMf(ex"Speed : %d byte/sec", speed)
 		End If
 
+		' calc checksum
 		Dim actualSum AS Word
 		actualSum = CalcSnesChecksum(info, rom, info->RomSize )
 		DBMf("HeaderSum: %04X, %04X", info->CheckSum2, info->CheckSum1)
@@ -1601,6 +1638,15 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 			DBM("checksum is disabled.")
 		End if
 
+		' trim rom
+		if GetCheckBox(MWnd(CB_MINIMIZE_ROM)) Then
+			Dim trimRomSize As DWord 
+			trimRomSize = checkRomTrimmable(rom, outputRomSize)
+			if trimRomSize > 0 Then 
+				outputRomSize = trimRomSize
+			End If
+		End If
+
 	Else if ret = HKAC_DUMPROM_USER_CANCEL Then
 		DBM("Canceled by user.")
 
@@ -1610,6 +1656,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 
 	DBMN(ex"\r\n")
 
+	outFile.write(rom, outputRomSize)
 	outFile.close()
 	free(rom)
 	delete_DumpRomProgressCallBack(pc)
@@ -1704,5 +1751,9 @@ Sub MainWnd_EditBox66_Change()
 End Sub
 
 Sub MainWnd_EditBox6_EditChange()
+
+End Sub
+
+Sub MainWnd_CB_MINIMIZE_ROM_Click()
 
 End Sub

@@ -3,7 +3,8 @@
 
 
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v2.0" 'FlashSaveRead対応, ST018BIOS, CX4, ボーレートメッセージ追加, ST010 save, リファクタリング, ROM情報強化, XBAND対応, BSのヘッダルーチン強化, スーファミターボ対応
+Const VerStr = "v2.1α"
+'2.0 'FlashSaveRead対応, ST018BIOS, CX4, ボーレートメッセージ追加, ST010 save, リファクタリング, ROM情報強化, XBAND対応, BSのヘッダルーチン強化, スーファミターボ対応
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 
