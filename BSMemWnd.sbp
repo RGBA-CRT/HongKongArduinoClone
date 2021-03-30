@@ -273,7 +273,7 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	Dim virtualHeader As SFC_CART_INFO, mmap AS SFC_MMAP_MODEL
 	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
-	If BSM_genHeaderList(TRUE, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
+	If BSM_genHeaderList(BSM_HANDLE_SERIAL, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
 		DBM(ex"MemoryPack is not working...\r\n")
 		SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Empty)" As Long)
@@ -300,7 +300,7 @@ Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Loop
 	DragFinish(hDrop)
 	
-	If BSM_genHeaderList(FALSE, buf, 0, FALSE) = FALSE Then
+	If BSM_genHeaderList(BSM_HANDLE_FILEPATH, buf, 0, FALSE) = FALSE Then
 		DBM("This is not BS Memory Image File.")
 		ExitSub
 	End If

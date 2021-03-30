@@ -329,35 +329,61 @@ Enum SFC_COUNTRY
 	SFC_COUNTRY__NUM
 End Enum
 
-' ↑のラベル
-Dim SFC_COUNTRY_LABEL[SFC_COUNTRY__NUM] = [
-	"[J] Japan"			,
-	"[E] USA"			,
-	"[P] Europe"		,
-	"[W] Sweden"		,
-	"[-] Finland"		,
-	"[-] Denmark"		,
-	"[F] France"		,
-	"[H] Holland"		,
-	"[S] Spain"			,
-	"[D] Germany"		,
-	"[I] Italy"			,
-	"[C] China"			,
-	"[-] Indonesia"		,
-	"[K] South Korea"	,
-	"[A] Common (0Eh)"	,
-	"[N] Canada"		,
-	"[B] Brazil"		,
-	"[U] Australia"		,
-	"[X] Other (12h)"	,
-	"[Y] Other (13h)"	,
-	"[Z] Other (14h)"	,
-	"[ ] Unknown"	
+' ↑のラベル, 決まってない国コードはISO 3166-1から
+Dim SFC_COUNTRY_LABEL[SFC_COUNTRY__NUM*2+2] = [
+	"J",	"Japan"			,
+	"E",	"USA"			,
+	"P",	"Europe"		,
+	"W",	"Sweden"		,
+	"FIN",	"Finland"		,
+	"DNK",	"Denmark"		,
+	"F",	"France"		,
+	"H",	"Holland"		,
+	"S",	"Spain"			,
+	"D",	"Germany"		,
+	"I",	"Italy"			,
+	"C",	"China"			,
+	"IDN",	"Indonesia"		,
+	"K",	"South Korea"	,
+	"A",	"Common (0Eh)"	,
+	"N",	"Canada"		,
+	"B",	"Brazil"		,
+	"U",	"Australia"		,
+	"X",	"Other (12h)"	,
+	"Y",	"Other (13h)"	,
+	"Z",	"Other (14h)"	,
+	"?",	"Unknown"	
 ] AS BytePtr
 
 Function GetCountryString(country_code AS Byte) As BytePtr
 	if country_code >= SFC_COUNTRY__NUM Then country_code = SFC_COUNTRY__NUM
-	GetCountryString = SFC_COUNTRY_LABEL[country_code]
+	GetCountryString = SFC_COUNTRY_LABEL[country_code*2+1]
+End Function
+
+Function GetCountryCodeString(country_code AS Byte) As BytePtr
+	if country_code >= SFC_COUNTRY__NUM Then country_code = SFC_COUNTRY__NUM
+	GetCountryCodeString = SFC_COUNTRY_LABEL[country_code*2]
+End Function
+
+Enum SPECIAL_ROM_TYPE
+	SPECIAL_ROM_TYPE_NORMAL = 0
+	SPECIAL_ROM_TYPE_NP
+End Enum
+
+Function MakeRomFileName(buf As BytePtr, buflen As Long, info As *SFC_CART_INFO, special As SPECIAL_ROM_TYPE) As Long
+	Dim rom_title[MAX_PATH] AS Byte
+	Dim ver As Long
+	ver = 10 + (info->Version) As Long
+
+	wsprintf(rom_title, "%s (%s) (V%d.%d)", 
+		info->Title, GetCountryCodeString(info->Country), ver / 10, ver Mod 10)
+
+	if special = SPECIAL_ROM_TYPE_NP then
+		lstrcat(rom_title, " (NP)")
+	End If
+
+	memcpy(buf, rom_title, buflen-1)
+	buf[buflen-1] = 0
 End Function
 
 Function GetMappingString(maptype AS Long) As BytePtr
@@ -500,7 +526,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	End If
 
 	info.sprintf(ex"\r\n- Version  : %d.%d", (1+header->Version/10) As DWord, header->Version Mod 10)
-	info.sprintf(ex"\r\n- Region   : %s", GetCountryString(header->Country) As DWord)
+	info.sprintf(ex"\r\n- Region   : %02Xh %s/[%s]", header->Country, GetCountryString(header->Country) As DWord, GetCountryCodeString(header->Country) As DWord)
 	info.sprintf(ex"\r\n- Checksum : %04Xh ~= %04Xh", header->CheckSum2, header->CheckSum1)
 
 	Dim model AS SFC_MMAP_MODEL, lastbank As DWord
@@ -550,15 +576,19 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	End If
 
 	If header->isBSX Then	info.cat(ex"\r\nBS Memory Slot detected.")
-	If header->hasExtraHeader Then	info.cat(ex"\r\nExtra Header detected.")
+'	If header->hasExtraHeader Then	info.cat(ex"\r\nExtra Header detected.")
 
 	if header->CheckSum1 <> ((NOT(header->CheckSum2)) And &HFFFF) Then
 		info.cat(ex"\r\ninvalid header: checksum is incorrect.")
 	End If
 
-
 	info.cat(ex"\r\n")
-	
+
+#ifdef _DEBUG
+	Dim filenametest[124] AS BytePtr
+	MakeRomFileName(filenametest, 124, header,0)
+	info.cat(filenametest)	
+#endif
 
 	Dim copy_size AS SIZE_T
 	if text_len < info.length() Then
@@ -584,6 +614,7 @@ Function isSnesHeader(header As * SFC_CART_INFO) As BOOL
 	GetChipsetString(header, VarPtr(isKnown))
 	If isKnown = FALSE Then GoTo * ISH_ERR
 
+	if header->Country >= SFC_COUNTRY__NUM then GoTo * ISH_ERR
 	
 	isSnesHeader = TRUE
 	ExitFunction
@@ -627,7 +658,7 @@ Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr, size As DWord)
 
 		'trim済みっぽいとき
 		if size = quarterSize*3 Then
-			DBM("[CalcSnesChecksum] trimmed?")
+			'DBM("[CalcSnesChecksum] trimmed?")
 			CalcSnesChecksum += SumSnesChecksum(rom+quarterSize*2, quarterSize)
 		End If
 	End If

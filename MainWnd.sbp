@@ -142,7 +142,7 @@ Sub MainWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	CreateTooltip(MWnd(CB_MINIMIZE_ROM), VarPtr(hMinimizeRomTool), VarPtr(MinimizeRomTool), "Detect an overdump and trim ROM automatically.")
 
 	' trim default
-	SetCheckBox(MWnd(CB_MINIMIZE_ROM), TRUE)
+	SetCheckBox(MWnd(CB_MINIMIZE_ROM), GetPrivateProfileInt(ProgramName, "TrimRomEnable", DEFAULT_TRIM_ENABLE, INIFILE_PATH))
 End Sub
 
 
@@ -484,9 +484,11 @@ Sub MainWnd_CommandButton2_Click()
 		ExitSub
 	End If
 '	info.RomSize = &H400000	'debug
+	Dim rom_title[MAX_PATH] As Byte
+	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)	
 
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", info.Title)
+	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", rom_title)
 	If path=0 Then ExitSub
 #else
 	path="dump.sfc"
@@ -515,29 +517,39 @@ Sub MainWnd_QueryClose(ByRef cancel As Integer)
 	SaveIniFile()
 End Sub
 
+
 Sub SaveIniFile()
-	Dim ratestr As BytePtr, Tmp As DWord
+	Dim Tmp As DWord
+	Const TEXTBUFSIZE  = 255
+	Dim textbuf[TEXTBUFSIZE+1] As Byte
+
+	GetWindowText(MWnd(EditBox6), textbuf, TEXTBUFSIZE)
+	WritePrivateProfileString(ProgramName, "BaudRate", textbuf, INIFILE_PATH)
 	
-	ratestr = GetWndTextMalloc(MWnd(EditBox6))
-	WritePrivateProfileString(ProgramName, "BaudRate", ratestr, INIFILE_PATH)
-	free(ratestr)
-	
-	ratestr = GetWndTextMalloc(MWnd(ComList))
-	WritePrivateProfileString(ProgramName, "LastDevice", ratestr, INIFILE_PATH)
-	free(ratestr)
-	
+	GetWindowText(MWnd(ComList), textbuf, TEXTBUFSIZE)
+	WritePrivateProfileString(ProgramName, "LastDevice", textbuf, INIFILE_PATH)
+
 	Tmp = GetPrivateProfileInt(ProgramName, "DumpErrorRetryLimit", DEFAULT_CONTINUE, INIFILE_PATH)
-	WritePrivateProfileString(ProgramName, "DumpErrorRetryLimit", Str$(Tmp), INIFILE_PATH)
+	wsprintf(textbuf, "%d", Tmp)
+	WritePrivateProfileString(ProgramName, "DumpErrorRetryLimit", textbuf, INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "QDDSize", DEFAULT_QDD_BUFSIZE, INIFILE_PATH)
 	If Tmp = 0 Then Tmp = DEFAULT_QDD_BUFSIZE
-	WritePrivateProfileString(ProgramName, "QDDSize", Str$(Tmp), INIFILE_PATH)
+	wsprintf(textbuf, "%d", Tmp)
+	WritePrivateProfileString(ProgramName, "QDDSize", textbuf, INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
 	If Tmp <= 0 Then Tmp = DEFAULT_DUMP_SIZE
-	WritePrivateProfileString(ProgramName, "DumpBufferSize", Str$(Tmp), INIFILE_PATH)
+	wsprintf(textbuf, "%d", Tmp)
+	WritePrivateProfileString(ProgramName, "DumpBufferSize", textbuf, INIFILE_PATH)
 	
-	WritePrivateProfileString(ProgramName, "RxTimeoutMargine", Str$(HKAC_RX_TIMEOUT_MARGIN), INIFILE_PATH)
+	Tmp = GetPrivateProfileInt(ProgramName, "SoundEnable", DEFAULT_SOUND_ENABLE, INIFILE_PATH)
+	wsprintf(textbuf, "%d", Tmp)
+	WritePrivateProfileString(ProgramName, "SoundEnable", textbuf, INIFILE_PATH)
+
+	Tmp = GetCheckBox(MWnd(CB_MINIMIZE_ROM))
+	wsprintf(textbuf, "%d", Tmp)
+	WritePrivateProfileString(ProgramName, "TrimRomEnable", textbuf, INIFILE_PATH)
 End Sub
 
 Sub MainWnd_CommandButton3_Click()
@@ -555,8 +567,11 @@ Sub MainWnd_CommandButton3_Click()
 		ExitSub
 	End If
 
+	Dim rom_title[MAX_PATH] As Byte
+	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)	
+	
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",info.Title)
+	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",rom_title)
 	If path=0 Then ExitSub
 #else
 	path="dump.srm"
@@ -1073,22 +1088,10 @@ Function Lo2Hi(Adr As DWord) As DWord
 End Function
 */
 
-Const SMC_HEADER_SIZE = &H200
-Sub MainWnd_DropFiles(hDrop As HDROP)
-	Dim file AS File, out As File, outPath AS FilePath
-	Dim buf[MAX_PATH] As Byte
-	Dim i as long
-	
-	DBM("ROM File Infomation : ")
-	Do
-		If DragQueryFile(hDrop, i, buf, MAX_PATH) = 0 Then Exit Do
-		i++
-	Loop
-	DragFinish(hDrop)
-	
+Function ShowRomHeader(file AS *File) As BOOL
 	Dim header As SFC_CART_HEADER, cartInfo AS SFC_CART_INFO
-	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
-
+	Dim i As Long
+	
 	'ヘッダ位置候補
 	Dim headerAdrs[6] = [
 		&H40FFB0, _ ' ExHiROM (FFC0にもチェックサムが空のヘッダがあるので最優先）
@@ -1100,9 +1103,9 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	] AS DWord
 
 	For i = 0 To 5
-		if headerAdrs[i] > file.length() Then continue
-		file.setFilePtr(headerAdrs[i])
-		file.read(VarPtr(header), SFC_SPEC_HEADER_SIZE)
+		if headerAdrs[i] > file->length() Then continue
+		file->setFilePtr(headerAdrs[i])
+		file->read(VarPtr(header), SFC_SPEC_HEADER_SIZE)
 		SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
 		
 		If isSnesHeader(VarPtr(cartInfo)) = TRUE Then ExitFor
@@ -1111,13 +1114,12 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	Dim withSmcHeader As BOOL
 	if i >= 3 Then withSmcHeader=TRUE
 	
-	
 	If isSnesHeader(VarPtr(cartInfo)) = FALSE Then
-		DBM(ex"ROM Header not found!\r\n")
-		MessageBeep(MB_ICONEXCLAMATION)
-		ExitSub
+		ShowRomHeader=FALSE
+		ExitFunction
 	Else
-		DBMf("Found header at %08Xh",headerAdrs[i])
+		DBMf("ROM header found at %08Xh",headerAdrs[i])
+		if withSmcHeader then DBM("SMC header 512 bytes found.")
 	End If
 	
 	SloveCartInfo(VarPtr(header), VarPtr(cartInfo))
@@ -1126,21 +1128,26 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	Dim infotext[HEADER_INFO_TEXT_LEN] As Byte
 	GenerateHeaderInfoText(VarPtr(cartInfo), infotext, HEADER_INFO_TEXT_LEN)
 	DBM(infotext)
+	ShowRomChecksum(file, VarPtr(cartInfo), withSmcHeader)
 
-'#ifdef _DEBUG
+	ShowRomHeader=TRUE
+End Function
+
+Sub ShowRomChecksum(file AS *File, cartInfo AS *SFC_CART_INFO, withSmcHeader AS BOOL)
+	Dim out As File, outPath AS FilePath
 	Dim rombuf As BytePtr, romLen AS DWord
-	rombuf = calloc(file.length())
 
-	romLen=file.length()
+	romLen=file->length()
 	if withSmcHeader then
-		file.setFilePtr(SMC_HEADER_SIZE)
+		file->setFilePtr(SMC_HEADER_SIZE)
 		romLen-=SMC_HEADER_SIZE
 	Else
-		file.setFilePtr(0)
+		file->setFilePtr(0)
 	End If
+	rombuf = calloc(romLen)
 
-	file.read(rombuf, romLen)
-	DBMf("checksum: ACT=%04Xh, HED=%04Xh", CalcSnesChecksum(VarPtr(cartInfo), rombuf, romLen), cartInfo.CheckSum2)
+	file->read(rombuf, romLen)
+	DBMf("checksum: ACT=%04Xh, HED=%04Xh", CalcSnesChecksum(cartInfo, rombuf, romLen), cartInfo->CheckSum2)
 
 	if GetCheckBox(MWnd(CB_MINIMIZE_ROM)) Then
 		Dim trimRomSize As DWord
@@ -1149,7 +1156,7 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 		if trimRomSize>0 Then
 			if MessageBoxf(hMainWnd, "Trim ROM", MB_YESNO or MB_ICONQUESTION,_
 				ex"This ROM is trimmable.\n%d KB -> %d KB\nDo you want to trim ROM?", (romLen/1024) As DWord, (trimRomSize/1024) As DWord) = IDYES Then
-				outPath.cat(file.path.GetPath())
+				outPath.cat(file->path.GetPath())
 				outPath.deleteExtension()
 				outPath.cat("_trim.sfc")
 
@@ -1166,6 +1173,55 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	End If
 
 	free(rombuf)
+End Sub
+
+Function ShowSftRomHeader(file AS *File) AS BOOL
+	Dim info As StringClass
+	Dim sft As SFT_ROM_HEADER
+	file->setFilePtr(0)
+	file->read(VarPtr(sft), sizeof(SFT_ROM_HEADER))
+
+	if IsSlotEmpty(VarPtr(sft)) Then
+		ShowSftRomHeader=FALSE
+		ExitFunction
+	End If
+
+	DBM(ex"SFTurbo ROM Header found!")
+	SFTurboRomHeaderToString(VarPtr(info), VarPtr(sft))
+	DBM(info.ptr)
+
+	ShowSftRomHeader=TRUE
+End Function
+
+Const SMC_HEADER_SIZE = &H200
+Sub MainWnd_DropFiles(hDrop As HDROP)
+	Dim file AS File
+	Dim buf[MAX_PATH] As Byte
+	Dim i as long
+	
+	Do
+		If DragQueryFile(hDrop, i, buf, MAX_PATH) = 0 Then Exit Do
+		i++
+	Loop
+	DragFinish(hDrop)
+	
+	If file.openFile(buf, GENERIC_READ) = FALSE Then ExitSub
+
+	DBM(ex"")
+	if ShowRomHeader(VarPtr(file)) = FALSE Then
+		if ShowSftRomHeader(VarPtr(file)) = FALSE Then 
+			if BSM_genHeaderList(BSM_HANDLE_FILE, file.getHandle(), 0, FALSE) then
+				DBM(ex"Satellaview File Header found!\r\n")
+				BSM_open()	
+				BSM_listupFiles()
+			Else
+				DBM(ex"ROM Header not found!")
+				MessageBeep(MB_ICONEXCLAMATION)
+			End If
+		End If
+	Endif
+'#ifdef _DEBUG
+
 '#endif
 	file.close()
 
@@ -1571,7 +1627,7 @@ Sub MainWnd_CommandButton18_Click()
 	if busbit=0 then busbit=1
 
 	Dim data As Byte, adr As DWord
-	data = busbit>>24
+	data = (busbit>>24) AS Byte
 	adr = busbit And &HFFFFFF
 	DBMf("Set 0x%06X: %02x",adr,data)
 

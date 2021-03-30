@@ -511,7 +511,7 @@ Sub SFTurboRomHeaderToString(str As *StringClass, header As *SFT_ROM_HEADER)
 	End If
 
 	str->sprintf( _
-		ex"- Magic : %s\r\n- Title : %s\r\n- GameID: %08Xh (Series No.%d)\r\n", _
+		ex"- Magic : %s\r\n- Title : %s\r\n- GameID: %08Xh\r\n - Series No.%d\r\n", _
 		header->magic As DWord, header->title As DWord, _
 		ChangeEndianDW2(header->game_id) As DWord, (header->game_id >> 24) As DWord _
 	)

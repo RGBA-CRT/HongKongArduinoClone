@@ -116,17 +116,25 @@ Const BSM_SLOT_MAX = 8
 Const BSM_CAP_MAX = 1024*1024
 Dim headerList[BSM_SLOT_MAX+1] AS *BSM_FILE_INFO
 
-Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
+Enum BSM_HANDLE_MODE
+	BSM_HANDLE_FILEPATH
+	BSM_HANDLE_FILE
+	BSM_HANDLE_SERIAL
+End Enum
+
+Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
 	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long,nextOffset AS DWord
 	Dim file AS File
-	If isSerial=FALSE Then file.openFile(path_or_handle,GENERIC_READ)
+	If mode=BSM_HANDLE_FILEPATH Then file.openFile(path_or_handle,GENERIC_READ)
 
 	curAdr=baseAddress
 	while (curAdr-baseAddress) < BSM_CAP_MAX
-		If isSerial Then
+		If mode=BSM_HANDLE_SERIAL Then
 			tmp=BSM_getHeaderFromSerial(path_or_handle,curAdr,isLoROM)		
-		Else
+		Elseif mode = BSM_HANDLE_FILEPATH then
 			tmp=BSM_getHeader(file.getHandle(),curAdr)
+		Else
+			tmp=BSM_getHeader(path_or_handle,curAdr)	
 		End If
 
 		If tmp=NULL Then
@@ -145,7 +153,7 @@ Function BSM_genHeaderList(isSerial AS BOOL,path_or_handle AS VoidPtr,baseAddres
 		curAdr+=nextOffset
 	Wend
 
-	If isSerial=FALSE Then file.close()
+	If mode = BSM_HANDLE_FILEPATH then file.close()
 	
 	'terminate
 	headerList[i]=NULL

@@ -238,6 +238,9 @@ Sub SFMemWnd_CommandButton2_Click()
 	End If
 	SetCartInfo(VarPtr(cartInfo))
 	
+	Dim rom_title[MAX_PATH] As Byte
+	MakeRomFileName(rom_title, MAX_PATH, VarPtr(cartInfo), SPECIAL_ROM_TYPE_NP)	
+
 #ifndef _DEBUG
 	path = SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", cartInfo.Title)
 	if path = 0 Then ExitSub
