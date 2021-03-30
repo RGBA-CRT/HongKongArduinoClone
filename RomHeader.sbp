@@ -104,16 +104,16 @@ Type Align(1) SFC_CART_HEADER
 	SpecialVer	AS Byte
 	ChipsetSub  As Byte
 	'------------------
-	GameTitle[20] As Byte
-	MapMode 	AS Byte
-	Chipset 	AS Byte
-	RomSize 	AS Byte
-	SramSize 	AS Byte
-	CountryID	AS Byte
-	OldMakerCode As Byte
-	Version		As Byte
-	Checksum1	AS Word
-	Checksum2 	As Word
+	GameTitle[20] As Byte	' FFC0h
+	MapMode 	AS Byte		' FFD5h
+	Chipset 	AS Byte		' FFD6h
+	RomSize 	AS Byte		' FFD7h
+	SramSize 	AS Byte		' FFD8h
+	CountryID	AS Byte		' FFD9h
+	OldMakerCode As Byte	' FFDAh
+	Version		As Byte		' FFDBh
+	Checksum1	AS Word		' FFDCh
+	Checksum2 	As Word		' FFDEh
 End Type
 
 

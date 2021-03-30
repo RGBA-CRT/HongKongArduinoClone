@@ -21,6 +21,7 @@
 #include "MemoryMapModel.sbp"
 #include "CartridgeRW.sbp"
 #include "SFTurbo.sbp"
+#include "SoundEffect.abp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

@@ -496,7 +496,7 @@ Sub MainWnd_CommandButton2_Click()
 	ret = DumpFullROM(VarPtr(info), path)
 
 	if ret = HKAC_DUMPROM_OK Then
-		MessageBeep(MB_ICONASTERISK)
+		SE_OK()
 
 	Else
 		if ret = HKAC_DUMPROM_RETRY_OVER Then
@@ -596,7 +596,8 @@ Sub MainWnd_CommandButton3_Click()
 	free(path)
 #endif
 
-	MessageBeep(MB_ICONASTERISK)
+'	MessageBeep(MB_ICONASTERISK)
+	SE_OK()
 
 End Sub
 
@@ -673,7 +674,7 @@ Sub MainWnd_CommandButton4_Click()
 	if compareBinaly(verifyBuffer, writeBuffer, info.SramSize, VarPtr(diffPos)) Then
 		DBM("OK")
 		DBM(ex"SRAM writing successful!!!\r\n")
-		MessageBeep(MB_ICONASTERISK)
+		SE_OK()
 	Else
 		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
@@ -1336,7 +1337,7 @@ Sub MainWnd_CommandButton17_Click()
 	DBM(sprintfStr(ex"CheckSum  : %08X\r\nActualSum : %08X", ST018_CHECKSUM, checksum))
 	If ST018_CHECKSUM = checksum Then
 		DBM(ex"Checksum OK.\r\n")
-		MessageBeep(MB_ICONASTERISK)
+		SE_OK()
 	Else
 		DBM(ex"Checksum NG.\r\nデータが破損しています。\r\nリトライしてください。\r\n")
 		MessageBeep(MB_ICONHAND)
@@ -1565,20 +1566,30 @@ Sub delete_SramProgressCallBack(pc As *SramProgressCallBack)
 	delete pc
 End Sub
 
+Dim busbit As DWord
 Sub MainWnd_CommandButton18_Click()   
-	'READ FILE
-	Dim writeBuffer As BytePtr
-	If fin.openFile("H:\My-File\ROM\SFC\SNESDump\DERBY STALLION 96.sfc", GENERIC_READ) = FALSE Then
-		DBMf("Cannot open file: %s", path As DWord)
-		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
-		Goto *WS_EXIT
-	End If
+	if busbit=0 then busbit=1
 
-	writeBuffer = calloc(fin.length())
-	fin.read(writeBuffer, fin.length())
-	fin.close()
+	Dim data As Byte, adr As DWord
+	data = busbit>>24
+	adr = busbit And &HFFFFFF
+	DBMf("Set 0x%06X: %02x",adr,data)
 
+	SetCartRegister((adr>>16) As Byte,(adr And &HFFFF) AS Word,data, FALSE)
+
+	busbit = busbit<<1
+
+	SE_OK()
 End Sub
+
+Enum HKAC_DUMPROM_RESULT
+	HKAC_DUMPROM_OK = 0
+	HKAC_DUMPROM_COMMERROR
+	HKAC_DUMPROM_RETRY_OVER
+	HKAC_DUMPROM_COPRO_ERROR
+	HKAC_DUMPROM_USER_CANCEL
+	HKAC_DUMPROM_PARAMATER_ERROR
+End Enum
 
 Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack
@@ -1587,11 +1598,13 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 
 	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
 		DBM("File open error")
+		DumpFullROM = HKAC_DUMPROM_PARAMATER_ERROR
 		ExitFunction
 	End If
 
 	if info->RomSize = 0 Then
 		DBM("ROM Size is zero.")
+		DumpFullROM = HKAC_DUMPROM_PARAMATER_ERROR
 		ExitFunction
 	End If
 
@@ -1757,3 +1770,5 @@ End Sub
 Sub MainWnd_CB_MINIMIZE_ROM_Click()
 
 End Sub
+
+
