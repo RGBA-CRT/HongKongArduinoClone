@@ -23,7 +23,7 @@ WINDOW:MainWnd
     ITEM      = Static6,13,154,58,13,"ROM Size : ",&H50000000,&H00000000,11
     ITEM      = Static8,13,181,58,13,"RAM Size : ",&H50000000,&H00000000,11
     ITEM      = CommandButton1,14,206,88,21,"&GetCartInfo",&H50010000,&H00000000,1
-    ITEM      = CommandButton2,108,206,88,21,"Dump&ROM",&H50010000,&H00000000,1
+    ITEM      = CommandButton2,107,207,88,21,"Dump&ROM",&H50010000,&H00000000,1
     ITEM      = CommandButton3,50,233,88,21,"Dump&SRAM",&H50010000,&H00000000,1
     ITEM      = CommandButton4,147,233,88,21,"&WriteSRAM",&H50010000,&H00000000,1
     ITEM      = GroupBox1,254,7,238,213,"Infomation",&H50000007,&H00000000,5

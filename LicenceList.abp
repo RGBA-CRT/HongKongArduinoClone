@@ -6,7 +6,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3035 As BytePtr, "Zamuse", 
 	&H3038 As BytePtr, "Capcom", 	'ロックマンX2
 	&H3039 As BytePtr, "HOT B", 
-	&H3041 As BytePtr, "Jaleco", 
+	&H3041 As BytePtr, "Jaleco", 	' 武田のスーパーカップサッカー
 	&H3042 As BytePtr, "COCONUTS Japan",  '元祖パチンコ王", 
 	&H3046 As BytePtr, "Mebio Software", 
 	&H3132 As BytePtr, "Gremlin Graphics", 
@@ -17,7 +17,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3143 As BytePtr, "Tecmo (1)", 
 	&H3145 As BytePtr, "Forum", 
 	&H3146 As BytePtr, "Park Place Productions / VIRGIN", 
-	&H3230 As BytePtr, "KSS", 
+	&H3230 As BytePtr, "KSS", 	'西陣パチンコ3
 	&H3231 As BytePtr, "Tokai Engeneering (SUNSOFT?)", 
 	&H3232 As BytePtr, "POW", 
 	&H3233 As BytePtr, "Loriciel / Micro World", 
@@ -70,7 +70,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3838 As BytePtr, "DATAM-Polystar", 
 	&H3842 As BytePtr, "Bullet-Proof Software", 
 	&H3843 As BytePtr, "Vic Tokai", 
-	&H3846 As BytePtr, "I'Max", 
+	&H3846 As BytePtr, "I'Max", 	'スーパー競馬
 	&H3931 As BytePtr, "CHUN SOFT", 	' FURAI NO SIREN
 	&H3932 As BytePtr, "Video System Co., Ltd.", 
 	&H3933 As BytePtr, "BEC", 
@@ -87,12 +87,12 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4141 As BytePtr, "JVC", 
 	&H4143 As BytePtr, "Toei Animation", 
 	&H4144 As BytePtr, "Toho", 
-	&H4146 As BytePtr, "Namcot/Namco Ltd. (2)", 
-	&H4230 As BytePtr, "Acclaim", ' MORTAL KOMBAT
-	&H4231 As BytePtr, "ASCII", 
-	&H4232 As BytePtr, "BanDai", ' Bandai Americaとなっていたが国内もそうだった。スーファミターボで確認
-	&H4234 As BytePtr, "Enix", 	 ' スターオーシャン, DQ6
-	&H4236 As BytePtr, "Namco", 
+	&H4146 As BytePtr, "Namcot/Namco Ltd.", 	'スーパーファミスタ
+	&H4230 As BytePtr, "Acclaim", 	' MORTAL KOMBAT
+	&H4231 As BytePtr, "ASCII", 	' ダビスタ
+	&H4232 As BytePtr, "Bandai", 	' Bandai Americaとなっていたが国内もそうだった。スーファミターボで確認
+	&H4234 As BytePtr, "Enix", 	 	' スターオーシャン, DQ6
+	&H4236 As BytePtr, "HAL Laboratory,inc.", 	'カードマスターリムサリアの封印
 	&H4241 As BytePtr, "Culture Brain", 
 	&H4242 As BytePtr, "Sunsoft", 
 	&H4243 As BytePtr, "Toshiba EMI/System Vision", 
@@ -123,7 +123,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4446 As BytePtr, "Ringler Studios", 
 	&H4530 As BytePtr, "K.K. DCE / Jaleco", 
 	&H4532 As BytePtr, "Sotsu Agency", 
-	&H4534 As BytePtr, "T&ESoft", 
+	&H4534 As BytePtr, "T&ESoft", 		'ペブルビーチの波涛
 	&H4535 As BytePtr, "EPOCH Co.,Ltd.", 
 	&H4537 As BytePtr, "Athena", 
 	&H4538 As BytePtr, "Asmik", ' SUPER AIR DIVER    
@@ -136,11 +136,13 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H4634 As BytePtr, "Tec Magik", 
 	&H4646 As BytePtr, "Hudson Soft",
 	&H454A As BytePtr, "NTT Data",		' JRA-PAT
-	&H414A As BytePtr, "PIONEER LDC",	' ﾊﾞｳﾝﾃｨｿｰﾄﾞ
+	&H414A As BytePtr, "PIONEER LDC",	' ﾊﾞｳﾝﾃｨｿｰﾄﾞ, ごきんじょ冒険隊
 	&H0000 AS BytePtr, NULL
 ] As BytePtr
 '↑のリストはビッグエンディアンなので注意
 '(手抜き)
+' https://www.gametdb.com/WiiCompanies/
+' todo:ここがネット上で最も詳細？正確？なので必要な情報を持ってくる
 
 Type SNES_LICENCE_CODE
 	id As DWord

@@ -439,12 +439,12 @@ End Function
 Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 '	DBM("PressKey:"+Hex$(KeyCode))
 	Select Case KeyCode
-		Case &H70 : SpeedTest()	'F1
-		Case &H71 : CheckFirmware(hCOM,FALSE,hMainWnd)	'F2
+'		Case &H70 : SpeedTest()	'F1
+'		Case &H71 : CheckFirmware(hCOM,FALSE,hMainWnd)	'F2
 		Case &H74 : ListUpComPort(GetDlgItem(hMainWnd,ComList))
-		Case &H78 : MainWnd_CommandButton12_Click()
-		Case &H7A : MainWnd_CommandButton15_Click()
-		Case &H7B : MainWnd_CommandButton13_Click()
+'		Case &H78 : MainWnd_CommandButton12_Click()
+'		Case &H7A : MainWnd_CommandButton15_Click()
+'		Case &H7B : MainWnd_CommandButton13_Click()
 
 		'(このメッセージはフォーカスが無い状態なので)TABキーが押されたら適当なボタンにフォーカスを当てる
 		'Case VK_TAB : SetFocus( GetNextDlgTabItem(hMainWnd, 0, TRUE))
@@ -483,7 +483,12 @@ Sub MainWnd_CommandButton2_Click()
 		DBM("GetDumpConfig() Error")
 		ExitSub
 	End If
-'	info.RomSize = &H400000	'debug
+
+	if info.RomSize=0 Then 
+		DBM("ROM size is zero.")
+		ExitSub
+	End If
+
 	Dim rom_title[MAX_PATH] As Byte
 	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)	
 
@@ -495,7 +500,7 @@ Sub MainWnd_CommandButton2_Click()
 #endif
 
 	Dim ret AS Long
-	ret = DumpFullROM(VarPtr(info), path)
+	ret = MainWnd_DumpRomToFile(VarPtr(info), NULL, path)
 
 	if ret = HKAC_DUMPROM_OK Then
 		SE_OK()
@@ -694,9 +699,9 @@ Sub MainWnd_CommandButton4_Click()
 		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
 		printf(ex"=== write ===\n")
-		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32)
+		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
 		printf(ex"=== actual ===\n")
-		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32)
+		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
 
 		if retry<HKAC_SRAM_WRITE_RETRY_LIMIT Then 
 			retry++
@@ -908,6 +913,8 @@ Sub SetRomInfoToDlg_FromROM()
 
 	'アクセスランプをLow
 	SetAddress(hCOM,&H000000,FALSE)
+
+	DBM("")
 End Sub
 
 
@@ -1024,18 +1031,6 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 	SetCheckBox(MWnd(CB_MANUAL),bManual)
 
 End Sub	
-
-Function GetCheckBox(Ctrl As HWND) As Byte
-	If SendMessage(Ctrl,BM_GETCHECK,0,0) = BST_CHECKED then
-		GetCheckBox=TRUE
-	Else
-		GetCheckBox=FALSE
-	End If
-End Function
-
-Function SetCheckBox(Ctrl As HWND,bValue As BOOL) As Byte
-	SendMessage(Ctrl,BM_SETCHECK,bValue,bValue)
-End Function
 
 
 Sub MainWnd_CheckBox6_Click()
@@ -1635,7 +1630,11 @@ Sub MainWnd_CommandButton18_Click()
 
 	busbit = busbit<<1
 
-	SE_OK()
+	if data then
+		SE_NG()
+	Else
+		SE_OK()
+	End If
 End Sub
 
 Enum HKAC_DUMPROM_RESULT
@@ -1645,27 +1644,32 @@ Enum HKAC_DUMPROM_RESULT
 	HKAC_DUMPROM_COPRO_ERROR
 	HKAC_DUMPROM_USER_CANCEL
 	HKAC_DUMPROM_PARAMATER_ERROR
+	HKAC_DUMPROM_CHECKSUM_ERROR
 End Enum
 
-Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
-	Dim mmapModel AS SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack
+Function MainWnd_DumpRomToFile(info As * SFC_CART_INFO, mmapModel As *SFC_MMAP_MODEL, Path As BytePtr) As Long
+	Dim pc AS *DumpRomProgressCallBack
 	Dim outFile AS File
 	Dim outputRomSize AS DWord
-
-	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
-		DBM("File open error")
-		DumpFullROM = HKAC_DUMPROM_PARAMATER_ERROR
-		ExitFunction
-	End If
+	Dim localMmap As SFC_MMAP_MODEL
 
 	if info->RomSize = 0 Then
 		DBM("ROM Size is zero.")
-		DumpFullROM = HKAC_DUMPROM_PARAMATER_ERROR
+		MainWnd_DumpRomToFile = HKAC_DUMPROM_PARAMATER_ERROR
 		ExitFunction
 	End If
 
+	if outFile.openFile(Path, GENERIC_WRITE) = FALSE Then
+		DBM("File open error")
+		MainWnd_DumpRomToFile = HKAC_DUMPROM_PARAMATER_ERROR
+		ExitFunction
+	End If
 
-	GetMmapModel(info, FALSE, VarPtr(mmapModel))
+	if mmapModel = NULL Then
+		GetMmapModel(info, FALSE, VarPtr(localMmap))
+	Else		
+		memcpy(VarPtr(localMmap), mmapModel, sizeof(SFC_MMAP_MODEL))
+	endif
 	pc = new_DumpRomProgressCallBack()
 
 	Dim rom as BytePtr
@@ -1674,7 +1678,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	outputRomSize = info->RomSize
 
 	Dim ret AS Long
-	ret = DumpRom2(hCOM, rom, info->RomSize, VarPtr(mmapModel), pc)
+	ret = DumpRom2(hCOM, rom, info->RomSize, VarPtr(localMmap), pc)
 
 	Dim time AS DWord
 	time = pc->GetProcessTime()
@@ -1702,6 +1706,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 				DBM(ex"checksum NG...!!!")
 				MessageBoxf(hMainWnd, "ROM Dump Error", MB_ICONERROR, _
 							ex"Checksum Error!\nFailed to dump ROM.\nChecksum1 : %04X -> %04X\nChecksum2 : %04X -> %04X", info->CheckSum1, (not(actualSum) And &HFFFF), info->CheckSum2, (actualSum And &HFFFF))
+				ret=HKAC_DUMPROM_CHECKSUM_ERROR
 			End If
 		Else
 			DBM("checksum is disabled.")
@@ -1730,7 +1735,7 @@ Function DumpFullROM(info As * SFC_CART_INFO, Path As BytePtr) As Long
 	free(rom)
 	delete_DumpRomProgressCallBack(pc)
 
-	DumpFullROM = ret
+	MainWnd_DumpRomToFile = ret
 End Function
 
 ' RETRY*WAIT = mSec

@@ -113,11 +113,22 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo
 	With mmapInfo
 		.rom.adr = BSM_GetMempackAdress(slot_idx)
 		.rom.isLoROM = BSM_isLoROM(slot_idx)
-		.rom.next_cb = NULL
 	End With
+
+	if mmapInfo.rom.isLoROM then
+		mmapInfo.rom.next_cb = AddressOf(LoROM_nextAddress)
+	Else
+		mmapInfo.rom.next_cb = AddressOf(HiROM_nextAddress)
+	endif
+	
 
 	If pack_idx = BSM_SAMEGAME or pack_idx = BSM_GNEXT Then
 		virtualHeader.RomSize = 512 * 1024
+		if pack_idx = BSM_SAMEGAME then
+			virtualHeader.enableChecksum = TRUE
+			virtualHeader.CheckSum1 = &H235C
+			virtualHeader.CheckSum2 = &HDCA3
+		endif
 	End If
 End Sub
 
@@ -140,7 +151,7 @@ Sub BSMemWnd_CommandButton1_Click()
 	path = "bsdump.bs"
 #endif
 	
-	DumpFullROM(VarPtr(virtualHeader), path)
+	MainWnd_DumpRomToFile(VarPtr(virtualHeader), VarPtr(mmap), path)
 	
 #ifndef _DEBUG
 	free(path)
@@ -220,12 +231,20 @@ End sub
 Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	Dim idx AS DWord, cmdBank AS Byte, isLoROM AS BOOL
 	Dim info[32] AS Byte
+	Dim cmdAddress AS DWord, cmdOffset As Word
 	idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0)
-	cmdBank = (BSM_GetMempackAdress(idx)>>16) AS Byte
-	isLoROM = BSM_isLoROM(idx)
+	cmdAddress = BSM_GetMempackAdress(idx)
+	cmdBank = (cmdAddress>>16) AS Byte
+	cmdOffset = (cmdAddress And &HFFFF) As Word
+'	isLoROM = BSM_isLoROM(idx)
+'	if isLoROM Then cmdBank >>= 1
+	isLoROM = FALSE
 	FlushCom(hCOM)
+
+	' Todo: LoROM対応をまともに
 	
-	'	DBM("Bank:"+Hex$(cmdBank)+" isLoROM:"+Str$(isLoROM))
+	DBM("Bank:"+Hex$(cmdBank)+" isLoROM:"+Str$(isLoROM))
+
 	
 	If idx = BSM_SLOT_BIOS Then
 		'Disable BS-X MCC Write Protects
@@ -233,9 +252,9 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 		Sleep(100)
 		
 		'C0:0000- WriteEnable
-		SetCartRegister(&H0C, &H5000, &H80, FALSE)
-		SetCartRegister(&H0D, &H5000, &H80, FALSE)
-		SetCartRegister(&H0E, &H5000, &H80, FALSE)
+		SetCartRegister(&H0C, cmdOffset + &H5000, &H80, FALSE)
+		SetCartRegister(&H0D, cmdOffset + &H5000, &H80, FALSE)
+		SetCartRegister(&H0E, cmdOffset + &H5000, &H80, FALSE)
 		Sleep(3)
 	Else If idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(TRUE)
@@ -243,24 +262,24 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	
 	
 	'request chip info part1
-	SetCartRegister(cmdBank, &H0000, &H38, isLoROM)
-	SetCartRegister(cmdBank, &H0000, &HD0, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &H38, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HD0, isLoROM)
 	'WAIT(コマンドにオーバーヘッドあるから大丈夫)
 	
-	ReadROM(hCOM, info, 0, (cmdBank<<16) + 2, 1, isLoROM)
+	ReadROM(hCOM, info, 0, cmdAddress + 2, 1, isLoROM)
 	
 	'enter status mode
-	SetCartRegister(cmdBank, &H0000, &H71, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &H71, isLoROM)
 	'WAIT
 	
-	ReadROM(hCOM, info, 0, (cmdBank<<16) + &H00FF00, 16, isLoROM)
+	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
 	Dump(info,16)
 	
 	'request chip info part2
-	SetCartRegister(cmdBank, &H0000, &H72, isLoROM)
-	SetCartRegister(cmdBank, &H0000, &H75, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &H72, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &H75, isLoROM)
 	
-	ReadROM(hCOM, info, 0, (cmdBank<<16) + &H00FF00, 16, isLoROM)
+	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
 	Dump(info, 16)
 	mempackinfo->MP = (info[0] Or info[2]<<8) AS Word
 	mempackinfo->Flags = info[4]
@@ -268,12 +287,12 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	'	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
 	
 	'exit status mode
-	SetCartRegister(cmdBank, &H0000, &HFF, isLoROM)
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HFF, isLoROM)
 	
 	Dim virtualHeader As SFC_CART_INFO, mmap AS SFC_MMAP_MODEL
 	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
-	If BSM_genHeaderList(BSM_HANDLE_SERIAL, hCOM, mmap.rom.adr, mmap.rom.isLoROM) = FALSE Then
+	If BSM_genHeaderList(BSM_HANDLE_SERIAL, hCOM, mmap.rom.adr, mmap.rom.next_cb) = FALSE Then
 		DBM(ex"MemoryPack is not working...\r\n")
 		SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Empty)" As Long)
@@ -300,7 +319,7 @@ Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Loop
 	DragFinish(hDrop)
 	
-	If BSM_genHeaderList(BSM_HANDLE_FILEPATH, buf, 0, FALSE) = FALSE Then
+	If BSM_genHeaderList(BSM_HANDLE_FILEPATH, buf, 0, AddressOf(RomImage_nextAddress)) = FALSE Then
 		DBM("This is not BS Memory Image File.")
 		ExitSub
 	End If

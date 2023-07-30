@@ -42,7 +42,7 @@ Type BSM_MEMPACK_INFO
 End Type
 
 'LoROMÉÇÅ[ÉhÇ…Ç®ÇØÇÈBSMCÇÃà íuCn:8000h
-Const BSX_MEMPACK_ADR_LoROM = &H600000 'C0/2=60(LoROM)
+Const BSX_MEMPACK_ADR_LoROM = &HC08000
 Const BSX_MEMPACK_ADR_HiROM = &HE00000 
 Const BSX_MEMPACK_ADR_SA1   = &HF00000 
 Const BSX_MEMPACK_ADR_BIOS  = &HC00000 
@@ -122,15 +122,20 @@ Enum BSM_HANDLE_MODE
 	BSM_HANDLE_SERIAL
 End Enum
 
-Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,baseAddress AS DWord,isLoROM AS BOOL) As BOOL
-	Dim tmp aS *BSM_FILE_INFO, curAdr As Long,i AS Long,nextOffset AS DWord
+Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,baseAddress AS DWord,nextAdrFunc AS SfcMmcNextAddressFunc) As BOOL
+	Dim tmp aS *BSM_FILE_INFO, i AS Long,nextOffset AS DWord
 	Dim file AS File
-	If mode=BSM_HANDLE_FILEPATH Then file.openFile(path_or_handle,GENERIC_READ)
+	If mode=BSM_HANDLE_FILEPATH Then 
+		file.openFile(path_or_handle,GENERIC_READ)
+		nextAdrFunc = AddressOf(RomImage_nextAddress)
+	endif
 
+	Dim offset As DWord, curAdr AS DWord
 	curAdr=baseAddress
-	while (curAdr-baseAddress) < BSM_CAP_MAX
+	offset=0
+	while offset < BSM_CAP_MAX
 		If mode=BSM_HANDLE_SERIAL Then
-			tmp=BSM_getHeaderFromSerial(path_or_handle,curAdr,isLoROM)		
+			tmp=BSM_getHeaderFromSerial(path_or_handle,curAdr,nextAdrFunc)		
 		Elseif mode = BSM_HANDLE_FILEPATH then
 			tmp=BSM_getHeader(file.getHandle(),curAdr)
 		Else
@@ -138,7 +143,8 @@ Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,bas
 		End If
 
 		If tmp=NULL Then
-			curAdr = curAdr + 128 * 1024 
+			offset += (128 * 1024) As DWord
+			curAdr = nextAdrFunc(path_or_handle, curAdr, (128 * 1024) As DWord)'curAdr + 128 * 1024 
 			continue
 		End If
 
@@ -150,7 +156,13 @@ Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,bas
 
 		nextOffset=BSM_getNextFileOffset(tmp As *BSM_FILE_HEADER)
 		If nextOffset=0 Then ExitWhile
-		curAdr+=nextOffset
+		'curAdr+=nextOffset
+		offset += nextOffset
+		if nextAdrFunc then
+			curAdr = nextAdrFunc(path_or_handle, curAdr, nextOffset)
+		Else
+			curAdr+=nextOffset
+		endif
 	Wend
 
 	If mode = BSM_HANDLE_FILEPATH then file.close()
@@ -200,17 +212,21 @@ function BSM_getHeader(hFile AS HANDLE,baseAddress AS DWord) AS *BSM_FILE_INFO
 End Function
 
 'ÇﬂÇÒÇ«Ç≠Ç≥Ç¢ÇÃÇ≈ï°êª
-function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,isLoROM AS BOOL) AS *BSM_FILE_INFO
+function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,nextAdrFunc AS SfcMmcNextAddressFunc) AS *BSM_FILE_INFO
 	Dim tmp AS BSM_FILE_INFO
+	Dim adr As DWord
+	Dim isLoROM As BOOL
 
 	'check lorom
-	ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Lo,sizeof(BSM_FILE_HEADER),isLoROM)
-	Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),baseAddress+BSM_FILE_HEADER_ADR_Lo)
+	adr = nextAdrFunc(hFile,baseAddress,BSM_FILE_HEADER_ADR_Lo)
+	ReadROM(hFile,VarPtr(tmp),0,adr,sizeof(BSM_FILE_HEADER),FALSE)
+	Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
 
 	If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 		'check hirom
-		ReadROM(hFile,VarPtr(tmp),0,baseAddress+BSM_FILE_HEADER_ADR_Hi,sizeof(BSM_FILE_HEADER),isLoROM)
-		Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),baseAddress+BSM_FILE_HEADER_ADR_Hi)
+		adr = nextAdrFunc(hFile,baseAddress,BSM_FILE_HEADER_ADR_Hi)
+		ReadROM(hFile,VarPtr(tmp),0,adr,sizeof(BSM_FILE_HEADER),FALSE)
+		Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
 		
 		'not bsm image
 		If BSM_isHeader(VarPtr(tmp)) =FALSE Then
@@ -219,6 +235,8 @@ function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,isLoROM AS
 		End If
 		
 		isLoROM=FALSE
+	else
+		isLoROM=TRUE
 	End If
 
 	BSM_getHeaderFromSerial=malloc(sizeof(BSM_FILE_INFO))

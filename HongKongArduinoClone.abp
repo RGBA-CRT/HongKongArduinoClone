@@ -1,8 +1,11 @@
 #include <RGBALib.sbp>
 #include "HongKongArduinoClone.idx"
 
-
+' Todo: BSMとSFT, SFMemの検証　→　BSM（SA1除く）とSFT検証完了
 ' Todo: ini control class
+' Todo: mmodelのcallbackをNULLにするんじゃない
+' Todo: isLoROMの削除と高速化
+' TODO: BSとSFMなど外付けWindowのボタン排他があまい
 '  get/set int,string,hex, コンストラクタでファイル名. デフォルトでEXEのディレクトリ
 /*
 ' INIへのIFを提供
@@ -29,7 +32,7 @@ if config.GetConfigInt(CONFIG_ID)<1 then
 
 */
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v2.1α" ' Trim, SE_OK
+Const VerStr = "v2.1β" ' sync this to git tag
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 
@@ -45,7 +48,7 @@ Const DEFAULT_SOUND_ENABLE = 1
 Const DEFAULT_TRIM_ENABLE = 1
 
 'タイムアウト設定
-Const HKAC_TRANSFER_FLOAT_TIME_MUL = 2.5
+Const HKAC_TRANSFER_FLOAT_TIME_MUL = 2.0
 Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
 
 Const HKAC_SRAM_WRITE_RETRY_LIMIT = 2

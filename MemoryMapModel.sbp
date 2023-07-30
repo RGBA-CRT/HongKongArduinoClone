@@ -116,6 +116,15 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			model->rom.exit_cb   =  NULL
 
 
+		Case SFC_MAP_GSU
+			model->sram.adr      =  &H700000
+			model->sram.bankStep =  &H010000
+			model->sram.bankSize =  &H010000
+			model->sram.ctrlBus  =  CBUS_RST
+			model->rom.adr       =  LoROM_OFFSET_ADR
+			model->rom.isLoROM   =  TRUE
+
+
 		Case SFC_MAP_SPC7110
 			model->sram.adr      =  &H306000
 			model->sram.bankStep =  &H010000
@@ -239,8 +248,16 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 
 		Case Else
 			debug
+			DBM("Internal Error: Memory model is undefined.")
 	End Select
-
+/*
+	If model->rom.next_cb = NULL Then
+		If model->rom.isLoROM Then
+			model->rom.next_cb = AddressOf(LoROM_nextAddress)
+		Else
+			model->rom.next_cb = AddressOf(HiROM_nextAddress)
+		End If
+	End If*/
 End Function
 
 
@@ -618,6 +635,14 @@ End Function
 Function XBAND_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
 	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, &H00, FALSE)
 End Function
+
+
+
+' ============== FILE ACCESS =============
+Function RomImage_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
+	RomImage_nextAddress = adr + readSize
+End Function
+
 
 ' ======================== MEMORY MODEL CALLBACKS ========================
 

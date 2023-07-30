@@ -72,7 +72,12 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 ---
 
 ## ボーレートについて / About baudrate
-+ Arduinoに搭載されているシリアルコンバータや環境により、動作可能なボーレートが変わります。
+このソフトウェアは接続時に動的にボーレートを変更します。
+ボーレートは設定から変更可能ですが、Arduinoに搭載されているシリアルコンバータや環境により動作可能な値が変わります。
+つながらない, 通信エラーが多発する場合はボーレートを下げてください。
+
+動作確認済みのボーレート：
+
 + Official Arduino : 500000bps 
 + Arduino with CH340 : 1000000bps
 + [詳細はこちら](https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/%E9%80%9A%E4%BF%A1%E9%80%9F%E5%BA%A6%E3%83%A1%E3%83%A2)

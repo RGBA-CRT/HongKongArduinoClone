@@ -142,12 +142,15 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 	if TimeoutMul <= 1.0 Then
 		TimeoutMul=1.0
 	End  If
+	Const SleepTime = 32 As DWord
 
 	'デフォルトのリトライ回数(=タイムアウトのms)
 	'TIMEOUT = 転送時間（理論値）× 10 + 10
+	Dim rx_time AS Single
+	rx_time = ( (size*1000*8) / (GetComBaudrate(hSerial)) )
 	Dim HKAC_HW_RETRY As DWord
-	HKAC_HW_RETRY = ((size / (GetComBaudrate(hSerial)/8))*1000 * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN) AS DWord
-	printf(ex"論理転送時間：%dms  ",(HKAC_HW_RETRY/HKAC_TRANSFER_FLOAT_TIME_MUL) As DWord)
+	HKAC_HW_RETRY = ( (rx_time * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN) / SleepTime) + 1 AS DWord
+	printf(ex"論理転送時間：%dms  ",(rx_time) As DWord)
 
 	Dim dwErrors AS DWord,retry AS DWord
 	Dim cs AS COMSTAT
@@ -159,7 +162,8 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
 			retry++
-			if retry Mod 100 Then Sleep(1)
+			'if retry Mod 100 Then Sleep(1)
+			Sleep(SleepTime)
 			Continue
 		End  If
 

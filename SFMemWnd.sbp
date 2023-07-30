@@ -248,7 +248,7 @@ Sub SFMemWnd_CommandButton2_Click()
 	path = "npdump.sfc"
 #endif
 	
-	DumpFullROM(VarPtr(cartInfo), path)
+	MainWnd_DumpRomToFile(VarPtr(cartInfo), NULL, path)
 	
 #ifndef _DEBUG
 	free(path)
