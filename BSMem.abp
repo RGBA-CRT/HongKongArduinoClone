@@ -37,8 +37,10 @@ End Enum
 
 Type BSM_MEMPACK_INFO
 	MP AS Word
-	Flags AS Byte
+	Block AS Byte
 	DeviceInfo AS Byte
+	Serial[12] As Byte
+	raw[15] AS Byte
 End Type
 
 'LoROMÉÇÅ[ÉhÇ…Ç®ÇØÇÈBSMCÇÃà íuCn:8000h

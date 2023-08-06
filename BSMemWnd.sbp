@@ -201,13 +201,23 @@ Sub BSMemWnd_CommandButton3_Click()
 	End If
 	if (info->MP And &H00FF) >= &H20 Then mpstatus[4] = (info->MP) As Byte
 	if (info->MP >> 8) >= &H20 Then mpstatus[5] = (info->MP >> 8) As Byte
+
+	Dim serial_broken="" As BytePtr
+	Dim i As Long
+	for i=0 to 7
+		if IsCharAlpha(info->Serial[i]) then
+			serial_broken="(invalid)"
+		endif
+	Next
 	
 	If SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0) = BSM_SLOT_SA1 Then
 		DBM("MemoryPackInfo is not supported on SA-1")
 	Else
-		DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s\r\n FlashType : %d\r\n Capacity  : %dKB\r\n", _
+		DBM(sprintfStr(ex"MemoryPackInfo:\r\n MagicNum  : %s\r\n FlashType : %d\r\n Capacity  : %dKB\r\n BlockNum? : %d\r\n SerialNo? : %s%s\r\n", _
 			mpstatus As DWord, (info->DeviceInfo>>4) As DWord, _
-			(1 << (info->DeviceInfo And &H0F) ) As DWord
+			(1 << (info->DeviceInfo And &H0F) ) As DWord, _
+			1<<info->Block,
+			info->Serial, serial_broken
 		))
 	End If
 	
@@ -225,6 +235,16 @@ Sub BSMemWnd_CommandButton3_Click()
 		DBM("Illegal Memory Pack Type")
 	End If
 End sub
+
+Function bcd2char(digit as byte) As Byte
+	if digit<10 then
+		bcd2char=GetByte("0") + digit
+	Else if digit < 16 then
+		bcd2char=GetByte("A") + digit - 10
+	Else
+		bcd2char=bcd2char(digit And &HF)
+	endif
+End Function
 
 'メモリパック自体の情報と、中身のファイルリストを取得する（いつか分離する）
 
@@ -282,24 +302,35 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
 	Dump(info, 16)
 	mempackinfo->MP = (info[0] Or info[2]<<8) AS Word
-	mempackinfo->Flags = info[4]
+	mempackinfo->Block = info[4]
 	mempackinfo->DeviceInfo = info[6]
+	Dim i as long
+	for i=0 to 4
+		mempackinfo->Serial[i*2+0] = bcd2char(info[8+i*2]>>4)
+		mempackinfo->Serial[i*2+1] = bcd2char(info[8+i*2] And &HF)
 	'	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
-	
+	Next i
+	mempackinfo->Serial[8] = 0
+	memcpy(mempackinfo->raw, info,16)
+
 	'exit status mode
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &HFF, isLoROM)
 	
 	Dim virtualHeader As SFC_CART_INFO, mmap AS SFC_MMAP_MODEL
 	BSM_createCartInfoForBSX(virtualHeader, mmap)
 	
+	if mempackinfo->MP = GetWord("MP") then
+		DBM(ex"MemoryPack has found!\r\n")
+	Else
+		DBM(ex"MemoryPack is not working.\r\n")
+	endif
+			
 	If BSM_genHeaderList(BSM_HANDLE_SERIAL, hCOM, mmap.rom.adr, mmap.rom.next_cb) = FALSE Then
-		DBM(ex"MemoryPack is not working...\r\n")
 		SendMessage(BSMWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		SendMessage(BSMWnd(ListBox1), LB_ADDSTRING, 0, "(Empty)" As Long)
 		Goto * BSM_DITECT_BTN_EXIT
 	End If
 	BSM_listupFiles()
-	DBM(ex"MemoryPack has found!\r\n")
 	
 	* BSM_DITECT_BTN_EXIT
 	If idx = BSM_SLOT_BIOS Then
