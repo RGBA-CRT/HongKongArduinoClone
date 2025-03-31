@@ -74,7 +74,7 @@ Dim SFC_MAP_TYPE_LABEL[SFC_MAP_TYPE__NUM] = [
 '後の都合のいい処理がしてある。
 '生ヘッダを見たければrawHeaderにアクセス
 Type SFC_CART_INFO
-	Title[23] As Byte		'ゲームタイトル
+	Title[64] As Byte		'ゲームタイトル
 	MapType As Long			'SFC_MAP_TYPE ... ROM/RAMのアクセス方法を識別するコード
 	Chipset As Byte		'Cartridge parts contents
 	RomSize As DWord		'Game ROM Size (byte)

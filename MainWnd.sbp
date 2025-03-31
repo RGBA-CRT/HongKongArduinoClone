@@ -1205,8 +1205,10 @@ Sub MainWnd_DropFiles(hDrop As HDROP)
 	DBM(ex"")
 	if ShowRomHeader(VarPtr(file)) = FALSE Then
 		if ShowSftRomHeader(VarPtr(file)) = FALSE Then 
-			if BSM_genHeaderList(BSM_HANDLE_FILE, file.getHandle(), 0, FALSE) then
+			debug
+			if BSM_genHeaderList(BSM_HANDLE_FILE, file.getHandle(), 0, AddressOf(RomImage_nextAddress)) then
 				DBM(ex"Satellaview File Header found!\r\n")
+				BSMemWnd_OpenFile(buf)
 				BSM_open()	
 				BSM_listupFiles()
 			Else

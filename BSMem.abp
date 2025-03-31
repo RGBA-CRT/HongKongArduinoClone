@@ -23,6 +23,7 @@ EndType
 'ŒÝŠ·‚ ‚è
 Type BSM_FILE_INFO
 	raw AS BSM_FILE_HEADER
+	title[16] AS Byte
 	isLoROM AS BOOL
 	offset AS DWord
 End Type
@@ -35,12 +36,13 @@ Enum BSM_SLOT_TYPE
 	BSM_SLOT_TYPE_NUM
 End Enum
 
+Const BSM_MEMPACK_INFO_RAW_SIZE = 16
 Type BSM_MEMPACK_INFO
 	MP AS Word
 	Block AS Byte
 	DeviceInfo AS Byte
 	Serial[12] As Byte
-	raw[15] AS Byte
+	raw[BSM_MEMPACK_INFO_RAW_SIZE-1] AS Byte
 End Type
 
 'LoROMƒ‚[ƒh‚É‚¨‚¯‚éBSMC‚ÌˆÊ’uCn:8000h
@@ -125,7 +127,7 @@ Enum BSM_HANDLE_MODE
 End Enum
 
 Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,baseAddress AS DWord,nextAdrFunc AS SfcMmcNextAddressFunc) As BOOL
-	Dim tmp aS *BSM_FILE_INFO, i AS Long,nextOffset AS DWord
+	Dim tmp aS *BSM_FILE_INFO, i AS Long,j AS Long,nextOffset AS DWord
 	Dim file AS File
 	If mode=BSM_HANDLE_FILEPATH Then 
 		file.openFile(path_or_handle,GENERIC_READ)
@@ -149,6 +151,17 @@ Function BSM_genHeaderList(mode AS BSM_HANDLE_MODE,path_or_handle AS VoidPtr,bas
 			curAdr = nextAdrFunc(path_or_handle, curAdr, (128 * 1024) As DWord)'curAdr + 128 * 1024 
 			continue
 		End If
+
+		Const BSM_FILENAME_LEN=16
+		memcpy(tmp->title, tmp->raw.title, BSM_FILENAME_LEN)
+		tmp[BSM_FILENAME_LEN] = 0
+		for j = BSM_FILENAME_LEN-1 To 0 Step -1
+			if tmp->title[j] = GetByte(" ") then
+				tmp->title[j] = 0
+			Else
+				ExitFor
+			End If
+		Next
 
 		If headerList[i]<> NULL Then free(headerList[i])
 		headerList[i]=tmp
@@ -342,3 +355,28 @@ Function countBits(int As DWord) AS DWord
 		If int And (1<<i) Then countBits++
 	Next i
 End Function
+
+
+Function bcd2char(digit as byte) As Byte
+	if digit<10 then
+		bcd2char=GetByte("0") + digit
+	Else if digit < 16 then
+		bcd2char=GetByte("A") + digit - 10
+	Else
+		bcd2char=bcd2char(digit And &HF)
+	endif
+End Function
+
+Sub ParseMpInfo(info AS BytePtr, mempackinfo AS * BSM_MEMPACK_INFO)
+	mempackinfo->MP = (info[0] Or info[2]<<8) AS Word
+	mempackinfo->Block = info[4]
+	mempackinfo->DeviceInfo = info[6]
+	Dim i as long
+	for i=0 to 4
+		mempackinfo->Serial[i*2+0] = bcd2char(info[8+i*2]>>4)
+		mempackinfo->Serial[i*2+1] = bcd2char(info[8+i*2] And &HF)
+	'	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
+	Next i
+	mempackinfo->Serial[8] = 0
+	memcpy(mempackinfo->raw, info,16)
+End Sub

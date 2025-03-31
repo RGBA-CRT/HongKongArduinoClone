@@ -104,10 +104,13 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo
 	If pack_idx=-1 Then DBM("Mempack Type not selected."):exitsub
 
 	With virtualHeader
-		lstrcpy(.Title, "BSX Mempack")
+'		lstrcpy(.Title, "BSX Mempack")
 		.enableChecksum = FALSE
 		.RomSize = BSM_GetMempackSize(pack_idx)
 		.MapType = SFC_MAP_HiROM
+
+		wsprintf(.Title, "BS-%dM-MemoryPack", 8*(.RomSize/1024/1024))
+
 	End With
 
 	With mmapInfo
@@ -133,25 +136,48 @@ Sub BSM_createCartInfoForBSX(ByRef virtualHeader As SFC_CART_INFO,ByRef mmapInfo
 End Sub
 
 Sub BSMemWnd_CommandButton1_Click()
+	Dim info_file As File
 	Dim slot_idx As Long
 	slot_idx = SendMessage(BSMWnd(BSM_CT), CB_GETCURSEL, 0, 0)
 	If slot_idx = BSM_SLOT_SA1 Then
 		BSM_SA1_MemPackAccess(TRUE)
 	End If
+
+	DBM("Reading MemoryPack infomation...")
+	Dim mempack_info As BSM_MEMPACK_INFO
+	if BSM_GetMemPackInfo(VarPtr(mempack_info)) then
+		DBM("failed to read MemoryPack info.")
+		ExitSub
+	Endif
 	
 	'ダイアログの設定から仮想SFCヘッダを生成してダンプ
 	Dim virtualHeader As SFC_CART_INFO, mmap As SFC_MMAP_MODEL
 	BSM_createCartInfoForBSX(virtualHeader, mmap)
-	
+
+	dim filename[MAX_PATH] As Byte
+	if headerList[0] <> NULL then
+		wsprintf(filename, "%s(#%s)", headerList[0]->title, mempack_info.Serial)
+	Else
+		wsprintf(filename, "%s(#%s)", virtualHeader.Title, mempack_info.Serial)
+	End If
+	EscapeForFilePath(filename)
+
 	Dim path AS BytePtr
 #ifndef _DEBUG
-	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", virtualHeader.Title)
+	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", filename)
 	If path = 0 Then ExitSub
 #else
 	path = "bsdump.bs"
+	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", filename)
+	If path = 0 Then ExitSub
 #endif
 	
 	MainWnd_DumpRomToFile(VarPtr(virtualHeader), VarPtr(mmap), path)
+
+	wsprintf(filename, "%s.mpinfo", path)
+	info_file.openFile(filename,GENERIC_WRITE)
+	info_file.write(mempack_info.raw, BSM_MEMPACK_INFO_RAW_SIZE)
+	info_file.close()
 	
 #ifndef _DEBUG
 	free(path)
@@ -186,13 +212,7 @@ Sub BSM_SA1_MemPackAccess(isStart AS BOOL)
 	End If
 End Sub
 
-Sub BSMemWnd_CommandButton3_Click()
-	If hCOM = NULL Then ExitSub
-	
-	Dim info As * BSM_MEMPACK_INFO
-	info = calloc(sizeof(BSM_MEMPACK_INFO))
-	BSM_GetMemPackInfo(info)
-	
+Sub DisplayMpInfo(info As * BSM_MEMPACK_INFO)
 	Dim mpstatus[15] AS Byte
 	If info->MP = &H504D Then
 		lstrcpy(mpstatus,"OK (..)")
@@ -234,17 +254,18 @@ Sub BSMemWnd_CommandButton3_Click()
 		SendMessage(BSMWnd(BSM_MT), CB_SETCURSEL, BSM_UNKNOWN, 0)
 		DBM("Illegal Memory Pack Type")
 	End If
-End sub
+End Sub
 
-Function bcd2char(digit as byte) As Byte
-	if digit<10 then
-		bcd2char=GetByte("0") + digit
-	Else if digit < 16 then
-		bcd2char=GetByte("A") + digit - 10
-	Else
-		bcd2char=bcd2char(digit And &HF)
-	endif
-End Function
+Sub BSMemWnd_CommandButton3_Click()
+	If hCOM = NULL Then ExitSub
+	
+	Dim info As BSM_MEMPACK_INFO
+'	info = calloc(sizeof(BSM_MEMPACK_INFO))
+	BSM_GetMemPackInfo(VarPtr(info))
+
+	DisplayMpInfo(VarPtr(info))
+	
+End sub
 
 'メモリパック自体の情報と、中身のファイルリストを取得する（いつか分離する）
 
@@ -301,17 +322,8 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	
 	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
 	Dump(info, 16)
-	mempackinfo->MP = (info[0] Or info[2]<<8) AS Word
-	mempackinfo->Block = info[4]
-	mempackinfo->DeviceInfo = info[6]
-	Dim i as long
-	for i=0 to 4
-		mempackinfo->Serial[i*2+0] = bcd2char(info[8+i*2]>>4)
-		mempackinfo->Serial[i*2+1] = bcd2char(info[8+i*2] And &HF)
-	'	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
-	Next i
-	mempackinfo->Serial[8] = 0
-	memcpy(mempackinfo->raw, info,16)
+	
+	ParseMpInfo(info, mempackinfo)
 
 	'exit status mode
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &HFF, isLoROM)
@@ -340,6 +352,32 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	End If
 End Function
 
+Sub BSMemWnd_OpenFile(filename AS BytePtr)
+	Dim file AS File
+	If BSM_genHeaderList(BSM_HANDLE_FILEPATH, filename, 0, AddressOf(RomImage_nextAddress)) = FALSE Then
+		DBM("This is not BS Memory Image File.")
+		ExitSub
+	End If
+
+	Dim mp_file_name[MAX_PATH] AS Byte
+	wsprintf(mp_file_name,"%s.mpinfo",filename)
+	if PathFileExists(mp_file_name) then
+		DBM("mpinfo is found.")
+		Dim mpinfo[BSM_MEMPACK_INFO_RAW_SIZE] As Byte
+		file.openFile(mp_file_name, GENERIC_READ)
+		file.read(mpinfo, BSM_MEMPACK_INFO_RAW_SIZE)
+		file.close()
+
+		dim parsed_info As BSM_MEMPACK_INFO
+		ParseMpInfo(mpinfo, VarPtr(parsed_info))
+		DisplayMpInfo(VarPtr(parsed_info))
+	Else
+		DBM("mpinfo not found.")
+	End If
+
+	BSM_listupFiles()
+End Sub
+
 Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Dim buf[MAX_PATH] As Byte
 	Dim i as long
@@ -350,12 +388,7 @@ Sub BSMemWnd_DropFiles(hDrop As HDROP)
 	Loop
 	DragFinish(hDrop)
 	
-	If BSM_genHeaderList(BSM_HANDLE_FILEPATH, buf, 0, AddressOf(RomImage_nextAddress)) = FALSE Then
-		DBM("This is not BS Memory Image File.")
-		ExitSub
-	End If
-	
-	BSM_listupFiles()
+	BSMemWnd_OpenFile(buf)	
 	
 End Sub
 
