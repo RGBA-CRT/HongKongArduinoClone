@@ -1,0 +1,23 @@
+Sub SE_OK()
+	Dim configSoundEnable As Long
+	configSoundEnable = GetPrivateProfileInt(ProgramName, "SoundEnable", DEFAULT_SOUND_ENABLE, INIFILE_PATH)
+	if configSoundEnable then
+#ifndef _DEBUG 
+		PlaySound("SE_OK", GetModuleHandle(NULL) As DWord, SND_RESOURCE or SND_ASYNC) 
+#else
+		PlaySound("se\SE_OK_16bit.wav", NULL, SND_FILENAME or SND_ASYNC) 
+#endif
+	End If
+End Sub
+
+Sub SE_NG()
+	Dim configSoundEnable As Long
+	configSoundEnable = GetPrivateProfileInt(ProgramName, "SoundEnable", DEFAULT_SOUND_ENABLE, INIFILE_PATH)
+	if configSoundEnable then
+#ifndef _DEBUG 
+		PlaySound("SE_NG", GetModuleHandle(NULL) As DWord, SND_RESOURCE or SND_ASYNC) 
+#else
+		PlaySound("se\SE_NG_8bit.wav", NULL, SND_FILENAME or SND_ASYNC) 
+#endif
+	End If
+End Sub

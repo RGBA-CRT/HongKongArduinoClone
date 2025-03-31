@@ -1,9 +1,4 @@
-ss/
-rom/
-sav/
-tool/
-exprom/
-WinHongKongArduino/
+*/
 
 *.sfc
 *.smc
@@ -21,5 +16,9 @@ WinHongKongArduino/
 *.wbp
 *_debug.*
 *.wrk
+
+*.exe
+*.ini
+*.lnk
 
 write.bat
