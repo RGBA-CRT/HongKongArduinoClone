@@ -22,6 +22,7 @@
 #include "CartridgeRW.sbp"
 #include "SFTurbo.sbp"
 #include "SoundEffect.abp"
+#include "FlashWnd.sbp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

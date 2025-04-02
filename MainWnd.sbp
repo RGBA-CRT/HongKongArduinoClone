@@ -437,7 +437,7 @@ Function GetWndTextMalloc(hWnd As HWND) As BytePtr
 End Function
 
 Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
-'	DBM("PressKey:"+Hex$(KeyCode))
+	DBM("PressKey:"+Hex$(KeyCode))
 	Select Case KeyCode
 '		Case &H70 : SpeedTest()	'F1
 '		Case &H71 : CheckFirmware(hCOM,FALSE,hMainWnd)	'F2
@@ -445,6 +445,7 @@ Sub MainWnd_KeyUp(KeyCode As Long, flags As Long)
 '		Case &H78 : MainWnd_CommandButton12_Click()
 '		Case &H7A : MainWnd_CommandButton15_Click()
 '		Case &H7B : MainWnd_CommandButton13_Click()
+		Case &H73 : FlashWnd_open()
 
 		'(このメッセージはフォーカスが無い状態なので)TABキーが押されたら適当なボタンにフォーカスを当てる
 		'Case VK_TAB : SetFocus( GetNextDlgTabItem(hMainWnd, 0, TRUE))
@@ -853,6 +854,8 @@ End Sub
 
 Sub MainWnd_CommandButton1_Click()
 	SetRomInfoToDlg_FromROM()
+		FlashWnd_open()
+
 End Sub
 
 Sub SetRomInfoToDlg_FromROM()
@@ -1267,6 +1270,9 @@ Sub MainWnd_Move(x As Integer, y As Integer)
 	End If
 	If hSFTurbo<>NULL Then
 		MoveChildWindow(hMainWnd, hSFTurbo)
+	End If
+	If hFlashWnd<>NULL Then
+		MoveChildWindow(hMainWnd, hFlashWnd)
 	End If
 End Sub
 

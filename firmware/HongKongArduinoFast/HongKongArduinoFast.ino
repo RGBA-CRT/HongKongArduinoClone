@@ -352,9 +352,9 @@ bool st018_biosDump(byte cmd) {
 }
 
 inline void setCtrlBus(byte b) {
-  //  digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
+  digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
   digitalWrite(CS , (b & 0b0010) ? HIGH : LOW);
-  //  digitalWrite(WE , (b & 0b0100) ? HIGH : LOW);
+  digitalWrite(WE , (b & 0b0100) ? HIGH : LOW);
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 

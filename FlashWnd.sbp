@@ -1,0 +1,199 @@
+'-----------------------------------------------------------------------------
+'  イベント プロシージャ
+'-----------------------------------------------------------------------------
+' このファイルには、ウィンドウ [FlashWnd] に関するイベントをコーディングします。
+' ウィンドウ ハンドル: hFlashWnd
+
+' TODO: この位置にグローバルな変数、構造体、定数、関数を定義します。
+
+
+'-----------------------------------------------------------------------------
+' ウィンドウメッセージを処理するためのコールバック関数
+
+Function FlashWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
+	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
+
+	' イベントプロシージャの呼び出しを行います。
+	FlashWndProc=EventCall_FlashWnd(hWnd,dwMsg,wParam,lParam)
+End Function
+
+
+'-----------------------------------------------------------------------------
+' ここから下は、イベントプロシージャを記述するための領域になります。
+
+Sub FlashWnd_open()
+	if hFlashWnd = NULL Then CreateDialog(hMainWnd, "FlashWnd")
+	MainWnd_Move(0, 0)
+	'SFMW_bMove = FALSE
+End Sub
+	
+	Dim cmdBank AS Byte
+	Dim cmdOffset As DWOrd
+	cmdBank = &H00
+	cmdOffset=&H8000
+
+Type IdTextMap
+	id AS DWord
+	name AS BytePtr
+End Type
+
+Const FLASH_ID_TABLE_MAX = 19
+Dim FlashIdTable[FLASH_ID_TABLE_MAX] = [
+	[&HC2A4, "MX29F040"], _
+	[&HC2D5, "MX29F080"], _
+	[&HC249, "MX29LV160DB"], _
+	[&HC2C4, "MX29LV160DT"], _
+	[&HC2A8, "MX29LV320DB"], _
+	[&HC2A7, "MX29LV320DT"], _
+	[&HC2CB, "MX29LV640DB"], _
+	[&HC2C9, "MX29LV640DT"], _
+	[&H01A4, "AM29F040"],
+	[&H01D5, "AM29F080"],
+	[&HBFB5, "SST39SF010A"],
+	[&HBFB5, "SST39SF020A"],
+	[&HBFB7, "SST39SF040"],
+	[&H04A4, "MBM29F040"],
+	[&H04D5, "MBM29F080"],
+	[&H0423, "MBM29F400TC"],
+	[&H04AB, "MBM29F400BC"],
+	[&H0458, "MBM29F800BA"],
+	[&H04D6, "MBM29F800TA"],
+] As IdTextMap
+
+Function GetFlashName(id AS Word) As BytePtr
+	Dim i As Long
+	GetFlashName = "<unknown>"
+	for i = 0 To FLASH_ID_TABLE_MAX-1
+		if FlashIdTable[i].id = id Then
+			GetFlashName = FlashIdTable[i].name
+			ExitFor
+		End If
+	Next
+
+End Function
+
+Sub FlashWnd_CommandButton1_Click()
+
+	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
+	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	' ReadID
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &H90, FALSE)
+
+	Dim tmp[16] As Byte
+	ReadROM(hCOM,VarPtr(tmp),cmdBank,cmdOffset,16,FALSE)
+	Dump(VarPtr(tmp),16,0)
+
+	SetDlgItemText(hFlashWnd, FlashName, GetFlashName(ChangeEndianWord(GetWord(tmp))))
+	
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+
+	' TODO: DETECT LOROM/HIROM layout
+End Sub
+
+Sub FlashWnd_Static1_Click()
+
+End Sub
+
+Sub FlashWnd_CheckBox1_Click()
+
+End Sub
+
+Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord) AS BOOL
+	Dim i as Long, start AS DWord
+	start = GetTickCount()
+	Do
+		Dim poll AS Byte
+'		SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
+'		SendControl(hCOM, CBUS_WE OR CBUS_RST)
+
+		ReadROM(hCOM, VarPtr(poll), 0, offset, 1, FALSE)
+		printf(ex"[FLASH OPERATION POLLING] value=%02X, expected=%02X, invert=%d, toggles=%d,%d, DQ5=%d, DQ3=%d, dur=%dms\n", _
+			poll, expect, _
+			(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
+			GetTickCount() - start)
+
+'		SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)		
+
+		if poll = expect then
+			FlashWaitOperation = TRUE
+			ExitDo
+		End If
+		if (GetTickCount() - start) > timeout_ms then
+			ExitDo
+		End If
+		PumpMessage()
+		Sleep(PollInterval)
+		i++
+	Loop
+
+End Function
+
+' TODO write pulse length::: 100nsは確保したい
+Dim PollInterval=32 AS DWord
+Sub FlashWnd_CommandButton2_Click()
+
+	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
+	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+
+	' ChipErase
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &H80, FALSE)
+
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H0555, &H10, FALSE)
+
+	FlashWaitOperation((cmdBank << 16) OR cmdOffset, &HFF, 10000)
+
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+
+End Sub
+
+Sub FlashWnd_CommandButton3_Click()
+	Dim buf AS BufferClass
+
+	if LoadFileToMemory("write.srm", VarPtr(buf)) = FALSE then
+		DBM("failed to load file.")
+		exitsub
+	endif
+	if buf.length() = 0 then
+		DBM("file size is zero.")
+		exitsub
+	endif
+
+	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
+	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+
+	Dim i as DWord
+	for i=0 To buf.length()-1
+		' 
+		SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
+		SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
+		SetCartRegister(cmdBank, cmdOffset + &H0555, &HA0, FALSE)
+
+		SetCartRegister(i>>16, i And &HFFFF, buf.ptr[i], FALSE)
+
+		if FlashWaitOperation(i, buf.ptr[i], 500) = FALSE then
+			DBM("failed program flash.")
+			Exitfor
+		End If
+	Next
+
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+	DBM("program exit.")
+End Sub

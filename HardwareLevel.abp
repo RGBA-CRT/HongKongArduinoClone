@@ -70,6 +70,7 @@ Function SendControl(hSerial AS HANDLE,b AS Byte) As BOOL
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
+	printf(ex"[CTRL] OE=%d CE=%d WE=%d RST=%d\n", b And 1, (b>>1) And 1, (b>>2) And 1, (b>>3) And 1)
 	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then 
 		DBM("CTL_ERR "+Str$(GetLastError()))
 		SendControl=FALSE

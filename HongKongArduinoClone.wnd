@@ -14,7 +14,7 @@ WINDOW:MainWnd
     TYPE      = 0
     FILEPATH  = MainWnd.sbp
     ITEM      = Static1,9,8,230,27,"This program is designed for http://hongkongarduino.web.fc2.com/",&H50000101,&H00020000,11
-    ITEM      = Static2,13,50,60,12,"Serial Prot : ",&H50000000,&H00000000,11
+    ITEM      = Static2,13,50,69,12,"Serial Port : ",&H50000000,&H00000000,11
     ITEM      = ComList,79,45,99,215,"",&H50210142,&H00000000,3
     ITEM      = Static3,13,77,58,13,"ROM Title : ",&H50000000,&H00000000,11
     ITEM      = Static4,13,100,58,13,"Mapping : ",&H50000000,&H00000000,11
@@ -140,4 +140,29 @@ WINDOW:SFTurbo
     ITEM      = GroupBox2,6,78,238,143,"Infomation",&H50000007,&H00000000,5
     ITEM      = EB_TITLE_A,79,19,152,18,"",&H50000880,&H00000200,4
     ITEM      = EB_TITLE_B,79,45,152,18,"",&H50000880,&H00000200,4
+END
+WINDOW:FlashWnd
+    HANDLE    = hFlashWnd
+    POINT     = -1,-1
+    SIZE      = 331,266
+    CAPTION   = "FlashWnd"
+    STYLE     = &H10c80000
+    EXSTYLE   = &H00000000
+    ID        = 0
+    BGCOLOR   = 15
+    FONT      = -12,0,0,0,400,0,0,0,128,3,2,1,32,"‚l‚r ‚oƒSƒVƒbƒN"
+    ICONID    = IDI_ICON1
+    CLASS     = "NORMAL"
+    CALLBACK  = FlashWndProc
+    TYPE      = 3
+    FILEPATH  = FlashWnd.sbp
+    ITEM      = CommandButton1,219,8,88,21,"Button1",&H50000000,&H00000000,1
+    ITEM      = Static1,21,10,50,12,"Map",&H50000000,&H00000000,11
+    ITEM      = Static3,21,53,50,12,"Flash",&H50000000,&H00000000,11
+    ITEM      = CommandButton2,219,38,88,21,"Button2",&H50000000,&H00000000,1
+    ITEM      = FlashName,65,50,127,21,"",&H50000000,&H00000200,4
+    ITEM      = ListView1,23,101,276,126,"",&H50000000,&H00000200,9
+    ITEM      = Static2,21,83,79,12,"MemoryLayout",&H50000000,&H00000000,11
+    ITEM      = CommandButton3,219,64,88,21,"Button3",&H50000000,&H00000000,1
+    ITEM      = CheckBox1,105,81,101,15,"hw acceleration",&H50000003,&H00000000,2
 END

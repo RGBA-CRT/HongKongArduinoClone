@@ -8,7 +8,7 @@
 
 #PLATFORM=32
 
-#USEWINDOW=4
+#USEWINDOW=5
 
 #OPTION=&H00010000
 
@@ -34,3 +34,4 @@ MemoryMapModel.sbp
 CartridgeRW.sbp
 SFTurbo.sbp
 SoundEffect.abp
+FlashWnd.sbp
