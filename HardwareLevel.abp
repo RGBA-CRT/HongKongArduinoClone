@@ -249,7 +249,6 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 
 	WriteCount=0
 
-
 	Do
 		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
@@ -416,4 +415,79 @@ Function ST018_BiosDump(hSerial AS HANDLE, data AS BytePtr)(progress AS * Progre
 	
 	'キャンセル送信
 	WriteFile(hSerial, "e", 1, VarPtr(dwReadByte), ByVal NULL)
+End Function
+
+
+Type Align(1) FlashCmdElm
+	address AS Word
+	data AS Byte
+End Type
+
+Const FLASH_CMD_LIST_LEN = 3
+Type Align(1) FlashConfig
+	bank AS Byte
+	cmdList[ELM(FLASH_CMD_LIST_LEN)] AS FlashCmdElm
+End Type
+
+'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
+'コントロールバスはいじらないので手動でやる必要あり
+Function FlashWriteInit(hSerial AS HANDLE, config As *FlashConfig) As Long
+	Dim cmd[sizeof(FlashConfig)] AS Byte, c As Long, i AS Long
+	Dim WriteCount As DWord
+	Dim dwWD As DWord
+
+	cmd[c]=Asc("F") : c++
+	
+	cmd[c] = config->bank : c++
+
+	for i = 0 To FLASH_CMD_LIST_LEN-1
+		cmd[c] = (config->cmdList[i].address >>  0) AS Byte : c++
+		cmd[c] = (config->cmdList[i].address >>  8) AS Byte : c++
+		cmd[c] = (config->cmdList[i].data) AS Byte : c++
+	Next
+
+	WriteFile(hSerial,cmd,sizeof(FlashConfig)+1,VarPtr(dwWD),ByVal NULL)
+	Sleep(10)
+End Function
+
+Function FlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
+	Dim cmd[7] AS Byte
+	Dim WriteCount As DWord
+	Dim dwWD As DWord
+
+	if isLoROM Then
+		MessageBox(hMainWnd, "ASSERT: HW lorom layout is not supported.", 0, MB_ICONERROR)
+	End if
+
+	cmd[0]=Asc("f")
+
+	cmd[1] = (address >>  0) AS Byte
+	cmd[2] = (address >>  8) AS Byte
+	cmd[3] = (address >> 16) AS Byte
+
+	cmd[4] = (size >>   0) AS Byte
+	cmd[5] = (size >>   8) AS Byte
+'	cmd[6] = (size >>  16) AS Byte
+
+	WriteFile(hSerial,cmd,6,VarPtr(dwWD),ByVal NULL)
+	Sleep(10)
+
+	WriteCount=0
+
+	Do
+		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
+		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
+		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
+
+		WriteCount+=dwWD
+		if WriteCount => size Then exitdo
+		if dwWD=0 Then debug
+	Loop
+	
+	FlashWrite=WriteCount
+
+	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
+		DBM("[DBG]Firmware Error!")
+		DBM("書込ルーチン暴走中")
+	End If
 End Function

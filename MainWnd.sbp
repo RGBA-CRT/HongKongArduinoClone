@@ -500,6 +500,7 @@ Sub MainWnd_CommandButton2_Click()
 	path="dump.sfc"
 #endif
 
+
 	Dim ret AS Long
 	ret = MainWnd_DumpRomToFile(VarPtr(info), NULL, path)
 
@@ -574,10 +575,14 @@ Sub MainWnd_CommandButton3_Click()
 	End If
 
 	Dim rom_title[MAX_PATH] As Byte
-	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)	
+	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)
+
+	Dim default_ext = "srm" AS BytePtr
+	if info.isFlashSave then default_ext = "flh"
+	debug
 	
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",rom_title)
+	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm, *.flh)\0*.srm;*.flh\0すべてのファイル(*.*)\0*.*\0\0",default_ext,rom_title)
 	If path=0 Then ExitSub
 #else
 	path="dump.srm"
@@ -733,7 +738,7 @@ Function compareBinaly(dat1 AS BytePtr, dat2 AS BytePtr,length aS DWord)( pos As
 	compareBinaly=TRUE
 End Function
 
-Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As BytePtr,filterIndex As *DWord) As BytePtr
+Function SaveDialogCalloc(filter As BytePtr, ext As BytePtr)(defFileName As BytePtr,filterIndex As *DWord) As BytePtr
 	Dim tOfn As OPENFILENAME, i As DWord
 	
 	'ファイルオープン構造体の初期化
@@ -743,9 +748,15 @@ Function SaveDialogCalloc(filter As BytePtr, ext As String)(defFileName As ByteP
 	tOfn.nFilterIndex = 1
 	tOfn.nMaxFile = MAX_PATH
 	tOfn.Flags = OFN_OVERWRITEPROMPT
-	tOfn.lpstrDefExt = StrPtr(ext)'"wav"
+	tOfn.lpstrDefExt = ext
 	tOfn.lpstrFile = calloc(MAX_PATH + 10)
-	If defFileName Then lstrcpy(tOfn.lpstrFile, defFileName)
+	If defFileName Then 
+		if ext then
+			wsprintf(tOfn.lpstrFile, "%s.%s", defFileName, ext)
+		else
+			lstrcpy(tOfn.lpstrFile, defFileName)
+		endif
+	endif
 	
 	'ファイルオープンダイアログを表示する
 	If GetSaveFileName(tOfn) = 0 Then

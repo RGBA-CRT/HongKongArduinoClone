@@ -4,14 +4,24 @@
    Some codes are referenced to [https://github.com/sanni/cartreader/]
    Docs : https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
-
+#pragma GCC push_options 
+#pragma GCC optimize("Ofast")
 //config
 //シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
 #define FIRMWARE_NAME "HKAF"
-#define FIRMWARE_VERSION "4" // FWのAPIが変わったらインクリメント
+#define FIRMWARE_VERSION "5" // FWのAPIが変わったらインクリメント
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
+
+/* version history
+ * HKAF0: 2017/02: add version cmd
+ * HKAF1: 2018/02: dynamic baud rate, speedup: 82KB/s
+ * HKAF2: 2018/03: protocol change
+ * HLAF3: 2018/07: clock cmd change
+ * HKAF4: 2029/03: ST017 surpport
+ * HKAF5: 2025/04: flash write
+ */
 
 //クロック回路有効
 #define _ENABLE_CIC
@@ -520,14 +530,6 @@ void setup()
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
-
-//flash config
-#define FLASH_COMMAND_LENGTH 3
-byte flash_bank;
-word flash_address[FLASH_COMMAND_LENGTH]; // = {0xAAAA,0x5555,0xAAAA}
-byte flash_cmd[FLASH_COMMAND_LENGTH];     // = {0xAA  ,0x55,  [cmd] }
-// flash_cmdの最後のバイトは適宜コマンドに置き換え
-
 void loop() {
   while (Serial.available() == 0);  //wait command
   byte cmd = Serial.read();
@@ -573,22 +575,12 @@ void loop() {
 
     case 'f':
       { // flash command
-        while (Serial.available() < 1);
-        flash_cmd[FLASH_COMMAND_LENGTH] = Serial.read();
-        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-          writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
-        }
+        flashWriteCart();
       } break;
 
     case 'F':
       { // flash config
-        // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
-        while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3));
-        flash_bank = Serial.read();
-        for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-          flash_address[i] = Serial_readWord();
-          flash_cmd[i] = Serial.read();
-        }
+        flashReceiveConfig();
       } break;
 
     case 'g':
@@ -621,13 +613,13 @@ void loop() {
         Serial.print(lastadr[2], HEX);
         Serial.print(lastadr[1], HEX);
         Serial.print(lastadr[0], HEX);
-        Serial.print("\nFash:\n");
-        Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
-        Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
-        Serial.print(flash_bank, HEX);        Serial.print(flash_address[2], HEX);        Serial.print("\n");
-        for (byte i = 0; i < 20; i++) {
-          Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
-        }  Serial.print("\n");
+        // Serial.print("\nFash:\n");
+        // Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
+        // Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
+        // Serial.print(flash_bank, HEX);        Serial.print(flash_address[2], HEX);        Serial.print("\n");
+        // for (byte i = 0; i < 20; i++) {
+        //   Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
+        // }  Serial.print("\n");
 
       } break;
 
@@ -697,3 +689,5 @@ void loop() {
       } break;
   }
 }
+
+#pragma GCC pop_options
