@@ -7,6 +7,7 @@
 ' Todo: isLoROMの削除と高速化
 ' TODO: BSとSFMなど外付けWindowのボタン排他があまい
 '  get/set int,string,hex, コンストラクタでファイル名. デフォルトでEXEのディレクトリ
+'  libdatabusとして分離、offset引数削除
 /*
 ' INIへのIFを提供
 Class IniConfig

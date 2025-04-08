@@ -538,7 +538,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 		info.cat(ex"\r\n  -> checksum broken.")
 
 	Dim model AS SFC_MMAP_MODEL, lastbank As DWord
-	GetMmapModel(header, FALSE, VarPtr(model)) 
+	GetMmapModel(header->MapType, FALSE, VarPtr(model)) 
 
 	Dim fastrom[1] = ["Slow", "Fast"] As BytePtr
 	Dim lohi[1]	= ["Hi","Lo"] As BytePtr

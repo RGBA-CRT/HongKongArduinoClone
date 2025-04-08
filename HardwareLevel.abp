@@ -417,7 +417,7 @@ Function ST018_BiosDump(hSerial AS HANDLE, data AS BytePtr)(progress AS * Progre
 	WriteFile(hSerial, "e", 1, VarPtr(dwReadByte), ByVal NULL)
 End Function
 
-
+' todo SNES制約から脱却、可変長、バンクの廃止
 Type Align(1) FlashCmdElm
 	address AS Word
 	data AS Byte
@@ -431,7 +431,7 @@ End Type
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
-Function FlashWriteInit(hSerial AS HANDLE, config As *FlashConfig) As Long
+Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 	Dim cmd[sizeof(FlashConfig)] AS Byte, c As Long, i AS Long
 	Dim WriteCount As DWord
 	Dim dwWD As DWord
@@ -450,7 +450,7 @@ Function FlashWriteInit(hSerial AS HANDLE, config As *FlashConfig) As Long
 	Sleep(10)
 End Function
 
-Function FlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
+Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
 	Dim cmd[7] AS Byte
 	Dim WriteCount As DWord
 	Dim dwWD As DWord
@@ -484,7 +484,7 @@ Function FlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS
 		if dwWD=0 Then debug
 	Loop
 	
-	FlashWrite=WriteCount
+	DatabusFlashWrite=WriteCount
 
 	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
 		DBM("[DBG]Firmware Error!")

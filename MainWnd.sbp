@@ -263,6 +263,15 @@ Sub DBMf(lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e 
 	DBM(dbuf)
 EndSub
 
+
+Sub SetWindowTextFormat(hWnd AS HANDLE, lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e As DWord ,f As DWord ,g As DWord ,h As DWord ,i As DWord ,j As DWord ,k As DWord ,l As DWord ,m As DWord ,n As DWord ) 
+	Dim dbuf[1024] As Byte
+	Dim p AS DWord
+	p=wsprintf(dbuf,lpFormat,a,b,c,d,e,f,g,h,i,j,k,l,m,n)
+
+	SetWindowText(hWnd, dbuf)
+EndSub
+
 Sub BaudrateErrorMessage()
 	' 初回
 	if isFirstBaudrateError = FALSE Then
@@ -579,7 +588,6 @@ Sub MainWnd_CommandButton3_Click()
 
 	Dim default_ext = "srm" AS BytePtr
 	if info.isFlashSave then default_ext = "flh"
-	debug
 	
 #ifndef _DEBUG
 	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm, *.flh)\0*.srm;*.flh\0すべてのファイル(*.*)\0*.*\0\0",default_ext,rom_title)
@@ -598,7 +606,7 @@ Sub MainWnd_CommandButton3_Click()
 	sram = calloc(info.SramSize)
 
 	Dim mmap As SFC_MMAP_MODEL
-	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
+	GetMmapModel(info.MapType, FALSE, VarPtr(mmap))
 
 	DBM("Dumping SRAM...")
 	DBMf("SramSize = %d KB", info.SramSize>>10)
@@ -677,7 +685,7 @@ Sub MainWnd_CommandButton4_Click()
 	Dim retry As Long
 *MWWS_RETRY
 	Dim mmap As SFC_MMAP_MODEL
-	GetMmapModel(VarPtr(info), TRUE, VarPtr(mmap))
+	GetMmapModel(info.MapType, TRUE, VarPtr(mmap))
 	
 	DBMf("SramSize = %d KB", info.SramSize>>10)
 	DBMf("bankSize = %d KB", mmap.sram.bankSize>>10)
@@ -695,7 +703,7 @@ Sub MainWnd_CommandButton4_Click()
 	DBMN("Verifying...")
 	Dim verifyBuffer As BytePtr, diffPos AS DWord
 	verifyBuffer = calloc(info.SramSize)
-	GetMmapModel(VarPtr(info), FALSE, VarPtr(mmap))
+	GetMmapModel(info.MapType, FALSE, VarPtr(mmap))
 	DumpSRAM(hCOM, verifyBuffer, info.SramSize,  VarPtr(mmap), NULL)
 	if compareBinaly(verifyBuffer, writeBuffer, info.SramSize, VarPtr(diffPos)) Then
 		DBM("OK")
@@ -1685,7 +1693,7 @@ Function MainWnd_DumpRomToFile(info As * SFC_CART_INFO, mmapModel As *SFC_MMAP_M
 	End If
 
 	if mmapModel = NULL Then
-		GetMmapModel(info, FALSE, VarPtr(localMmap))
+		GetMmapModel(info->MapType, FALSE, VarPtr(localMmap))
 	Else		
 		memcpy(VarPtr(localMmap), mmapModel, sizeof(SFC_MMAP_MODEL))
 	endif

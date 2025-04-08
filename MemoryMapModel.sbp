@@ -40,7 +40,7 @@ TypeDef MODEL_ARRAY_TYPE = DWord '本当はVoidPtrのほうが良いけどキャストが面倒
 
 
 ' MemoryModelを決定する
-Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
+Function GetMmapModel(map As SFC_MAP_TYPE, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
 	' コールバックは省略可能
 	model->rom.init_cb   =  NULL
 	model->rom.next_cb   =  NULL
@@ -49,7 +49,7 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 	model->sram.next_cb  =  NULL
 	model->sram.exit_cb  =  NULL
 
-	Select Case info->MapType
+	Select Case map
 		Case SFC_MAP_LoROM
 			model->sram.adr      =  &H700000
 			model->sram.bankStep =  &H010000
@@ -250,14 +250,15 @@ Function GetMmapModel(info As *SFC_CART_INFO, isWrite AS BOOL, model As *SFC_MMA
 			debug
 			DBM("Internal Error: Memory model is undefined.")
 	End Select
-/*
+
 	If model->rom.next_cb = NULL Then
 		If model->rom.isLoROM Then
 			model->rom.next_cb = AddressOf(LoROM_nextAddress)
 		Else
 			model->rom.next_cb = AddressOf(HiROM_nextAddress)
 		End If
-	End If*/
+	End If
+
 End Function
 
 

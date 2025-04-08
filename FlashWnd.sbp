@@ -32,45 +32,58 @@ End Sub
 	cmdBank = &H00
 	cmdOffset=&H8000
 
-Type IdTextMap
+Type FlashChipInfo
 	id AS DWord
 	name AS BytePtr
+	size AS DWord
 End Type
 
 Const FLASH_ID_TABLE_MAX = 25
-Dim FlashIdTable[FLASH_ID_TABLE_MAX] = [
-	[&HC2A4, "MX29F040"   ],
-	[&HC2D5, "MX29F080"   ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
-	[&HC249, "MX29LV160DB"],
-	[&HC2C4, "MX29LV160DT"],
-	[&HC2A8, "MX29LV320DB"],
-	[&HC2A7, "MX29LV320DT"],
-	[&HC2CB, "MX29LV640DB"],
-	[&HC2C9, "MX29LV640DT"],
-	[&HC2FA, "MX29F1610A" ], ' NintendoPower
-	[&HC2FB, "MX29F1610B" ], ' NintendoPower
-	[&HC2F7, "MX29F1611"  ], ' NintendoPower
-	[&HC26B, "MX29F1615"  ], ' NintendoPower
-	[&HC2F3, "MX29F1601MC"], ' NintendoPower
-	[&H01A4, "AM29F040"   ], ' ByteProgram: 7-300us, 8-64sec
-	[&H01D5, "AM29F080"   ],
-	[&HBFB5, "SST39SF010A"],
-	[&HBFB5, "SST39SF020A"],
-	[&HBFB7, "SST39SF040" ], ' ByteProgram: 14us, ChipErase: 0.1sec
-	[&H04A4, "MBM29F040"  ], ' ByteProgram: 150us, ChipErase: 4.2-10sec
-	[&H04D5, "MBM29F080"  ],
-	[&H0423, "MBM29F400TC"],
-	[&H04AB, "MBM29F400BC"],
-	[&H0458, "MBM29F800BA"],
-	[&H04D6, "MBM29F800TA"],
-] As IdTextMap
+Const MBIT(x) = (x * &H20000)
+Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
+	[ &HC2A4, "MX29F040"   , MBIT( 4) ],
+	[ &HC2D5, "MX29F080"   , MBIT( 8) ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
+	[ &HC249, "MX29LV160DB", MBIT(16) ],
+	[ &HC2C4, "MX29LV160DT", MBIT(16) ],
+	[ &HC2A8, "MX29LV320DB", MBIT(32) ],
+	[ &HC2A7, "MX29LV320DT", MBIT(32) ],
+	[ &HC2CB, "MX29LV640DB", MBIT(64) ],
+	[ &HC2C9, "MX29LV640DT", MBIT(64) ],
+	[ &HC2FA, "MX29F1610A" , MBIT(16) ], ' NintendoPower
+	[ &HC2FB, "MX29F1610B" , MBIT(16) ], ' NintendoPower
+	[ &HC2F7, "MX29F1611"  , MBIT(16) ], ' NintendoPower
+	[ &HC26B, "MX29F1615"  , MBIT(16) ], ' NintendoPower
+	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
+	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
+	[ &H01D5, "AM29F080"   , MBIT( 8) ],
+	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
+	[ &HBFB5, "SST39SF020A", MBIT( 2) ],
+	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' ByteProgram: 14us, ChipErase: 0.1sec
+	[ &H04A4, "MBM29F040"  , MBIT( 4) ], ' ByteProgram: 150us, ChipErase: 4.2-10sec
+	[ &H04D5, "MBM29F080"  , MBIT( 8) ],
+	[ &H0423, "MBM29F400TC", MBIT( 4) ],
+	[ &H04AB, "MBM29F400BC", MBIT( 4) ],
+	[ &H0458, "MBM29F800BA", MBIT( 8) ],
+	[ &H04D6, "MBM29F800TA", MBIT( 8) ],
+] As FlashChipInfo
 
 Function GetFlashName(id AS Word) As BytePtr
 	Dim i As Long
 	GetFlashName = "<unknown>"
 	for i = 0 To FLASH_ID_TABLE_MAX-1
-		if FlashIdTable[i].id = id Then
-			GetFlashName = FlashIdTable[i].name
+		if FlashChipInfoTable[i].id = id Then
+			GetFlashName = FlashChipInfoTable[i].name
+			ExitFor
+		End If
+	Next
+
+End Function
+Function GetFlashChipInfo(id AS Word) As *FlashChipInfo
+	Dim i As Long
+	GetFlashChipInfo = NULL
+	for i = 0 To FLASH_ID_TABLE_MAX-1
+		if FlashChipInfoTable[i].id = id Then
+			GetFlashChipInfo = VarPtr(FlashChipInfoTable[i])
 			ExitFor
 		End If
 	Next
@@ -79,15 +92,14 @@ End Function
 
 Sub FlashWnd_CommandButton1_Click()
 	Dim preId[4] As Byte
-	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
-	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
 
 	ReadROM(hCOM,VarPtr(preId),cmdBank,cmdOffset,4,FALSE)
 	PrintPtr(ex"preid\n")
 	Dump(VarPtr(preId),4,0)
 
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+
+	FlashCmdInit(cmdBank, cmdOffset)
+	
 	' ReadID
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
@@ -97,13 +109,17 @@ Sub FlashWnd_CommandButton1_Click()
 	ReadROM(hCOM,VarPtr(flashId),cmdBank,cmdOffset,16,FALSE)
 	Dump(VarPtr(flashId),16,0)
 
-	Dim flashName AS BytePtr
-	flashName = GetFlashName(ChangeEndianWord(GetWord(flashId)))
+	Dim flashName AS BytePtr, chipInfo AS *FlashChipInfo
+	chipInfo = GetFlashChipInfo(ChangeEndianWord(GetWord(flashId)))
+	if chipInfo = NULL Then
+		flashName = "<unknown>"
+	else
+		flashName = chipInfo->name
+	End If
+
 	SetDlgItemText(hFlashWnd, FlashName, flashName)
 	
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
-	SendControl(hCOM, CBUS_DEFAULT)
+	FlashCmdExit(cmdBank, cmdOffset)	
 
 	' TODO: DETECT LOROM/HIROM layout
 	
@@ -111,6 +127,15 @@ Sub FlashWnd_CommandButton1_Click()
 		DBMf("maybe not flash detected.")
 	endif
 	DBMf("Flash VID=%02X PID=%02X %s", flashId[0], flashId[1], flashName)
+
+	Dim info AS SFC_CART_INFO
+	wsprintf(info.Title, "<FLASH DETECTION MODE>", flashName)
+	info.MapType = SFC_MAP_LoROM
+	if chipInfo then info.RomSize = chipInfo->size
+	SetCartInfo(VarPtr(info))
+	
+	SetWindowTextFormat(MWnd(CART_CIPS), "<Flash: %s>", flashName)
+
 End Sub
 
 Sub FlashWnd_Static1_Click()
@@ -121,6 +146,8 @@ Sub FlashWnd_CheckBox1_Click()
 
 End Sub
 
+' TODO write pulse length::: 100nsは確保したい
+Dim PollInterval=32 AS DWord
 Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord) AS BOOL
 	Dim i as Long, start AS DWord
 	start = GetTickCount()
@@ -151,15 +178,20 @@ Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord
 
 End Function
 
-' TODO write pulse length::: 100nsは確保したい
-Dim PollInterval=32 AS DWord
-Sub FlashWnd_CommandButton2_Click()
-
+Sub FlashCmdInit(cmdBank AS Byte, cmdOffset As Word)
 	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
 	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
 	' Reset Flash
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+End Sub
 
+Sub FlashCmdExit(cmdBank AS Byte, cmdOffset As Word)
+	' Reset Flash
+	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	SendControl(hCOM, CBUS_DEFAULT)
+End Sub
+
+Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word)
 	' ChipErase
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
@@ -170,11 +202,6 @@ Sub FlashWnd_CommandButton2_Click()
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &H10, FALSE)
 
 	FlashWaitOperation((cmdBank << 16) OR cmdOffset, &HFF, 10000)
-
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
-	SendControl(hCOM, CBUS_DEFAULT)
-
 End Sub
 
 Function FlashWriteSoftware(buf As *BufferClass, pc AS *DumpRomProgressCallBack)
@@ -205,45 +232,83 @@ Function FlashWriteSoftware(buf As *BufferClass, pc AS *DumpRomProgressCallBack)
 	Next
 End Function
 
-Sub FlashCmd(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
+Sub DumperFlashConfig(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
 	elm.address = adr
 	elm.data = data
 End Sub
 
-Function FlashWriteHardware(buf As *BufferClass, pc AS *DumpRomProgressCallBack)
+Sub UpdateFlashConfig(cmdBase As DWord)
+	Dim cmdOffset AS Word
+	cmdOffset = (cmdBase And &HFFFF) As Word
 	Dim FlashConfig16bit AS FlashConfig
 	With FlashConfig16bit
-		.bank = cmdBank
-		FlashCmd(.cmdList[0], cmdOffset + &H0555, &HAA)
-		FlashCmd(.cmdList[1], cmdOffset + &H02AA, &H55)
-		FlashCmd(.cmdList[2], cmdOffset + &H0555, &HA0)
+		.bank = cmdBase >> 16
+		DumperFlashConfig(.cmdList[0], cmdOffset + &H0555, &HAA)
+		DumperFlashConfig(.cmdList[1], cmdOffset + &H02AA, &H55)
+		DumperFlashConfig(.cmdList[2], cmdOffset + &H0555, &HA0)
 	End With
-	FlashWriteInit(hCOM, VarPtr(FlashConfig16bit))
+	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
+
+End Sub
+
+Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack)
+	If mmodel->rom.init_cb Then mmodel->rom.init_cb(hCOM)
+
+	Dim bus_addr AS DWord, last_bank AS DWord
+	bus_addr = cmdBase
+	last_bank = &HFFFFFFFF
+
 
 	Const FLASH_WRITE_BUF_SIZE = &H1000
+	Dim img_offset=0 AS DWord
+	Dim block_size=FLASH_WRITE_BUF_SIZE AS DWord
+
 	Dim i as DWord, start AS DWord
 	start = GetTickCount()
 	for i=0 To buf->length() / FLASH_WRITE_BUF_SIZE
+		if last_bank <> (bus_addr>>16) then
+			UpdateFlashConfig(bus_addr)
+			last_bank = (bus_addr>>16)
+		endif
 		
-		Dim rom_offset AS DWord
-		rom_offset = i*FLASH_WRITE_BUF_SIZE
-		FlashWrite(hCOM, buf->ptr + i*FLASH_WRITE_BUF_SIZE, 0, rom_offset, FLASH_WRITE_BUF_SIZE, FALSE)
+		DatabusFlashWrite(hCOM, buf->ptr + img_offset, 0, bus_addr, block_size, FALSE)
+		img_offset += block_size
 
 		Dim dur_ms AS DWord, speed AS Single
 		dur_ms = (GetTickCount() - start)
-		speed = (rom_offset AS Single) / (dur_ms)
-		DBMf("programming... %Xh/%Xh %d.%dms %d.%dKB/s", i*FLASH_WRITE_BUF_SIZE, buf->length(), dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
+		speed = (img_offset AS Single) / (dur_ms)
+		DBMf("%X: %Xh/%Xh %d.%ds %d.%dKB/s", bus_addr, img_offset, buf->length(), dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
 		PumpMessage()
 		
-		pc->Step(FLASH_WRITE_BUF_SIZE AS Long, rom_offset)
+		pc->Step(FLASH_WRITE_BUF_SIZE AS Long, img_offset)
 
+		if (buf->length() - img_offset) > FLASH_WRITE_BUF_SIZE then
+			block_size = FLASH_WRITE_BUF_SIZE
+		Else
+			block_size = buf->length() - img_offset
+			if block_size = 0 then ExitFor
+		endif
+		bus_addr = mmodel->rom.next_cb(hCOM, bus_addr, block_size)
 	Next
+
+	If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hCOM, NULL)
 End Function
 
-Sub FlashWnd_CommandButton3_Click()
+Sub FlashWnd_CommandButton2_Click()
+	FlashCmdInit(cmdBank, cmdOffset)
+	FlashCmdChipErase(cmdBank, cmdOffset)
+	FlashCmdExit(cmdBank, cmdOffset)
+End Sub
+
+Sub FlashWnd_Program(file AS BytePtr)
+	Dim mapMode AS Long
+	Dim mmap As SFC_MMAP_MODEL
+	mapMode = getSelectedMapMode()
+	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
+
 	Dim buf AS BufferClass
 
-	if LoadFileToMemory("write2.srm", VarPtr(buf)) = FALSE then
+	if LoadFileToMemory(file, VarPtr(buf)) = FALSE then
 		DBM("failed to load file.")
 		exitsub
 	endif
@@ -256,20 +321,37 @@ Sub FlashWnd_CommandButton3_Click()
 	pc = new_DumpRomProgressCallBack()
 	pc->Init(buf.length())
 
-	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
-	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
+	FlashCmdInit(cmdBank, cmdOffset)
 	
 '	FlashWriteSoftware(VarPtr(buf), pc)
-	FlashWriteHardware(VarPtr(buf), pc)
+	FlashWriteHardware(cmdBank<<16 + cmdOffset, VarPtr(buf), VarPtr(mmap), pc)
 
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
-	SendControl(hCOM, CBUS_DEFAULT)
+	FlashCmdExit(cmdBank, cmdOffset)
 	DBM("program exit.")
 	
 	pc->Final()
 
 	delete_DumpRomProgressCallBack(pc)
 End Sub
+
+Sub FlashWnd_CommandButton4_Click()
+	Dim path As BytePtr
+
+	path = LoadDialogCalloc(ex"ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc")
+	If path=0 Then ExitSub
+	FlashWnd_Program(path)
+	free(path)
+End Sub
+
+Sub FlashWnd_CommandButton3_Click()
+	FlashWnd_Program("write2.srm")
+End Sub
+
+'Todo: speedup ( protocol, blocksize )
+'Todo: ROM size check
+'Todo: FW: WaitWrite, ErrorReturn
+'Todo: [Pri:MID] EraseProgress
+'Todo: [Pri:MID] DetectMapMode
+'Todo: [Pri:LOW] MultiChip
+'Todo: [Pri:LOW] Support Type2, 3 Flash
+'Todo: [Pri:LOW] split lib, remove bank system

@@ -143,7 +143,7 @@ WINDOW:SFTurbo
 END
 WINDOW:FlashWnd
     HANDLE    = hFlashWnd
-    POINT     = -1,-1
+    POINT     = -2147483648,-2147483648
     SIZE      = 331,266
     CAPTION   = "FlashWnd"
     STYLE     = &H10c80000
@@ -157,7 +157,7 @@ WINDOW:FlashWnd
     TYPE      = 3
     FILEPATH  = FlashWnd.sbp
     ITEM      = CommandButton1,219,8,88,21,"Button1",&H50000000,&H00000000,1
-    ITEM      = Static1,21,10,50,12,"Map",&H50000000,&H00000000,11
+    ITEM      = Static1,21,10,140,12,"FlashCmdType: JDEC 8bit",&H50000000,&H00000000,11
     ITEM      = Static3,21,53,50,12,"Flash",&H50000000,&H00000000,11
     ITEM      = CommandButton2,219,38,88,21,"Button2",&H50000000,&H00000000,1
     ITEM      = FlashName,65,50,127,21,"",&H50000000,&H00000200,4
@@ -165,7 +165,6 @@ WINDOW:FlashWnd
     ITEM      = Static2,21,128,79,12,"MemoryLayout",&H50000000,&H00000000,11
     ITEM      = CommandButton3,219,64,88,21,"Button3",&H50000000,&H00000000,1
     ITEM      = CheckBox1,191,92,101,15,"hw acceleration",&H50000003,&H00000000,2
-    ITEM      = EditBox1,17,97,70,21,"210",&H50000000,&H00000200,4
-    ITEM      = ByteWriteWait,15,82,103,12,"ByteWriteWait[us]",&H50000000,&H00000000,11
     ITEM      = Static4,119,104,83,19,"FlashCmdMask",&H50000000,&H00000000,11
+    ITEM      = CommandButton4,223,110,88,21,"Button4",&H50000000,&H00000000,1
 END

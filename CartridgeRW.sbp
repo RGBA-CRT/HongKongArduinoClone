@@ -47,13 +47,13 @@ Function DumpRom2(hSerial As HANDLE, rom As BytePtr, dump_size As DWord, mmodel 
 
 	' ƒAƒhƒŒƒX‚ð‚·‚·‚ß‚éŠÖ”‚ðŽæ“¾
 	nextAddress = mmodel->rom.next_cb
-	If nextAddress = NULL Then
+/*	If nextAddress = NULL Then
 		If mmodel->rom.isLoROM Then
 			nextAddress = AddressOf(LoROM_nextAddress)
 		Else
 			nextAddress = AddressOf(HiROM_nextAddress)
 		End If
-	End If
+	End If*/
 
 	' MMC‰Šú‰»
 	If mmodel->rom.init_cb Then mmodel->rom.init_cb(hSerial)
