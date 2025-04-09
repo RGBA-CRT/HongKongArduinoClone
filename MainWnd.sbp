@@ -343,6 +343,17 @@ Sub ConnectDevice()
 
 	'正常なデータ通信を確立(できるようになるまでリトライ）
 	If CheckFirmware(hCOM, TRUE, hMainWnd) = FALSE Then
+		FlushCom(hCOM)
+		CloseHandle(hCOM): hCOM=NULL
+		Sleep(500)
+		
+		retry++
+		if retry<2 Then
+			DBM(ex"failed. retry.\r\n")
+			Goto *RECONNECT
+		endif
+		
+		ErrMes(hMainWnd, ex"接続エラーが発生しました。","Failed to connect device",0,GetLastError())
 		goto * HKAF_CON_ERR
 	End If
 	DBM(ex"Connection Stage2 OK.\r\n")
@@ -383,6 +394,7 @@ Sub ConnectDevice()
 	SetWindowText(MWnd(ROMTITLE), "")
 	SetWindowText(MWnd(CART_CIPS), "")
 	SetWindowText(MWnd(MAPPING), "")
+	ExitSub
 End Sub
 
 Sub DisconnectDevice()
@@ -488,6 +500,9 @@ Sub MainWnd_CommandButton2_Click()
 
 	Dim info As SFC_CART_INFO
 	Dim path As BytePtr
+#ifdef _DEBUG
+	Dim dir As BinalyDirectory
+#endif
 
 	If GetDumpConfig(VarPtr(info)) <> TRUE Then 
 		DBM("GetDumpConfig() Error")
@@ -506,7 +521,7 @@ Sub MainWnd_CommandButton2_Click()
 	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", rom_title)
 	If path=0 Then ExitSub
 #else
-	path="dump.sfc"
+	path=dir.MakePath("dump.sfc")
 #endif
 
 
@@ -873,7 +888,7 @@ End Sub
 
 Sub MainWnd_CommandButton1_Click()
 	SetRomInfoToDlg_FromROM()
-		FlashWnd_open()
+	FlashWnd_open()
 
 End Sub
 
@@ -970,14 +985,18 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
 	
+	PrintPtr("GCI TP1"):FlushCom(hCOM)
 '	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
 	if SendControl(hCOM,CBUS_DEFAULT)=FALSE Then	'default
 		Goto *GCI_ERR
 	End If
 
+	PrintPtr("GCI TP2"):FlushCom(hCOM)
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		Goto *GCI_ERR
 	End If
+	
+	PrintPtr("GCI TP3"):FlushCom(hCOM)
 	SloveCartInfo(buf As *SFC_CART_HEADER,info)
 
 	getCartInfo = TRUE
@@ -1773,7 +1792,6 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 
 *SEND_VER_CHECK
 	if GetFirmware(hSerial, rsv, 5) <> TRUE Then
-		if msg=TRUE Then ErrMes(hMainWnd, "接続エラーが発生しました。",0,0,GetLastError())
 		DBMf("[FirmCheck] Communication error. GLE=%d", GetLastError())
 		ExitFunction
 	End If

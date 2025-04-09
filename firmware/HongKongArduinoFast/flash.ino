@@ -18,6 +18,19 @@ void flashReceiveConfig() {
   }
 }
 
+// 500usぐらいをtimeoutとしたい
+// clockは16MHz, 1cycle1命令とする(今もそうなのか？). 62.5ns
+// readDataが108clkぐらい
+// その他関数内のループを少なく見積もって5clkぐらい。7,062.5ns
+#define FLASH_WAIT_TIMEOUT_CYCLE 140
+bool flashWaitOperation(byte expect_byte){
+  for(byte i = 0; i<FLASH_WAIT_TIMEOUT_CYCLE; i++){
+    if(readData() == expect_byte){
+      return true;
+    }
+  }
+  return false;
+}
 
 void flashWriteCart() {
   //コマンド受信
@@ -43,14 +56,22 @@ void flashWriteCart() {
       bufpos = 0;
     }
 
+    // Flash command: PROGRAM
     for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
       writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
     }
+
+    // output program byte
     writebyte_cart(bank, address, buf[bufpos]);
+    if(!flashWaitOperation(buf[bufpos])){
+      // report fail to write
+      serial_send('X');
+      break;
+    }
+
     address++;
     bufpos++;
 
-    // TODO: check DQ7
     if (address == goalAdr) break;
   }
 

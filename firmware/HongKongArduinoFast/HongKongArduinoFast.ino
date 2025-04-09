@@ -26,7 +26,7 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 //CONFIG
 //#define _ENABLE_CIC
 #define ENABLE_ST018_BIOS_DUMP
-#define ENABLLE_SFMEM
+// #define ENABLLE_SFMEM
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -272,14 +272,14 @@ inline void setCtrlBus(byte b) {
 inline byte readData()
 {
   CART_OUTPUT_ENABLE();
-  setDataDir(INPUT);
+  setDataDir(INPUT); // 引数やめたら高速化になるはず
   BB_OUT_ENABLE();
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
   BB_OUT_DISABLE();
-  setDataDir(OUTPUT);
+  setDataDir(OUTPUT); // 引数やめたら高速化になるはず
   CART_OUTPUT_DISABLE();
 
   return b;
@@ -438,8 +438,14 @@ void loop() {
   switch (cmd) {
     case 'R':
     case 'r':
-      readCart((cmd == 'r'));
-      break;
+      {
+        readCart((cmd == 'r'));
+      } break;
+
+    case 'd':
+      {
+        serial_send(readData());
+      } break;
 
     case 'a':
     case 'A':
@@ -593,7 +599,7 @@ void loop() {
       } break;
 #endif
     default:
-      Serial.write("E");
+      Serial.write("?");
   }
 }
 

@@ -191,36 +191,34 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 	Dim dwErrors AS DWord,retry AS DWord,rsv AS Byte
 	Dim cs AS COMSTAT,readLen AS DWord
 
-	
+	Dim start AS DWord
+	start = GetTickCount()
 	Do
 		'受信バッファ数取得
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
-		if cs.cbInQue=0 Then 
-			retry++
-			if retry>timedOut_ms Then WaitForRequest=FALSE:ExitDo
-			readLen=0
-		Else
-			readLen=1
+		if cs.cbInQue>0 Then 
+			ReadFile(hSerial,VarPtr(rsv), 1 ,VarPtr(readLen),ByVal NULL)
+			
+			if readLen > 0 Then
+				if rsv=requestChar Then 
+					WaitForRequest=TRUE
+					printf(ex"[WaitRequest] OK: responce=%c wait=%dms retry=%d\n",requestChar, GetTickCount() - start, retry)
+					ExitDo
+				Else
+					printf(ex"[WaitRequest] Error: Unexpected responce : real=%X[%c] expect=%X[%c] %d %dms \n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start)
+					ExitDo
+				End if
+			Else
+				printf(ex"[WaitRequest] Warn: read error : real=%X[%c], expect=%X[%c] %d %dms GLE=\n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start, GetLastError())
+			End  If
 		End  If
 
-		ReadFile(hSerial,VarPtr(rsv),readLen ,VarPtr(dwErrors),ByVal NULL)
-		if rsv=requestChar Then 
-			WaitForRequest=TRUE
-			ExitDo
-		Else
-			'なぜかここに来て読んだバイト数が0になることがある
-			if dwErrors<>readLen Then
-				printf(ex"[WaitRequest]Invailed Request : %X[%c] <> %X[%c] %d \n",rsv,rsv,requestChar,requestChar,dwErrors)
-			End if
-		End  If
 		Sleep(1)
 		retry++
-		if retry<timedOut_ms Then Continue
+		if (GetTickCount() - start) > timedOut_ms Then ExitDo
 	Loop
 
-'	if retry>10 Then
-		printf(ex"[WaitRequest] char:%c wait:%d ms ok:%d\n",requestChar,retry,WaitForRequest)
-'	End  If
+
 End Function
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
@@ -295,7 +293,7 @@ Function hasClockModule(hSerial AS HANDLE) AS BOOL
 	
 	cmd[0] = Asc("G")
 	
-	WriteFile(hSerial, cmd, 2, VarPtr(dwWB) , ByVal NULL)
+	WriteFile(hSerial, cmd, 1, VarPtr(dwWB) , ByVal NULL)
 	
 	ReadFile(hSerial, cmd, 1, VarPtr(dwWB), ByVal NULL)
 	if cmd[0] = &H31 Then
@@ -305,7 +303,7 @@ Function hasClockModule(hSerial AS HANDLE) AS BOOL
 	End If
 End Function
 
-Const HKAC_GETFIRM_RETRY = 25
+Const HKAC_GETFIRM_RETRY = 10
 Const HKAC_GETFIRM_WAIT = 10
 Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord) As BOOL
 	Dim cmd[2] AS Byte
@@ -450,7 +448,7 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 	Sleep(10)
 End Function
 
-Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As Long
+Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL
 	Dim cmd[7] AS Byte
 	Dim WriteCount As DWord
 	Dim dwWD As DWord
@@ -469,6 +467,7 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 	cmd[5] = (size >>   8) AS Byte
 '	cmd[6] = (size >>  16) AS Byte
 
+	FlushCom(hSerial)
 	WriteFile(hSerial,cmd,6,VarPtr(dwWD),ByVal NULL)
 	Sleep(10)
 
@@ -476,18 +475,43 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 
 	Do
 		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
-		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
+		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then
+			DBM("Flash request failed.")
+			ExitDo
+		End If
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
+		if dwWD<>HKAC_WRITE_BUFFER_LEN Then
+			DBMf("Send data error. written=%d, GLE=%d", dwWD, GetLastError())
+			ExitDo
+		End If
+
 		WriteCount+=dwWD
-		if WriteCount => size Then exitdo
-		if dwWD=0 Then debug
+		if WriteCount => size Then 
+			DatabusFlashWrite=TRUE
+			ExitDo
+		End If
 	Loop
 	
-	DatabusFlashWrite=WriteCount
-
 	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
 		DBM("[DBG]Firmware Error!")
 		DBM("書込ルーチン暴走中")
+	End If
+End Function
+
+Function DatabusRead(hSerial AS HANDLE) As Long
+	Dim cmd[7] AS Byte
+	Dim dwReadByte As DWord
+
+	cmd[0]=Asc("d")	'LoROM
+	WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+	dwReadByte=0
+
+	Dim ret AS Long
+	ret = ReceiveFromReader(hSerial, cmd, 1)
+	if ret = 1 then
+		DatabusRead=cmd[0]
+	Else
+		ret = -1
 	End If
 End Function
