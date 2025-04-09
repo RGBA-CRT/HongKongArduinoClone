@@ -23,8 +23,10 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
  * HKAF5: 2025/04: flash write
  */
 
-//クロック回路有効
-#define _ENABLE_CIC
+//CONFIG
+//#define _ENABLE_CIC
+#define ENABLE_ST018_BIOS_DUMP
+#define ENABLLE_SFMEM
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -259,107 +261,6 @@ void writeCart(int isLoROM = false) {
   Serial.write(hex2ascii((hex >> 4) & 0x0f));
   Serial.write(hex2ascii(hex & 0x0f));
   }*/
-
-void st018_command(byte cmd) {
-  //wait for transferReady
-  st018_transferWait();
-
-  //cmd
-  writebyte_cart(0x00, 0x3802, cmd);
-
-  //wait
-  st018_transferWait();
-
-  return;
-}
-
-inline byte st018_readData() {
-  if (st018_readyWait())
-    return 'E';
-  return st018_readbyte_cart(0x00, 0x3800);
-}
-
-// タイムアウトつけてないけど大丈夫か
-inline void st018_transferWait() {
-  while ((st018_readbyte_cart(0x00, 0x3804) & 0x10)) ;
-}
-
-bool st018_readyWait() {
-  byte waitCount = 1;
-
-  // STATUSのReadyが1になるか、waitCountで255ループするまで待つ
-  //                                                    ↓ &&ではない（可読性のないコード）
-  while (((st018_readbyte_cart(0x00, 0x3804) & 0x01) != 0x01) & waitCount) {
-    waitCount++;
-    delayMicroseconds(10);
-  }
-  return (waitCount == 0);
-}
-
-// err=true
-bool st018_reset() {
-  // reset
-  writebyte_cart(0x00, 0x3804, 0x00);  delayMicroseconds(100);
-  writebyte_cart(0x00, 0x3804, 0xff);  delayMicroseconds(100);
-  writebyte_cart(0x00, 0x3804, 0x00);
-
-  //STATが0以外になるまで待つ
-  byte waitCount = 0;
-  while (st018_readbyte_cart(0x00, 0x3804) == 0x00) {
-    if (waitCount > 250)
-      return true;
-    waitCount++;
-    delayMicroseconds(8000);
-  }
-
-  return false;
-}
-
-void st018_memread(byte cmd, byte n_kb) {
-  st018_command(cmd);
-
-  // 1バイト読み捨て
-  st018_readData();
-
-  for (byte j = 0; j < n_kb; j++) {
-    for (word i = 0; i < 1024; i++) {
-      //serial_send(st018_readData());
-      Serial.write(st018_readData());
-    }
-
-    // 1KB毎に指示を待つ
-    while (Serial.available() < 1);
-
-    // 'e' = Cancel
-    if (Serial.read() == 'e')
-      break;
-
-  }
-}
-
-bool st018_biosDump(byte cmd) {
-  // ROMと違ってI/OポートなのでCSは非アクティブである必要がある
-  digitalWrite(CS, HIGH);
-
-  // reset
-  if (st018_reset()) {
-    Serial.print("RST ERR");
-    return true;
-  }
-
-  Serial.write('S');
-
-  // dump program ROM (128KB)
-  st018_memread(0xF3, 128);
-
-  // dump data ROM (32KB)
-  st018_memread(0xF4, 32);
-
-  // reset
-  st018_reset();
-
-  return 0;
-}
 
 inline void setCtrlBus(byte b) {
   digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
@@ -609,10 +510,10 @@ void loop() {
         Serial.print("-CIC ");
         Serial.print(haveClockModule ? "[con]" : "[dis]");
 #endif
-        Serial.print("\nABus:");
-        Serial.print(lastadr[2], HEX);
-        Serial.print(lastadr[1], HEX);
-        Serial.print(lastadr[0], HEX);
+        // Serial.print("\nABus:");
+        // Serial.print(lastadr[2], HEX);
+        // Serial.print(lastadr[1], HEX);
+        // Serial.print(lastadr[0], HEX);
         // Serial.print("\nFash:\n");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
@@ -630,6 +531,7 @@ void loop() {
         Serial.print((char)readbyte_cart(0xc0, 0x0000));
       } break;
 
+#ifdef ENABLLE_SFMEM
     case 'S':
       { // setup SF memory
         digitalWrite(OE, HIGH);
@@ -650,6 +552,7 @@ void loop() {
           Serial.print("NG");
         Serial.write(readbyte_cart(0x00, 0x2400));
       } break;
+#endif
 
     case 'T':
     case 't':
@@ -682,11 +585,15 @@ void loop() {
         setAddress(0x00, lastadr[1] << 8, false);
       } break;
 
+#ifdef ENABLE_ST018_BIOS_DUMP
     case 'z':
     case 'Z':
       {
         st018_biosDump(cmd);
       } break;
+#endif
+    default:
+      Serial.write("E");
   }
 }
 

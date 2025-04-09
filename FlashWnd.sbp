@@ -259,7 +259,7 @@ Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SF
 	last_bank = &HFFFFFFFF
 
 
-	Const FLASH_WRITE_BUF_SIZE = &H1000
+	Const FLASH_WRITE_BUF_SIZE = &H4000
 	Dim img_offset=0 AS DWord
 	Dim block_size=FLASH_WRITE_BUF_SIZE AS DWord
 
@@ -350,8 +350,8 @@ End Sub
 'Todo: speedup ( protocol, blocksize )
 'Todo: ROM size check
 'Todo: FW: WaitWrite, ErrorReturn
-'Todo: [Pri:MID] EraseProgress
+'Todo: [Pri:MID] EraseProgress, UI Lock, Write ProgressCallback
 'Todo: [Pri:MID] DetectMapMode
-'Todo: [Pri:LOW] MultiChip
+'Todo: [Pri:LOW] MultiChip, SoftwareMode
 'Todo: [Pri:LOW] Support Type2, 3 Flash
 'Todo: [Pri:LOW] split lib, remove bank system
