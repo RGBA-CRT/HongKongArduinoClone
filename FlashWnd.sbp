@@ -93,6 +93,8 @@ End Function
 Sub FlashWnd_CommandButton1_Click()
 	Dim preId[4] As Byte
 
+	FlushCom(hCOM)
+
 	ReadROM(hCOM,VarPtr(preId),cmdBank,cmdOffset,4,FALSE)
 	PrintPtr(ex"preid\n")
 	Dump(VarPtr(preId),4,0)
@@ -359,6 +361,7 @@ Sub FlashWnd_Program(file AS BytePtr)
 	pc = new_DumpRomProgressCallBack()
 	pc->Init(buf.length())
 
+	FlushCom(hCOM)
 	FlashCmdInit(cmdBank, cmdOffset)
 	
 '	FlashWriteSoftware(VarPtr(buf), pc)
@@ -394,3 +397,8 @@ End Sub
 'Todo: [Pri:LOW] Support Type2, 3 Flash
 'Todo: [Pri:LOW] split lib, remove bank system
 'Todo: [Pri:LOW] localization
+
+Sub FlashWnd_CommandButton5_Click()
+	FlushCom(hCOM)
+
+End Sub

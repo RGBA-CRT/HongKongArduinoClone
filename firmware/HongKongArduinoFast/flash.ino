@@ -44,10 +44,9 @@ void flashWriteCart() {
   CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
 
-  word goalAdr = address + datasize;
   word bufpos = RX_BUFFER_LEN;  //buffer ptr, 最初は必ず受信させる
 
-  while (1) {
+  do {
     //データ受信
     if (bufpos >= RX_BUFFER_LEN) {
       //Send 'R'equest Signal
@@ -62,8 +61,9 @@ void flashWriteCart() {
     }
 
     // output program byte
-    writebyte_cart(bank, address, buf[bufpos]);
-    if(!flashWaitOperation(buf[bufpos])){
+    byte b = buf[bufpos];
+    writebyte_cart(bank, address, b);
+    if(!flashWaitOperation(b)){
       // report fail to write
       serial_send('X');
       break;
@@ -71,9 +71,7 @@ void flashWriteCart() {
 
     address++;
     bufpos++;
-
-    if (address == goalAdr) break;
-  }
+  } while( --datasize );
 
   CART_WRITE_DISABLE();
   BB_OUT_DISABLE();

@@ -56,7 +56,7 @@ Const HKAC_SRAM_WRITE_RETRY_LIMIT = 2
 
 'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
-Const HKAC_WRITE_BUFFER_LEN = &H100
+Const HKAC_WRITE_BUFFER_LEN = &H400 ' TODO: auto nego UNO/NANO
 Const FIRMWARE_ID = "HKAF"
 Const FIRMWARE_VERSION = &H35
 
@@ -76,7 +76,7 @@ _System_hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE)
 
 '受信タイムアウト追加時間の設定読み込み
 Dim HKAC_RX_TIMEOUT_MARGIN AS Long
-HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 10, INIFILE_PATH)
+HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 64, INIFILE_PATH)
 
 '---------------------------
 '  Window Message Loop

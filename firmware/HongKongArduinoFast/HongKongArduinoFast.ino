@@ -1,8 +1,8 @@
 /* こーどねーむ「ホンコン」 with Arduino 高速版ファームウェア
-   Original : たにやま 2016/2/14 [http://hongkongarduino.web.fc2.com/]
-   Optimize : RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
-   Some codes are referenced to [https://github.com/sanni/cartreader/]
-   Docs : https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
+Original: Taniyama 2016/2/14 [https://susumutaniyama.github.io/HongKongArduino/]
+Modification: RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
+Some code is referred on [https://github.com/sanni/cartreader/].
+Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
 #pragma GCC push_options 
 #pragma GCC optimize("Ofast")
@@ -22,6 +22,8 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
  * HKAF4: 2029/03: ST017 surpport
  * HKAF5: 2025/04: flash write
  */
+
+ 
 
 //CONFIG
 //#define _ENABLE_CIC
@@ -91,7 +93,7 @@ Si5351 clockgen;
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //バッファ
-#define BUFFER_LEN 0x100 //ホスト側とサイズを合わせる
+#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 
@@ -109,12 +111,12 @@ inline void serial_send(byte data) {
 
 // recive to buffer
 inline void serial_receive(word length) {
-  word i = 0;
-  while (i < length) {
+  word i = length;
+  word o = 0;
+  do {
     while (Serial.available() < 1);
-    buf[i] = Serial.read();
-    i++;
-  }
+    buf[o++] = Serial.read();
+  } while(--i);
 }
 
 //--------------
@@ -122,22 +124,27 @@ inline void serial_receive(word length) {
 //--------------
 
 //データピンの方向設定
-inline void setDataDir(byte DATADIR)
-{
-  if (DATADIR == INPUT) {
-    DDRD &= 0b00000011;
-    DDRB &= 0b11111100;
-  } else {
-    DDRD |= 0b11111100;
-    DDRB |= 0b00000011;
-  }
-}
+#define dataDirInput() \
+  do { \
+    DDRD &= 0b00000011; \
+    DDRB &= 0b11111100; \
+  } while (0);
+
+#define dataDirOutput() \
+  do { \
+    DDRD |= 0b11111100; \
+    DDRB |= 0b00000011; \
+  } while (0);
 
 //データーバスへ値をセット
 inline void setData(byte b)
 {
+#if 1
   PORTD &= 0b00000011;  //CLEAR
   PORTD |= b << 2;      //ORでセット
+#else
+  PORTD = b << 2;      // direct set test
+#endif
   PORTB &= 0b11111100;
   PORTB |= b >> 6;
 }
@@ -198,19 +205,14 @@ inline void readCart(byte isLoROM) {
   while (Serial.available() < 5);
   word address = Serial_readWord();
   byte bank = Serial.read();
-
   word datasize = Serial_readWord();
 
-  word goalAdr = address + datasize;
-  while (1) {
-    // CART_OUTPUT_ENABLE();
-    setAddress(bank, address, isLoROM);
-    __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  do {
+    setAddress(bank, address++, isLoROM);
+    //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+    for(byte i=6; i; --i);
     serial_send(readData());
-    // CART_OUTPUT_DISABLE();
-    address++;
-    if (address == goalAdr) break; //00:C000-01:0000
-  }
+  } while(--datasize);
 
 }
 
@@ -272,14 +274,14 @@ inline void setCtrlBus(byte b) {
 inline byte readData()
 {
   CART_OUTPUT_ENABLE();
-  setDataDir(INPUT); // 引数やめたら高速化になるはず
+  dataDirInput();
   BB_OUT_ENABLE();
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte b = (PIND >> 2) | ((PINB << 6));
 
   BB_OUT_DISABLE();
-  setDataDir(OUTPUT); // 引数やめたら高速化になるはず
+  dataDirOutput();
   CART_OUTPUT_DISABLE();
 
   return b;
@@ -411,7 +413,7 @@ void setup()
 
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
-  setDataDir(OUTPUT);
+  dataDirOutput();
   BB_OUT_DISABLE();
   setFF(0, 0x00); lastadr[0] = 0;
   setFF(1, 0x00); lastadr[1] = 0;
@@ -437,9 +439,12 @@ void loop() {
 
   switch (cmd) {
     case 'R':
+      {
+        readCart(false);
+      } break;
     case 'r':
       {
-        readCart((cmd == 'r'));
+        readCart(true);
       } break;
 
     case 'd':
@@ -600,6 +605,7 @@ void loop() {
 #endif
     default:
       Serial.write("?");
+      Serial.write(cmd);
   }
 }
 

@@ -1,3 +1,6 @@
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+
 #ifdef ENABLE_ST018_BIOS_DUMP
 void st018_command(byte cmd) {
   //wait for transferReady
@@ -62,7 +65,6 @@ void st018_memread(byte cmd, byte n_kb) {
 
   for (byte j = 0; j < n_kb; j++) {
     for (word i = 0; i < 1024; i++) {
-      //serial_send(st018_readData());
       Serial.write(st018_readData());
     }
 
@@ -100,3 +102,6 @@ bool st018_biosDump(byte cmd) {
   return 0;
 }
 #endif
+
+#pragma GCC pop_options
+
