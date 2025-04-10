@@ -79,7 +79,7 @@ Si5351 clockgen;
 
 //bus buffer OutputControl
 #define BB_OUT_DISABLE() PORTB |= 0b00000100
-#define BB_OUT_ENABLE()   {volatile uint8_t oldSREG = SREG;cli();PORTB &= 0b11111011;SREG = oldSREG;}
+#define BB_OUT_ENABLE()   {volatile uint8_t oldSREG = SREG; PORTB &= 0b11111011;SREG = oldSREG;}
 
 // cart /WE control
 #define CART_WRITE_ENABLE()   PORTC &= 0b11101111
@@ -110,13 +110,17 @@ inline void serial_send(byte data) {
 }
 
 // recive to buffer
-inline void serial_receive(word length) {
+void hostsync_receive(word length) {
+  noInterrupts();
+  //Send 'R'equest Signal
+  serial_send('R');
   word i = length;
   word o = 0;
   do {
-    while (Serial.available() < 1);
-    buf[o++] = Serial.read();
+    while ( !(UCSR0A & _BV(RXC0)) );
+    buf[o++] = UDR0;
   } while(--i);
+  interrupts();
 }
 
 //--------------
@@ -233,9 +237,7 @@ void writeCart(int isLoROM = false) {
   while (1) {
     //データ受信
     if (bufpos >= RX_BUFFER_LEN) {
-      //Send 'R'equest Signal
-      serial_send('R');
-      serial_receive(RX_BUFFER_LEN);
+      hostsync_receive(RX_BUFFER_LEN);
       bufpos = 0;
     }
 
@@ -301,24 +303,6 @@ inline byte readbyte_cart(byte bank, word address) {
   CART_OUTPUT_ENABLE();
 
   // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  byte ret = readData();
-
-  CART_OUTPUT_DISABLE();
-  return ret;
-}
-
-
-inline byte st018_readbyte_cart(byte bank, word address) {
-  setAddress(bank, address, false);
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_OUTPUT_ENABLE();
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte ret = readData();

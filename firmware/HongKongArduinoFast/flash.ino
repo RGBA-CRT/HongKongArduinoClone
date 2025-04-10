@@ -23,13 +23,13 @@ void flashReceiveConfig() {
 // readDataが108clkぐらい
 // その他関数内のループを少なく見積もって5clkぐらい。7,062.5ns
 #define FLASH_WAIT_TIMEOUT_CYCLE 140
-bool flashWaitOperation(byte expect_byte){
-  for(byte i = 0; i<FLASH_WAIT_TIMEOUT_CYCLE; i++){
+inline bool flashWaitOperation(byte expect_byte){
+  for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
     if(readData() == expect_byte){
-      return true;
+      return false;
     }
   }
-  return false;
+  return true;
 }
 
 void flashWriteCart() {
@@ -44,33 +44,39 @@ void flashWriteCart() {
   CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
 
-  word bufpos = RX_BUFFER_LEN;  //buffer ptr, 最初は必ず受信させる
+  byte* bufptr = buf;
+  word remain = 1; // 最初は必ず受信させる
 
   do {
     //データ受信
-    if (bufpos >= RX_BUFFER_LEN) {
-      //Send 'R'equest Signal
-      serial_send('R');
-      serial_receive(RX_BUFFER_LEN);
-      bufpos = 0;
+    if (!(--remain)) {
+      hostsync_receive(RX_BUFFER_LEN);
+      bufptr = buf;
+      remain = RX_BUFFER_LEN;
     }
 
+#if 0
     // Flash command: PROGRAM
     for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
       writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
     }
+#else
+    writebyte_cart(flash_bank, flash_address[0], flash_cmd[0]);
+    writebyte_cart(flash_bank, flash_address[1], flash_cmd[1]);
+    writebyte_cart(flash_bank, flash_address[2], flash_cmd[2]);
+#endif
 
     // output program byte
-    byte b = buf[bufpos];
+    byte b = *bufptr;
     writebyte_cart(bank, address, b);
-    if(!flashWaitOperation(b)){
+    if(flashWaitOperation(b)){
       // report fail to write
       serial_send('X');
       break;
     }
-
+  
     address++;
-    bufpos++;
+    bufptr++;
   } while( --datasize );
 
   CART_WRITE_DISABLE();

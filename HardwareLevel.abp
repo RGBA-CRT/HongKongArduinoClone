@@ -199,6 +199,8 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 	Dim dwErrors AS DWord,retry AS DWord,rsv AS Byte
 	Dim cs AS COMSTAT,readLen AS DWord
 
+	timeBeginPeriod(1)
+
 	Dim start AS DWord
 	start = GetTickCount()
 	Do
@@ -226,6 +228,7 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 		if (GetTickCount() - start) > timedOut_ms Then ExitDo
 	Loop
 
+	timeEndPeriod(1)
 
 End Function
 

@@ -101,6 +101,23 @@ bool st018_biosDump(byte cmd) {
 
   return 0;
 }
+
+byte st018_readbyte_cart(byte bank, word address) {
+  setAddress(bank, address, false);
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_OUTPUT_ENABLE();
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  byte ret = readData();
+
+  CART_OUTPUT_DISABLE();
+  return ret;
+}
 #endif
 
 #pragma GCC pop_options
