@@ -1,5 +1,5 @@
 #pragma GCC push_options
-#pragma GCC optimize("Ofast")
+#pragma GCC optimize("O3")
 
 //flash config
 #define FLASH_COMMAND_LENGTH 3

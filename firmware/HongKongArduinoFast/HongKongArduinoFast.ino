@@ -5,7 +5,7 @@ Some code is referred on [https://github.com/sanni/cartreader/].
 Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
 #pragma GCC push_options 
-#pragma GCC optimize("Ofast")
+#pragma GCC optimize("O3")
 //config
 //シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
@@ -26,9 +26,9 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
  
 
 //CONFIG
-//#define _ENABLE_CIC
+#define _ENABLE_CIC
 #define ENABLE_ST018_BIOS_DUMP
-// #define ENABLLE_SFMEM
+#define ENABLLE_SFMEM
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -93,7 +93,7 @@ Si5351 clockgen;
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 //バッファ
-#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
+#define BUFFER_LEN 0x500 //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 
@@ -143,7 +143,7 @@ void hostsync_receive(word length) {
 //データーバスへ値をセット
 inline void setData(byte b)
 {
-#if 1
+#if 0
   PORTD &= 0b00000011;  //CLEAR
   PORTD |= b << 2;      //ORでセット
 #else

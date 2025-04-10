@@ -171,7 +171,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
 		if cs.cbInQue=0 Then 
 			retry++
-'			Sleep(1)
+			Sleep(1)
 			Continue
 		End  If
 
