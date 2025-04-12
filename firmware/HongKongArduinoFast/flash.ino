@@ -20,15 +20,15 @@ void flashReceiveConfig() {
 
 inline void bulkReadInit(){
   dataDirInput();
-  BB_OUT_ENABLE();
+  BB_DIR_INPUT();
 }
 inline void bulkReadExit(){
-  BB_OUT_DISABLE();
+  BB_DIR_OUTPUT();
   dataDirOutput();
 }
 inline byte bulkReadAcquire()
 {
-  CART_OUTPUT_ENABLE();
+  CART_OUTPUT_TOGGLE();
   // __asm__ volatile(
   //   "nop\n"
   //   "nop\n"
@@ -37,9 +37,9 @@ inline byte bulkReadAcquire()
   //   "nop\n"
   // );
 
-  byte b = (PIND >> 2) | ((PINB << 6));
+  byte b = getDataPin();
 
-  CART_OUTPUT_DISABLE();
+  CART_OUTPUT_TOGGLE();
   // __asm__ volatile(
   //   "nop\n"
   //   "nop\n"
@@ -75,26 +75,18 @@ inline bool flashWaitOperation(byte expect_byte){
 
 //　/WRとかをちゃんと制御して書き込む
 void writebyte_cart2(byte bank, word address, byte data) {
-  setAddress(bank, address, false);
-  setData(data);
+  setAddress_(bank, address);
+  setDataPin(data);
 
-  BB_DIR_OUTPUT();
-  BB_OUT_ENABLE();
+// BB_DIR_OUTPUT();
+// BB_OUT_ENABLE();
 
-  // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
-  // 74HC245 -> SFC へのデータ安定化
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  CART_WRITE_TOGGLE();
 
-  CART_WRITE_ENABLE();
+  CART_WRITE_TOGGLE();
 
-  // /WEパルスの時間稼ぎ
-  // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  CART_WRITE_DISABLE();
-
-  BB_OUT_DISABLE();
-  BB_DIR_INPUT();
+  // BB_OUT_DISABLE();
+  // BB_DIR_INPUT();
 }
 
 void flashWriteCart() {
@@ -105,9 +97,11 @@ void flashWriteCart() {
   byte bank = Serial.read();
   word datasize = Serial_readWord();
 
+  // 初期PIN状態。ループ内最適化のためtoggleなどしているため注意。
   CART_WRITE_DISABLE();
   CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
+  BB_OUT_ENABLE();
 
   byte* bufptr = buf;
   word remain = 1; // 最初は必ず受信させる
@@ -134,6 +128,8 @@ void flashWriteCart() {
     // output program byte
     byte b = *bufptr;
     writebyte_cart2(bank, address, b);
+
+
     if(flashWaitOperation(b)){
       // report fail to write
       serial_send('X');

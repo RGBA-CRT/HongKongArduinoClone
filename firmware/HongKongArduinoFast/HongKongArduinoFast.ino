@@ -91,11 +91,14 @@ Si5351 clockgen;
 // cart /OE control
 #define CART_OUTPUT_ENABLE()   PORTC &= 0b11111011
 #define CART_OUTPUT_DISABLE()  PORTC |= 0b00000100
+#define CART_OUTPUT_TOGGLE()   PINC  =  0b00000100
 
+// databus
+#define getDataPin() (PIND >> 2) | ((PINB << 6))
 
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
-//バッファ
+// RXバッファ
 #define BUFFER_LEN 0x500 //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
@@ -144,7 +147,7 @@ void hostsync_receive(word length) {
   } while (0);
 
 //データーバスへ値をセット
-inline void setData(byte b)
+inline void setDataPin(byte b)
 {
 #if 0
   PORTD &= 0b00000011;  //CLEAR
@@ -161,7 +164,7 @@ inline void setFF(byte ch, byte b)
 {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
   PORTB &= ~(0b00001000 << ch);
-  setData(b);
+  setDataPin(b);
 
   // digitalWrite(CK, HIGH);
   PORTC |= 0b00000010;
@@ -180,14 +183,8 @@ inline void setFF(byte ch, byte b)
 //--------------
 #define LO_TO_REAL_ADDRESS(bank,address) {bank = (bank << 1) | (address >> 15);  address |= 0x8000;}
 //アドレスバスを設定
-inline void setAddress(byte bank, word address, byte isLoROM)
+inline void setAddress_(byte bank, word address)
 {
-  if (isLoROM) {
-    LO_TO_REAL_ADDRESS(bank, address);
-  }
-
-  BB_OUT_DISABLE();
-
   //変更のないFlipFlopはいじらない
   byte spritAdr = address;
   if (lastadr[0] != spritAdr) {
@@ -207,6 +204,14 @@ inline void setAddress(byte bank, word address, byte isLoROM)
   }
 }
 
+inline void setAddress(byte bank, word address, byte isLoROM){
+  if (isLoROM) {
+    LO_TO_REAL_ADDRESS(bank, address);
+  }
+
+  BB_OUT_DISABLE();
+  setAddress_(bank, address);
+}
 
 inline void readCart(byte isLoROM) {
   while (Serial.available() < 5);
@@ -283,7 +288,7 @@ inline byte readData()
   BB_OUT_ENABLE();
   __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
-  byte b = (PIND >> 2) | ((PINB << 6));
+  byte b = getDataPin();
 
   BB_OUT_DISABLE();
   dataDirOutput();
@@ -317,7 +322,7 @@ inline byte readbyte_cart(byte bank, word address) {
 //　/WRとかをちゃんと制御して書き込む
 void writebyte_cart(byte bank, word address, byte data) {
   setAddress(bank, address, false);
-  setData(data);
+  setDataPin(data);
 
   BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
