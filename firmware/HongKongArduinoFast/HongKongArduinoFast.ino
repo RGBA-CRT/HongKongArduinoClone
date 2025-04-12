@@ -76,14 +76,17 @@ Si5351 clockgen;
 //bus buffer direction
 #define BB_DIR_OUTPUT() PORTC |= 0x01 // DIR=HIGH
 #define BB_DIR_INPUT() PORTC &= 0xfe  // DIR=LOW
+#define BB_DIR_TOGGLE() PINC = 0x01
 
 //bus buffer OutputControl
 #define BB_OUT_DISABLE() PORTB |= 0b00000100
 #define BB_OUT_ENABLE()   {volatile uint8_t oldSREG = SREG; PORTB &= 0b11111011;SREG = oldSREG;}
+#define BB_OUT_TOGGLE() PINB = 0b00000100
 
 // cart /WE control
 #define CART_WRITE_ENABLE()   PORTC &= 0b11101111
 #define CART_WRITE_DISABLE()  PORTC |= 0b00010000
+#define CART_WRITE_TOGGLE()   PINC  =  0b00010000
 
 // cart /OE control
 #define CART_OUTPUT_ENABLE()   PORTC &= 0b11111011

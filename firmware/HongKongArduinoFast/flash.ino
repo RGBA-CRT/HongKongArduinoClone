@@ -18,18 +18,83 @@ void flashReceiveConfig() {
   }
 }
 
+inline void bulkReadInit(){
+  dataDirInput();
+  BB_OUT_ENABLE();
+}
+inline void bulkReadExit(){
+  BB_OUT_DISABLE();
+  dataDirOutput();
+}
+inline byte bulkReadAcquire()
+{
+  CART_OUTPUT_ENABLE();
+  // __asm__ volatile(
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  // );
+
+  byte b = (PIND >> 2) | ((PINB << 6));
+
+  CART_OUTPUT_DISABLE();
+  // __asm__ volatile(
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  //   "nop\n"
+  // );
+
+  return b;
+}
+
+
 // 500usぐらいをtimeoutとしたい
 // clockは16MHz, 1cycle1命令とする(今もそうなのか？). 62.5ns
 // readDataが108clkぐらい
 // その他関数内のループを少なく見積もって5clkぐらい。7,062.5ns
 #define FLASH_WAIT_TIMEOUT_CYCLE 140
+
+// return: error(true) or ok(false)
 inline bool flashWaitOperation(byte expect_byte){
+  bool ret = true;
+  bulkReadInit();
+
   for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
-    if(readData() == expect_byte){
-      return false;
+    if(bulkReadAcquire() == expect_byte){
+      ret = false;
+      break;
     }
   }
-  return true;
+  bulkReadExit();
+  return ret;
+}
+
+//　/WRとかをちゃんと制御して書き込む
+void writebyte_cart2(byte bank, word address, byte data) {
+  setAddress(bank, address, false);
+  setData(data);
+
+  BB_DIR_OUTPUT();
+  BB_OUT_ENABLE();
+
+  // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
+  // 74HC245 -> SFC へのデータ安定化
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_ENABLE();
+
+  // /WEパルスの時間稼ぎ
+  // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
+  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+  CART_WRITE_DISABLE();
+
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
 }
 
 void flashWriteCart() {
@@ -61,14 +126,14 @@ void flashWriteCart() {
       writebyte_cart(flash_bank, flash_address[i], flash_cmd[i]);
     }
 #else
-    writebyte_cart(flash_bank, flash_address[0], flash_cmd[0]);
-    writebyte_cart(flash_bank, flash_address[1], flash_cmd[1]);
-    writebyte_cart(flash_bank, flash_address[2], flash_cmd[2]);
+    writebyte_cart2(flash_bank, flash_address[0], flash_cmd[0]);
+    writebyte_cart2(flash_bank, flash_address[1], flash_cmd[1]);
+    writebyte_cart2(flash_bank, flash_address[2], flash_cmd[2]);
 #endif
 
     // output program byte
     byte b = *bufptr;
-    writebyte_cart(bank, address, b);
+    writebyte_cart2(bank, address, b);
     if(flashWaitOperation(b)){
       // report fail to write
       serial_send('X');
