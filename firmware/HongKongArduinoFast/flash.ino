@@ -19,32 +19,24 @@ void flashReceiveConfig() {
 }
 
 inline void bulkReadInit(){
+  setDataPin(0);
   dataDirInput();
   BB_DIR_INPUT();
 }
 inline void bulkReadExit(){
-  BB_DIR_OUTPUT();
+  BB_DIR_TOGGLE();
   dataDirOutput();
 }
 inline byte bulkReadAcquire()
 {
   CART_OUTPUT_TOGGLE();
-  // __asm__ volatile(
-  //   "nop\n"
-  //   "nop\n"
-  //   "nop\n"
-  //   "nop\n"
-  //   "nop\n"
-  // );
+  
+  __asm__ volatile("nop");
 
   byte b = getDataPin();
 
   CART_OUTPUT_TOGGLE();
   // __asm__ volatile(
-  //   "nop\n"
-  //   "nop\n"
-  //   "nop\n"
-  //   "nop\n"
   //   "nop\n"
   // );
 
@@ -73,20 +65,36 @@ inline bool flashWaitOperation(byte expect_byte){
   return ret;
 }
 
+void flashBulkWriteInit(){
+  // 初期PIN状態。ループ内最適化のためtoggleなどしているため注意。
+  CART_WRITE_DISABLE();
+  CART_OUTPUT_DISABLE();
+  BB_DIR_OUTPUT();
+  BB_OUT_ENABLE();
+
+}
+
+void flashBulkWriteExit(){
+  CART_WRITE_DISABLE();
+  CART_OUTPUT_DISABLE();
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
+}
+
 //　/WRとかをちゃんと制御して書き込む
 void writebyte_cart2(byte bank, word address, byte data) {
   setAddress_(bank, address);
   setDataPin(data);
 
-// BB_DIR_OUTPUT();
-// BB_OUT_ENABLE();
+  // __asm__ volatile("nop");
+  // __asm__ volatile("nop");
 
   CART_WRITE_TOGGLE();
 
-  CART_WRITE_TOGGLE();
+  // __asm__ volatile("nop");
+  // __asm__ volatile("nop");
 
-  // BB_OUT_DISABLE();
-  // BB_DIR_INPUT();
+  CART_WRITE_TOGGLE();
 }
 
 void flashWriteCart() {
@@ -97,11 +105,7 @@ void flashWriteCart() {
   byte bank = Serial.read();
   word datasize = Serial_readWord();
 
-  // 初期PIN状態。ループ内最適化のためtoggleなどしているため注意。
-  CART_WRITE_DISABLE();
-  CART_OUTPUT_DISABLE();
-  BB_DIR_OUTPUT();
-  BB_OUT_ENABLE();
+  flashBulkWriteInit();
 
   byte* bufptr = buf;
   word remain = 1; // 最初は必ず受信させる
@@ -140,9 +144,7 @@ void flashWriteCart() {
     bufptr++;
   } while( --datasize );
 
-  CART_WRITE_DISABLE();
-  BB_OUT_DISABLE();
-  BB_DIR_INPUT();
+  flashBulkWriteExit();
 
   //Send End Signal
   serial_send('E');

@@ -80,8 +80,8 @@ Si5351 clockgen;
 
 //bus buffer OutputControl
 #define BB_OUT_DISABLE() PORTB |= 0b00000100
-#define BB_OUT_ENABLE()   {volatile uint8_t oldSREG = SREG; PORTB &= 0b11111011;SREG = oldSREG;}
-#define BB_OUT_TOGGLE() PINB = 0b00000100
+#define BB_OUT_ENABLE()  PORTB &= 0b11111011
+#define BB_OUT_TOGGLE()  PINB = 0b00000100
 
 // cart /WE control
 #define CART_WRITE_ENABLE()   PORTC &= 0b11101111
