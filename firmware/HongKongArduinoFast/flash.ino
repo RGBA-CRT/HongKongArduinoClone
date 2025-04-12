@@ -19,7 +19,7 @@ void flashReceiveConfig() {
 }
 
 inline void bulkReadInit(){
-  setDataPin(0);
+  setDataPin(0x00);
   dataDirInput();
   BB_DIR_INPUT();
 }
@@ -52,15 +52,17 @@ inline byte bulkReadAcquire()
 
 // return: error(true) or ok(false)
 inline bool flashWaitOperation(byte expect_byte){
-  bool ret = true;
+  bool ret = false;
   bulkReadInit();
 
   for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
     if(bulkReadAcquire() == expect_byte){
-      ret = false;
-      break;
+      goto fwoExit;
     }
   }
+  ret = true;
+
+fwoExit:
   bulkReadExit();
   return ret;
 }
@@ -82,7 +84,7 @@ void flashBulkWriteExit(){
 }
 
 //　/WRとかをちゃんと制御して書き込む
-void writebyte_cart2(byte bank, word address, byte data) {
+inline void writebyte_cart2(byte bank, word address, byte data) {
   setAddress_(bank, address);
   setDataPin(data);
 
@@ -133,6 +135,8 @@ void flashWriteCart() {
     byte b = *bufptr;
     writebyte_cart2(bank, address, b);
 
+    address++;
+    bufptr++;
 
     if(flashWaitOperation(b)){
       // report fail to write
@@ -140,8 +144,6 @@ void flashWriteCart() {
       break;
     }
   
-    address++;
-    bufptr++;
   } while( --datasize );
 
   flashBulkWriteExit();
