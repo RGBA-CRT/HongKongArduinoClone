@@ -1,0 +1,291 @@
+' ============ defines and datas ==========
+
+Type FlashCmdList
+	count AS Long
+	elm[ELM(10)] AS FlashCmdElm
+End Type
+
+Type FlashCmdSet
+	name AS BytePtr
+	detect AS FlashCmdList
+	chipErase AS FlashCmdList
+	program As FlashCmdList
+	reset As FlashCmdList
+End Type
+
+Enum FlashCmdType
+	FlashCmdTypeJDEC8 = 0
+	FlashCmdTypeJDEC16Shift8
+	FlashCmdTypeMAX
+	FlashCmdTypeNotFlash
+End Enum
+
+Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS BOOL
+	GetFlashCmdSet = TRUE
+
+	Select Case flashType
+		Case FlashCmdTypeNotFlash
+			set.name = "< not flash chip >"
+			set.detect.count = 0
+			set.chipErase.count = 0
+			set.program.count = 0
+			set.reset.count = 0
+		Case FlashCmdTypeJDEC8
+			set.name = "JDEC Standard 8bit (A14)"
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H80)
+
+				FLASH_CMD(.elm[3], &H5555, &HAA)
+				FLASH_CMD(.elm[4], &H2AAA, &H55)
+				FLASH_CMD(.elm[5], &H5555, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
+
+		' 8/16bit Flash eg: MX29F800
+		Case FlashCmdTypeJDEC16Shift8
+			set.name = "JDEC Standard 8/16bit (8bit mode)"
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &H80)
+
+				FLASH_CMD(.elm[3], &H2AAA, &HAA)
+				FLASH_CMD(.elm[4], &H5555, &H55)
+				FLASH_CMD(.elm[5], &H2AAA, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
+		Case Else
+			GetFlashCmdSet = FALSE
+	End Select
+End Function
+
+
+Type FlashChipInfo
+	id AS DWord
+	name AS BytePtr
+	size AS DWord
+End Type
+
+Const FLASH_ID_TABLE_MAX = 25
+Const MBIT(x) = (x * &H20000)
+Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
+	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
+	[ &HC2D5, "MX29F080"   , MBIT( 8) ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
+	[ &HC2D6, "MX29F800CT" , MBIT( 8) ], ' 
+	[ &HC258, "MX29F800CB" , MBIT( 8) ], ' 
+	[ &HC249, "MX29LV160DB", MBIT(16) ],
+	[ &HC2C4, "MX29LV160DT", MBIT(16) ],
+	[ &HC2A8, "MX29LV320DB", MBIT(32) ],
+	[ &HC2A7, "MX29LV320DT", MBIT(32) ],
+	[ &HC2CB, "MX29LV640DB", MBIT(64) ],
+	[ &HC2C9, "MX29LV640DT", MBIT(64) ],
+	[ &HC2FA, "MX29F1610A" , MBIT(16) ], ' NintendoPower
+	[ &HC2FB, "MX29F1610B" , MBIT(16) ], ' NintendoPower
+	[ &HC2F7, "MX29F1611"  , MBIT(16) ], ' NintendoPower
+	[ &HC26B, "MX29F1615"  , MBIT(16) ], ' NintendoPower
+	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
+	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
+	[ &H01D5, "AM29F080"   , MBIT( 8) ],
+	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
+	[ &HBFB5, "SST39SF020A", MBIT( 2) ],
+	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' [TESTED] ByteProgram: 14us, ChipErase: 0.1sec
+	[ &H04A4, "MBM29F040"  , MBIT( 4) ], ' ByteProgram: 150us, ChipErase: 4.2-10sec
+	[ &H04D5, "MBM29F080"  , MBIT( 8) ],
+	[ &H0423, "MBM29F400TC", MBIT( 4) ],
+	[ &H04AB, "MBM29F400BC", MBIT( 4) ],
+	[ &H0458, "MBM29F800BA", MBIT( 8) ],
+	[ &H04D6, "MBM29F800TA", MBIT( 8) ],
+] As FlashChipInfo
+
+Type FlashChipId
+	idSize AS Long
+	vendor AS Word
+	product AS Word
+End Type
+
+' ========== implments =============
+
+Const FLASH_ID_SIZE = 64
+
+
+' logic
+Class FlashChipController
+Private
+	hSerial AS HANDLE
+	flashType AS FlashCmdType
+	cmdSet AS FlashCmdSet
+	baseBusAdr AS DWord
+
+Public
+	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord)
+		if GetFlashCmdSet(flashType, cmdSet) = FALSE then
+			flashType = FlashCmdTypeNotFlash
+			ExitSub
+		End If
+		this.hSerial = com_handle
+		this.flashType = flashType
+		this.baseBusAdr = base
+	End Sub
+
+	Function GetFlashChipId(id As *FlashChipId) AS BOOL		
+		if flashType = FlashCmdTypeNotFlash Then
+			ExitFunction 
+		End If
+
+		Dim flashIdBuf[FLASH_ID_SIZE] AS Byte
+		if ReadFlashChipId(flashIdBuf) = FALSE then
+			ExitFunction
+		End If
+
+		if id then 
+			if flashType = FlashCmdTypeJDEC8 Then
+				id->idSize = 1
+				id->vendor = flashIdBuf[0]
+				id->product = flashIdBuf[1]
+			Elseif flashType = FlashCmdTypeJDEC16Shift8 then
+				id->idSize = 1
+				id->vendor = flashIdBuf[0]
+				id->product = flashIdBuf[2]
+			Else
+				ExitFunction
+			endif
+		End If
+		GetFlashChipId = TRUE
+	End Function
+
+Private
+	Function ReadFlashChipId(ByRef flashIdBuf[FLASH_ID_SIZE] AS Byte) AS BOOL
+		Dim preId[ELM(FLASH_ID_SIZE)] As Byte
+		FlushCom(hCOM)
+
+		ReadROM(hCOM,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr),FLASH_ID_SIZE,FALSE)
+		PrintPtr(ex"preid\n")
+		Dump(VarPtr(preId),FLASH_ID_SIZE,0)
+
+		EnterCommandMode()
+		DoFlashCmd(VarPtr(cmdSet.detect()))
+
+		ReadROM(hCOM,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr),FLASH_ID_SIZE,FALSE)
+		PrintPtr(ex"flash id\n")
+		Dump(VarPtr(flashIdBuf),FLASH_ID_SIZE,0)
+		
+		ExitCommandMode()
+
+		if memcmp(preId, flashIdBuf, FLASH_ID_SIZE) <> 0 then
+			ReadFlashChipId = TRUE
+		Endif
+
+	End Function
+
+	Function AdrBank(adr AS DWord) As Byte
+		AdrBank = (adr>>16) AS Byte
+	End Function
+	Function AdrOfs(adr AS DWord) As DWord
+		AdrOfs = adr And &HFFFF
+	End Function
+
+	Sub BusFlashCmd(adr AS DWord, data As DWord)
+		' todo: MapModel‚ðl—¶‚·‚éB‚¢‚Ü‚Ì‚Æ‚±‚ëFlashCmd‚Í8000h‹«ŠE‚ð‚Ü‚½‚ª‚È‚¢‚Ì‚Å–â‘è‚È‚¢‚ªB
+		SetCartRegister( AdrBank(baseBusAdr), AdrOfs(baseBusAdr) + adr, data AS Byte, FALSE)
+	End Sub
+
+	Sub DoFlashCmd(cmdList AS *FlashCmdList)
+		dim i =0 As DWord
+		Do
+			if i => cmdList->count then ExitDo
+			BusFlashCmd(cmdList->elm[i].address, cmdList->elm[i].data)
+			i++
+		Loop
+	End Sub
+
+	Sub EnterCommandMode()
+		SendControl(hSerial, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
+		SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)
+		' Reset Flash
+		DoFlashCmd(VarPtr(cmdSet.reset))
+	End Sub
+
+	Sub ExitCommandMode()
+		' Reset Flash
+		DoFlashCmd(VarPtr(cmdSet.reset))
+		SendControl(hSerial, CBUS_DEFAULT)
+	End Sub
+
+End Class
+
+' utils
+
+/*
+Function GetFlashName(id AS Word) As BytePtr
+	Dim i As Long
+	GetFlashName = "<unknown>"
+	for i = 0 To FLASH_ID_TABLE_MAX-1
+		if FlashChipInfoTable[i].id = id Then
+			GetFlashName = FlashChipInfoTable[i].name
+			ExitFor
+		End If
+	Next
+End Function*/
+
+Function GetFlashChipInfo(chipId AS *FlashChipId) As *FlashChipInfo
+	Dim i As Long
+	GetFlashChipInfo = NULL
+	if chipId->idSize = 1 then
+		Dim id AS Word
+		id = (chipId->vendor << 8) OR (chipId->product)
+		for i = 0 To FLASH_ID_TABLE_MAX-1
+			if FlashChipInfoTable[i].id = id Then
+				GetFlashChipInfo = VarPtr(FlashChipInfoTable[i])
+				ExitFor
+			End If
+		Next
+	End If
+End Function
+
+' retrn: FlashCmdType
+Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId) AS Long
+	FlashDetect = FlashCmdTypeNotFlash
+	Dim fc AS FlashChipController
+	Dim i aS Long
+	For i = 0 To FlashCmdTypeMAX-1
+		fc.Init(hSerial, i As FlashCmdType, base)
+		if fc.GetFlashChipId(flashId) then
+			FlashDetect = i
+			ExitFunction
+		End If
+	Next
+End Function

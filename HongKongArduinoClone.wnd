@@ -144,7 +144,7 @@ END
 WINDOW:FlashWnd
     HANDLE    = hFlashWnd
     POINT     = -2147483648,-2147483648
-    SIZE      = 331,266
+    SIZE      = 274,283
     CAPTION   = "FlashWnd"
     STYLE     = &H10c80000
     EXSTYLE   = &H00000000
@@ -156,16 +156,17 @@ WINDOW:FlashWnd
     CALLBACK  = FlashWndProc
     TYPE      = 3
     FILEPATH  = FlashWnd.sbp
-    ITEM      = CommandButton1,219,8,88,21,"Detect",&H50000000,&H00000000,1
-    ITEM      = Static1,21,10,140,12,"FlashCmdType: JDEC 8bit",&H50000000,&H00000000,11
-    ITEM      = Static3,21,53,50,12,"Flash",&H50000000,&H00000000,11
-    ITEM      = CommandButton2,219,38,88,21,"ChipErase",&H50000000,&H00000000,1
-    ITEM      = FlashName,65,50,127,21,"",&H50000000,&H00000200,4
-    ITEM      = ListView1,23,147,276,80,"",&H50000000,&H00000200,9
-    ITEM      = Static2,21,128,79,12,"MemoryLayout",&H50000000,&H00000000,11
-    ITEM      = CommandButton3,219,64,88,21,"TestWrite",&H50000000,&H00000000,1
-    ITEM      = CheckBox1,191,92,101,15,"hw acceleration",&H50000003,&H00000000,2
-    ITEM      = Static4,119,104,83,19,"FlashCmdMask",&H50000000,&H00000000,11
-    ITEM      = CommandButton4,223,110,88,21,"WriteROM",&H50000000,&H00000000,1
-    ITEM      = CommandButton5,-5,87,88,21,"blank",&H50000000,&H00000000,1
+    ITEM      = CommandButton1,12,203,88,21,"Detect",&H50000000,&H00000000,1
+    ITEM      = Static1,9,35,32,12,"Type",&H50000000,&H00000000,11
+    ITEM      = Static3,9,11,32,12,"Flash",&H50000000,&H00000000,11
+    ITEM      = CommandButton2,85,230,88,21,"ChipErase",&H50000000,&H00000000,1
+    ITEM      = FlashName,47,7,214,21,"",&H50000880,&H00000200,4
+    ITEM      = ListView1,12,101,250,98,"",&H50000000,&H00000200,9
+    ITEM      = Static2,10,82,79,12,"MemoryLayout",&H50000000,&H00000000,11
+    ITEM      = CommandButton3,12,230,54,21,"TestWrite",&H50000000,&H00000000,1
+    ITEM      = CheckBox1,12,64,101,15,"hw acceleration",&H50000003,&H00000000,2
+    ITEM      = CommandButton4,177,230,88,21,"WriteROM",&H50000000,&H00000000,1
+    ITEM      = CommandButton5,110,203,88,21,"blank",&H50000000,&H00000000,1
+    ITEM      = EditBox1,47,31,214,21,"",&H50000880,&H00000200,4
+    ITEM      = CheckBox2,153,64,81,15,"ManualLock",&H50000003,&H00000000,2
 END
