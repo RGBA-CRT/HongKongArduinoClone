@@ -32,11 +32,68 @@ End Sub
 	cmdBank = &H00
 	cmdOffset=&H8000
 
+Type FlashCmdList
+	count AS Long
+	elm[ELM(10)] AS FlashCmdElm
+End Type
+
+Type FlashCmdSet
+	name AS BytePtr
+	detect AS FlashCmdList
+	chipErase AS FlashCmdList
+	program As FlashCmdList
+	reset As FlashCmdList
+End Type
+
+Enum FlashCmdType
+	FlashCmdTypeJDEC8
+End Enum
+
+Dim jdec8 AS FlashCmdSet
+
+GetFlashCmdSet(FlashCmdTypeJDEC8, jdec8)
+debug
+Sub GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet)
+	Select Case flashType
+		Case FlashCmdTypeJDEC8
+			set.name = "JDEC Standard 8bit (A14)"
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H80)
+
+				FLASH_CMD(.elm[3], &H5555, &HAA)
+				FLASH_CMD(.elm[4], &H2AAA, &H55)
+				FLASH_CMD(.elm[5], &H5555, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
+	End Select
+End Sub
+
+
+
 Type FlashChipInfo
 	id AS DWord
 	name AS BytePtr
 	size AS DWord
 End Type
+
 
 Const FLASH_ID_TABLE_MAX = 25
 Const MBIT(x) = (x * &H20000)
@@ -87,7 +144,6 @@ Function GetFlashChipInfo(id AS Word) As *FlashChipInfo
 			ExitFor
 		End If
 	Next
-
 End Function
 
 Sub FlashWnd_CommandButton1_Click()
@@ -108,10 +164,14 @@ Sub FlashWnd_CommandButton1_Click()
 	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &H90, FALSE)
 	*/
+	SetCartRegister(cmdBank, cmdOffset + &HAAAA, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &HAAAA, &H90, FALSE)
+/*
 	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H5555, &H90, FALSE)
-
+*/
 	Dim flashId[16] As Byte
 	ReadROM(hCOM,VarPtr(flashId),cmdBank,cmdOffset,16,FALSE)
 	Dump(VarPtr(flashId),16,0)
@@ -263,7 +323,7 @@ Function FlashWriteSoftware(buf As *BufferClass, pc AS *ProgressCallBack)
 	Next
 End Function
 
-Sub DumperFlashConfig(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
+Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
 	elm.address = adr
 	elm.data = data
 End Sub
@@ -274,9 +334,9 @@ Sub UpdateFlashConfig(cmdBase As DWord)
 	Dim FlashConfig16bit AS FlashConfig
 	With FlashConfig16bit
 		.bank = cmdBase >> 16
-		DumperFlashConfig(.cmdList[0], cmdOffset + &H5555, &HAA)
-		DumperFlashConfig(.cmdList[1], cmdOffset + &H2AAA, &H55)
-		DumperFlashConfig(.cmdList[2], cmdOffset + &H5555, &HA0)
+		FLASH_CMD(.cmdList[0], cmdOffset + &H5555, &HAA)
+		FLASH_CMD(.cmdList[1], cmdOffset + &H2AAA, &H55)
+		FLASH_CMD(.cmdList[2], cmdOffset + &H5555, &HA0)
 	End With
 	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
 
@@ -335,87 +395,6 @@ Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SF
 End Function
 
 
-Class GenericProgressCallBack 
-	Inherits  ProgressCallback
-Private
-	Max AS Long
-	Now AS Long
-	hProgress As HANDLE
-	taskName AS StringClass
-	unitName AS StringClass
-	mag AS Single
-Public
-	Sub GenericProgressCallBack(task AS BytePtr, unit As BytePtr)
-		taskName.cpy(task)
-		unitName.cpy(unit)
-	End Sub
-
-	Sub Init(_this As VoidPtr, Max AS DWord) 
-		hProgress=MWnd(hProg)
-		this.Now=0
-		this.Max=Max		
-		if Max > &HFFFF then
-			mag = (Max AS Double / (&HFFFF AS Double)) AS Single
-		Else 
-			mag = 1.0
-		endif
-		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
-		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,(Max / mag) As Word))
-
-		SetDlgEnable(STATUS_DUMPING)
-		
-	End Sub
-
-	Sub Step(_this As VoidPtr, step AS Long, snesReadAdr As DWord)
-		SendMessage(hProgress, PBM_SETSTEP,Int(step / mag),0)
-		SendMessage(hProgress, PBM_STEPIT,0,0)
-
-		Now += step		
-		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
-
-		PumpMessage()
-	End Sub
-
-	Sub Final(_this As VoidPtr, )
-		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
-
-		SetWindowText(MWnd(Static7),"100%")
-
-		SetDlgEnable(STATUS_CONNECTED)
-
-	End Sub
-
-	Function isCancel(_this As VoidPtr) As BOOL
-		PumpMessage()
-		isCancel = GetCancelKey()
-	End Function
-
-	Sub ErrorRetry(_this As VoidPtr, count As DWord, limit As DWord)
-		DBMN(ex"X")
-	End Sub
-
-
-End Class
-
-Function new_GenericProgressCallBack(task AS BytePtr, unit as BytePtr) As *ProgressCallBack
-	Dim ret As *GenericProgressCallBack, vtable As *ProgressCallback_Vtable
-	ret = new GenericProgressCallBack(task, unit)
-'	vtable = calloc(sizeof(ProgressCallback_Vtable))
-'	SetDWord(ret, vtable)
-
-	vtable = GetDWord(ret) As VoidPtr
-	vtable->Init 		= AddressOf(ret->Init)
-	vtable->isCancel 	= AddressOf(ret->isCancel)
-	vtable->Step 		= AddressOf(ret->Step)
-	vtable->ErrorRetry 	= AddressOf(ret->ErrorRetry)
-	vtable->Final 		= AddressOf(ret->Final)
-	new_GenericProgressCallBack = ret 
-End Function
-
-Sub delete_GenericProgressCallBack(pc As *GenericProgressCallBack)
-'	free(GetDWord(pc) As DWord)
-	delete pc
-End Sub
 
 
 Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word, pc AS *ProgressCallBack)
