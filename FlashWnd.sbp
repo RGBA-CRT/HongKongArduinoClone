@@ -41,7 +41,7 @@ End Type
 Const FLASH_ID_TABLE_MAX = 25
 Const MBIT(x) = (x * &H20000)
 Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
-	[ &HC2A4, "MX29F040"   , MBIT( 4) ],
+	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
 	[ &HC2D5, "MX29F080"   , MBIT( 8) ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
 	[ &HC249, "MX29LV160DB", MBIT(16) ],
 	[ &HC2C4, "MX29LV160DT", MBIT(16) ],
@@ -58,7 +58,7 @@ Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
 	[ &H01D5, "AM29F080"   , MBIT( 8) ],
 	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
 	[ &HBFB5, "SST39SF020A", MBIT( 2) ],
-	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' ByteProgram: 14us, ChipErase: 0.1sec
+	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' [TESTED] ByteProgram: 14us, ChipErase: 0.1sec
 	[ &H04A4, "MBM29F040"  , MBIT( 4) ], ' ByteProgram: 150us, ChipErase: 4.2-10sec
 	[ &H04D5, "MBM29F080"  , MBIT( 8) ],
 	[ &H0423, "MBM29F400TC", MBIT( 4) ],
@@ -103,9 +103,14 @@ Sub FlashWnd_CommandButton1_Click()
 	FlashCmdInit(cmdBank, cmdOffset)
 	
 	' ReadID
+	/* ' MX cmd mask: A10
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H0555, &H90, FALSE)
+	*/
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &H90, FALSE)
 
 	Dim flashId[16] As Byte
 	ReadROM(hCOM,VarPtr(flashId),cmdBank,cmdOffset,16,FALSE)
@@ -180,13 +185,13 @@ Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord
 
 End Function
 
-Function FlashWaitOperationHW(expect AS Long, timeout_ms As DWord) AS BOOL
-	Dim i as Long, start AS DWord
+Function FlashWaitOperationHW(expect AS Long, timeout_ms As DWord, pc AS *ProgressCallBack) AS BOOL
+	Dim i as Long, start AS DWord, lastDur AS DWord
 	start = GetTickCount()
 	Do
 		Dim poll AS Byte
 		poll = DatabusRead(hCOM)
-		printf(ex"[FLASH OPERATION POLLING] value=%02X, expected=%02X, invert=%d, toggles=%d,%d, DQ5_Fail=%d, DQ3=%d, dur=%dms\n", _
+		printf(ex"[FlashPoll] value=%02X, expected=%02X, invert=%d, toggles=%d,%d, DQ5_Fail=%d, DQ3=%d, dur=%dms\n", _
 			poll, expect, _
 			(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
 			GetTickCount() - start)
@@ -199,8 +204,15 @@ Function FlashWaitOperationHW(expect AS Long, timeout_ms As DWord) AS BOOL
 				ExitDo
 			End If
 		End If
-		if (GetTickCount() - start) > timeout_ms then
+
+		dim dur AS DWord
+		dur = (GetTickCount() - start)
+		if dur > timeout_ms then
 			ExitDo
+		End If
+		if pc then
+			pc->Step(dur - lastDur, dur)
+			lastDur = dur
 		End If
 		PumpMessage()
 		Sleep(PollInterval)
@@ -222,20 +234,8 @@ Sub FlashCmdExit(cmdBank AS Byte, cmdOffset As Word)
 	SendControl(hCOM, CBUS_DEFAULT)
 End Sub
 
-Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word)
-	' ChipErase
-	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H0555, &H80, FALSE)
 
-	SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H0555, &H10, FALSE)
-
-	FlashWaitOperation((cmdBank << 16) OR cmdOffset, &HFF, 10000)
-End Sub
-
-Function FlashWriteSoftware(buf As *BufferClass, pc AS *DumpRomProgressCallBack)
+Function FlashWriteSoftware(buf As *BufferClass, pc AS *ProgressCallBack)
 
 	Dim i as DWord, start AS DWord
 	start = GetTickCount()
@@ -274,15 +274,15 @@ Sub UpdateFlashConfig(cmdBase As DWord)
 	Dim FlashConfig16bit AS FlashConfig
 	With FlashConfig16bit
 		.bank = cmdBase >> 16
-		DumperFlashConfig(.cmdList[0], cmdOffset + &H0555, &HAA)
-		DumperFlashConfig(.cmdList[1], cmdOffset + &H02AA, &H55)
-		DumperFlashConfig(.cmdList[2], cmdOffset + &H0555, &HA0)
+		DumperFlashConfig(.cmdList[0], cmdOffset + &H5555, &HAA)
+		DumperFlashConfig(.cmdList[1], cmdOffset + &H2AAA, &H55)
+		DumperFlashConfig(.cmdList[2], cmdOffset + &H5555, &HA0)
 	End With
 	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
 
 End Sub
 
-Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SFC_MMAP_MODEL, pc AS *DumpRomProgressCallBack) As BOOL
+Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SFC_MMAP_MODEL, pc AS *ProgressCallBack) As BOOL
 	If mmodel->rom.init_cb Then mmodel->rom.init_cb(hCOM)
 
 	Dim bus_addr AS DWord, last_bank AS DWord
@@ -310,7 +310,7 @@ Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SF
 		PumpMessage()
 				
 		if DatabusFlashWrite(hCOM, buf->ptr + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
-			FlashWaitOperationHW(-1, 2000)
+			FlashWaitOperationHW(-1, 2000, NULL)
 			DBM("failed to program ROM.")
 			ExitDo
 		End If
@@ -334,9 +334,113 @@ Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SF
 	If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hCOM, NULL)
 End Function
 
+
+Class GenericProgressCallBack 
+	Inherits  ProgressCallback
+Private
+	Max AS Long
+	Now AS Long
+	hProgress As HANDLE
+	taskName AS StringClass
+	unitName AS StringClass
+	mag AS Single
+Public
+	Sub GenericProgressCallBack(task AS BytePtr, unit As BytePtr)
+		taskName.cpy(task)
+		unitName.cpy(unit)
+	End Sub
+
+	Sub Init(_this As VoidPtr, Max AS DWord) 
+		hProgress=MWnd(hProg)
+		this.Now=0
+		this.Max=Max		
+		if Max > &HFFFF then
+			mag = (Max AS Double / (&HFFFF AS Double)) AS Single
+		Else 
+			mag = 1.0
+		endif
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+		SendMessage(hProgress, PBM_SETRANGE,0,MAKELONG(0,(Max / mag) As Word))
+
+		SetDlgEnable(STATUS_DUMPING)
+		
+	End Sub
+
+	Sub Step(_this As VoidPtr, step AS Long, snesReadAdr As DWord)
+		SendMessage(hProgress, PBM_SETSTEP,Int(step / mag),0)
+		SendMessage(hProgress, PBM_STEPIT,0,0)
+
+		Now += step		
+		SetWindowText(MWnd(Static7),sprintfStr("%d%%",Int(Now/Max*100)))
+
+		PumpMessage()
+	End Sub
+
+	Sub Final(_this As VoidPtr, )
+		SendMessage(hProgress, PBM_SETPOS, 0, 0 )
+
+		SetWindowText(MWnd(Static7),"100%")
+
+		SetDlgEnable(STATUS_CONNECTED)
+
+	End Sub
+
+	Function isCancel(_this As VoidPtr) As BOOL
+		PumpMessage()
+		isCancel = GetCancelKey()
+	End Function
+
+	Sub ErrorRetry(_this As VoidPtr, count As DWord, limit As DWord)
+		DBMN(ex"X")
+	End Sub
+
+
+End Class
+
+Function new_GenericProgressCallBack(task AS BytePtr, unit as BytePtr) As *ProgressCallBack
+	Dim ret As *GenericProgressCallBack, vtable As *ProgressCallback_Vtable
+	ret = new GenericProgressCallBack(task, unit)
+'	vtable = calloc(sizeof(ProgressCallback_Vtable))
+'	SetDWord(ret, vtable)
+
+	vtable = GetDWord(ret) As VoidPtr
+	vtable->Init 		= AddressOf(ret->Init)
+	vtable->isCancel 	= AddressOf(ret->isCancel)
+	vtable->Step 		= AddressOf(ret->Step)
+	vtable->ErrorRetry 	= AddressOf(ret->ErrorRetry)
+	vtable->Final 		= AddressOf(ret->Final)
+	new_GenericProgressCallBack = ret 
+End Function
+
+Sub delete_GenericProgressCallBack(pc As *GenericProgressCallBack)
+'	free(GetDWord(pc) As DWord)
+	delete pc
+End Sub
+
+
+Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word, pc AS *ProgressCallBack)
+	' ChipErase
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &H80, FALSE)
+
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
+	SetCartRegister(cmdBank, cmdOffset + &H5555, &H10, FALSE)
+
+	const FLASH_ERASE_TIMEOUT_MS = 10000
+	if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
+	FlashWaitOperationHW(/*(cmdBank << 16) OR cmdOffset, */&HFF, FLASH_ERASE_TIMEOUT_MS, pc)
+	if pc then pc->Final()
+End Sub
+
 Sub FlashWnd_CommandButton2_Click()
+	
+	Dim pc AS *ProgressCallBack
+	pc = new_GenericProgressCallBack("FlashErase", "ms")
+
 	FlashCmdInit(cmdBank, cmdOffset)
-	FlashCmdChipErase(cmdBank, cmdOffset)
+	FlashCmdChipErase(cmdBank, cmdOffset, pc)
 	FlashCmdExit(cmdBank, cmdOffset)
 End Sub
 
@@ -357,8 +461,8 @@ Sub FlashWnd_Program(file AS BytePtr)
 		exitsub
 	endif
 
-	Dim pc AS *DumpRomProgressCallBack
-	pc = new_DumpRomProgressCallBack()
+	Dim pc AS *ProgressCallBack
+	pc = new_GenericProgressCallBack("FlashProg", "")
 	pc->Init(buf.length())
 
 	FlushCom(hCOM)
@@ -372,7 +476,7 @@ Sub FlashWnd_Program(file AS BytePtr)
 	
 	pc->Final()
 
-	delete_DumpRomProgressCallBack(pc)
+	delete_GenericProgressCallBack(pc)
 End Sub
 
 Sub FlashWnd_CommandButton4_Click()
