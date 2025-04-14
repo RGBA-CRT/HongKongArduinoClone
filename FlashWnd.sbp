@@ -26,6 +26,9 @@ Sub FlashWnd_open()
 	MainWnd_Move(0, 0)
 	'SFMW_bMove = FALSE
 End Sub
+Function FWnd(idx AS Long) AS HANDLE
+	FWnd = GetDlgItem(hFlashWnd, idx)
+End Function
 	
 	Dim cmdBank AS Byte
 	Dim cmdOffset As DWOrd
@@ -37,9 +40,11 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim flashCmdType AS Long
 
 	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId))
-	if flashCmdType = FlashCmdTypeNotFlash Then
+	if flashCmdType <> FlashCmdTypeNotFlash Then
+		DBM("LoROM")
+	Else
 		DBMf("maybe not flash detected.")
-		SetDlgItemText(hFlashWnd, EditBox1, "<not flash>")
+		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
 		SetDlgItemText(hFlashWnd, FlashName, "<not flash>")
 		ExitSub
 	End If
@@ -47,7 +52,7 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim set As FlashCmdSet
 	DBMf("flashCmdType = %d", flashCmdType)
 	GetFlashCmdSet(flashCmdType, set)
-	SetDlgItemText(hFlashWnd, EditBox1, set.name)
+	SetDlgItemText(hFlashWnd, ComboBox1, set.name)
 
 	Dim flashName AS BytePtr, chipInfo AS *FlashChipInfo
 	chipInfo = GetFlashChipInfo(VarPtr(flashId))
@@ -85,8 +90,8 @@ End Sub
 
 ' TODO write pulse length::: 100ns‚ÍŠm•Û‚µ‚½‚¢
 Dim PollInterval=32 AS DWord
-Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord) AS BOOL
-	Dim i as Long, start AS DWord
+Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord, pc AS *ProgressCallBack) AS BOOL
+	Dim i as Long, start AS DWord, lastDur AS DWord
 	start = GetTickCount()
 	Do
 		Dim poll AS Byte
@@ -105,8 +110,14 @@ Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord
 			FlashWaitOperation = TRUE
 			ExitDo
 		End If
-		if (GetTickCount() - start) > timeout_ms then
+		dim dur AS DWord
+		dur = (GetTickCount() - start)
+		if dur > timeout_ms then
 			ExitDo
+		End If
+		if pc then
+			pc->Step(dur - lastDur, dur)
+			lastDur = dur
 		End If
 		PumpMessage()
 		Sleep(PollInterval)
@@ -277,9 +288,12 @@ Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word, pc AS *ProgressCallBac
 	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
 	SetCartRegister(cmdBank, cmdOffset + &H5555, &H10, FALSE)
 
-	const FLASH_ERASE_TIMEOUT_MS = 10000
+	SetAddress(hCOM, cmdBank, cmdOffset)
+
+	const FLASH_ERASE_TIMEOUT_MS = 40000 ' MAX: EN29F002 35sec
 	if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
-	FlashWaitOperationHW(/*(cmdBank << 16) OR cmdOffset, */&HFF, FLASH_ERASE_TIMEOUT_MS, pc)
+'	FlashWaitOperationHW(/*(cmdBank << 16) OR cmdOffset, */&HFF, FLASH_ERASE_TIMEOUT_MS, pc)
+	FlashWaitOperation((cmdBank << 16) OR cmdOffset, &HFF, FLASH_ERASE_TIMEOUT_MS, pc)
 	if pc then pc->Final()
 End Sub
 

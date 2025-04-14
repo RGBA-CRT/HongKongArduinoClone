@@ -100,9 +100,9 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 25
+Const FLASH_ID_TABLE_MAX = 30
 Const MBIT(x) = (x * &H20000)
-Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
+Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
 	[ &HC2D5, "MX29F080"   , MBIT( 8) ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
 	[ &HC2D6, "MX29F800CT" , MBIT( 8) ], ' 
@@ -129,7 +129,13 @@ Dim FlashChipInfoTable[FLASH_ID_TABLE_MAX] = [
 	[ &H04AB, "MBM29F400BC", MBIT( 4) ],
 	[ &H0458, "MBM29F800BA", MBIT( 8) ],
 	[ &H04D6, "MBM29F800TA", MBIT( 8) ],
+	[ &H1C92, "EN29F002T"  , MBIT( 2) ], ' [TESTED] ByteProgram: 200us ChipErase 35sec
+	[ &H1C97, "EN29F002B"  , MBIT( 2) ],
+	[ &HDA0B, "W49F002U"   , MBIT( 2) ], ' [TESTED] ByteProgram: 50us ChipErase 0.2sec
+	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 7us ChipErase 1sec
 ] As FlashChipInfo
+
+' うまく書き込めないときはPLCCソケットの接触を確認しよう
 
 Type FlashChipId
 	idSize AS Long
@@ -139,8 +145,9 @@ End Type
 
 ' ========== implments =============
 
+Const EON_FLASH_ID_OFFSET = &H100 ' EONのFlashはオフセットかけないと7F 7Fが帰る変な仕様
 Const FLASH_ID_SIZE = 64
-
+Const FLASH_ID_OFFSET = EON_FLASH_ID_OFFSET
 
 ' logic
 Class FlashChipController
@@ -188,18 +195,19 @@ Public
 	End Function
 
 Private
+
 	Function ReadFlashChipId(ByRef flashIdBuf[FLASH_ID_SIZE] AS Byte) AS BOOL
 		Dim preId[ELM(FLASH_ID_SIZE)] As Byte
 		FlushCom(hCOM)
 
-		ReadROM(hCOM,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr),FLASH_ID_SIZE,FALSE)
+		ReadROM(hCOM,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 		PrintPtr(ex"preid\n")
 		Dump(VarPtr(preId),FLASH_ID_SIZE,0)
 
 		EnterCommandMode()
 		DoFlashCmd(VarPtr(cmdSet.detect()))
 
-		ReadROM(hCOM,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr),FLASH_ID_SIZE,FALSE)
+		ReadROM(hCOM,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 		PrintPtr(ex"flash id\n")
 		Dump(VarPtr(flashIdBuf),FLASH_ID_SIZE,0)
 		

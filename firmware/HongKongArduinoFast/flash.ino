@@ -49,14 +49,22 @@ inline byte bulkReadAcquire()
 // readDataが108clkぐらい
 // その他関数内のループを少なく見積もって5clkぐらい。7,062.5ns
 #define FLASH_WAIT_TIMEOUT_CYCLE 140
+// #define POLL_ONLY_DQ7
 
 // return: error(true) or ok(false)
 inline bool flashWaitOperation(byte expect_byte){
   bool ret = false;
+#ifdef POLL_ONLY_DQ7
+  expect_byte &= 0x80;
+#endif
   bulkReadInit();
 
   for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
+#ifdef POLL_ONLY_DQ7
+    if((bulkReadAcquire() & 0x80) == expect_byte){
+#else
     if(bulkReadAcquire() == expect_byte){
+#endif
       goto fwoExit;
     }
   }
