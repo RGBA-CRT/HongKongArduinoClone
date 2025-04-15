@@ -608,3 +608,30 @@ End Enum
 	→SUFAMI TURBOなどでOldMakerCode=0x00、拡張ヘッダありというものがあった
 
 */
+
+/*https://avr.jp/user/AN/PDF/AVR4027.pdf
+
+READ：
+
+firm: default commit: pulse:45kHz  rate:85KB/s 9234bytes
+firm: switch case lorom判定解除: 9236 
+firm: readCart デクリメントジャッジ: 9236バイト　88KB/s
+Host: busyloop:  97,824 byte/sec
+Host: hires sleep: 96KB/s
+
+48KHz
+
+
+WRITE:
+
+default commit: 8.1KB/ｓ, 9234 bytes
+buffer 0x100 to 0x400: 12KB/sec
+12.7KB/s
+
+60.9KB/s no write
+
+8688766b70611c69d8bce528378e0f1c3b64f10b 14.6KB
+16.6KB/s nobranch
+
+19.8KB/s*/
+

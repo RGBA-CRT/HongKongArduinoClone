@@ -40,9 +40,7 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim flashCmdType AS Long
 
 	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId))
-	if flashCmdType <> FlashCmdTypeNotFlash Then
-		DBM("LoROM")
-	Else
+	if flashCmdType = FlashCmdTypeNotFlash Then
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
 		SetDlgItemText(hFlashWnd, FlashName, "<not flash>")
@@ -80,51 +78,6 @@ Sub FlashWnd_CommandButton1_Click()
 
 End Sub
 
-Sub FlashWnd_Static1_Click()
-
-End Sub
-
-Sub FlashWnd_CheckBox1_Click()
-
-End Sub
-
-' TODO write pulse length::: 100ns‚ÍŠm•Û‚µ‚½‚¢
-Dim PollInterval=32 AS DWord
-Function FlashWaitOperation(offset As DWord, expect AS Byte, timeout_ms As DWord, pc AS *ProgressCallBack) AS BOOL
-	Dim i as Long, start AS DWord, lastDur AS DWord
-	start = GetTickCount()
-	Do
-		Dim poll AS Byte
-'		SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
-'		SendControl(hCOM, CBUS_WE OR CBUS_RST)
-
-		ReadROM(hCOM, VarPtr(poll), 0, offset, 1, FALSE)
-		printf(ex"[FLASH OPERATION POLLING] value=%02X, expected=%02X, invert=%d, toggles=%d,%d, DQ5=%d, DQ3=%d, dur=%dms\n", _
-			poll, expect, _
-			(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
-			GetTickCount() - start)
-
-'		SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)		
-
-		if poll = expect then
-			FlashWaitOperation = TRUE
-			ExitDo
-		End If
-		dim dur AS DWord
-		dur = (GetTickCount() - start)
-		if dur > timeout_ms then
-			ExitDo
-		End If
-		if pc then
-			pc->Step(dur - lastDur, dur)
-			lastDur = dur
-		End If
-		PumpMessage()
-		Sleep(PollInterval)
-		i++
-	Loop
-
-End Function
 
 Function FlashWaitOperationHW(expect AS Long, timeout_ms As DWord, pc AS *ProgressCallBack) AS BOOL
 	Dim i as Long, start AS DWord, lastDur AS DWord
@@ -174,35 +127,6 @@ Sub FlashCmdExit(cmdBank AS Byte, cmdOffset As Word)
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
 	SendControl(hCOM, CBUS_DEFAULT)
 End Sub
-
-
-Function FlashWriteSoftware(buf As *BufferClass, pc AS *ProgressCallBack)
-
-	Dim i as DWord, start AS DWord
-	start = GetTickCount()
-	for i=0 To buf->length()-1
-		' 
-		SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
-		SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
-		SetCartRegister(cmdBank, cmdOffset + &H0555, &HA0, FALSE)
-
-		SetCartRegister(i>>16, i And &HFFFF, buf->ptr[i], FALSE)
-
-		if FlashWaitOperation(i, buf->ptr[i], 500) = FALSE then
-			DBM("failed program flash.")
-			Exitfor
-		End If
-
-		if (GetTickCount() - start) > 2000 then
-			DBMf("programming... %Xh/%Xh", i, buf->length())
-			PumpMessage()
-			start = GetTickCount()
-		End If
-		
-		pc->Step(1,i)
-
-	Next
-End Function
 
 Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
 	elm.address = adr
@@ -277,34 +201,16 @@ End Function
 
 
 
-
-Sub FlashCmdChipErase(cmdBank AS Byte, cmdOffset As Word, pc AS *ProgressCallBack)
-	' ChipErase
-	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H5555, &H80, FALSE)
-
-	SetCartRegister(cmdBank, cmdOffset + &H5555, &HAA, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H2AAA, &H55, FALSE)
-	SetCartRegister(cmdBank, cmdOffset + &H5555, &H10, FALSE)
-
-	SetAddress(hCOM, cmdBank, cmdOffset)
-
-	const FLASH_ERASE_TIMEOUT_MS = 40000 ' MAX: EN29F002 35sec
-	if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
-'	FlashWaitOperationHW(/*(cmdBank << 16) OR cmdOffset, */&HFF, FLASH_ERASE_TIMEOUT_MS, pc)
-	FlashWaitOperation((cmdBank << 16) OR cmdOffset, &HFF, FLASH_ERASE_TIMEOUT_MS, pc)
-	if pc then pc->Final()
-End Sub
-
 Sub FlashWnd_CommandButton2_Click()
 	
 	Dim pc AS *ProgressCallBack
 	pc = new_GenericProgressCallBack("FlashErase", "ms")
 
-	FlashCmdInit(cmdBank, cmdOffset)
-	FlashCmdChipErase(cmdBank, cmdOffset, pc)
-	FlashCmdExit(cmdBank, cmdOffset)
+	Dim fc AS FlashChipController
+	'' TODO: Get Param from GUI
+
+	fc.Init(hCOM, FlashCmdTypeJDEC8, 0)
+	fc.ChipErase(pc)
 End Sub
 
 Sub FlashWnd_Program(file AS BytePtr)
@@ -367,5 +273,21 @@ End Sub
 
 Sub FlashWnd_CommandButton5_Click()
 	FlushCom(hCOM)
+
+End Sub
+
+Sub FlashWnd_Create(ByRef CreateStruct As CREATESTRUCT)
+	SendMessage(FWnd(MAPPING), CB_RESETCONTENT, 0, 0)
+	Dim i as Long
+	for i = 0 To SFC_MAP_TYPE__NUM-1
+		SendMessage(FWnd(MAPPING), CB_ADDSTRING, 0, GetMappingString(i) As Long)
+	Next i
+	SetWindowText(FWnd(MAPPING), "<PLEASE SELECT MAPPING>")
+
+	
+	SendMessage(FWnd(ListView1), LB_ADDSTRING, 0, "<SELECT MAPPING AND PRESS DETECT>" As Long)
+End Sub
+
+Sub FlashWnd_Static4_Click()
 
 End Sub

@@ -132,7 +132,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H1C92, "EN29F002T"  , MBIT( 2) ], ' [TESTED] ByteProgram: 200us ChipErase 35sec
 	[ &H1C97, "EN29F002B"  , MBIT( 2) ],
 	[ &HDA0B, "W49F002U"   , MBIT( 2) ], ' [TESTED] ByteProgram: 50us ChipErase 0.2sec
-	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 7us ChipErase 1sec
+	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
 ] As FlashChipInfo
 
 ' うまく書き込めないときはPLCCソケットの接触を確認しよう
@@ -148,7 +148,8 @@ End Type
 Const EON_FLASH_ID_OFFSET = &H100 ' EONのFlashはオフセットかけないと7F 7Fが帰る変な仕様
 Const FLASH_ID_SIZE = 64
 Const FLASH_ID_OFFSET = EON_FLASH_ID_OFFSET
-
+const FLASH_ERASE_TIMEOUT_MS = 15000 ' MAX: EN29F002 35sec
+Const PollInterval=32
 ' logic
 Class FlashChipController
 Private
@@ -194,29 +195,60 @@ Public
 		GetFlashChipId = TRUE
 	End Function
 
+	Sub ChipErase(pc AS *ProgressCallBack)
+		FlushCom(hSerial)
+		EnterCommandMode()
+		DoFlashCmd(VarPtr(cmdSet.chipErase()))
+
+		if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
+		FlashWaitOperation(baseBusAdr, &HFF, FLASH_ERASE_TIMEOUT_MS, pc/*, TRUE*/)
+		if pc then pc->Final()
+	End Sub
+
 Private
 
 	Function ReadFlashChipId(ByRef flashIdBuf[FLASH_ID_SIZE] AS Byte) AS BOOL
 		Dim preId[ELM(FLASH_ID_SIZE)] As Byte
-		FlushCom(hCOM)
+		FlushCom(hSerial)
 
-		ReadROM(hCOM,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
+		ReadROM(hSerial,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 		PrintPtr(ex"preid\n")
 		Dump(VarPtr(preId),FLASH_ID_SIZE,0)
 
 		EnterCommandMode()
 		DoFlashCmd(VarPtr(cmdSet.detect()))
 
-		ReadROM(hCOM,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
+		ReadROM(hSerial,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 		PrintPtr(ex"flash id\n")
 		Dump(VarPtr(flashIdBuf),FLASH_ID_SIZE,0)
 		
 		ExitCommandMode()
 
 		if memcmp(preId, flashIdBuf, FLASH_ID_SIZE) <> 0 then
-			ReadFlashChipId = TRUE
+			Dim preCheck AS BOOL, idCheck AS BOOL
+			preCheck = FillCheck(preId, preId[0], FLASH_ID_SIZE)
+			idCheck  = FillCheck(flashIdBuf, flashIdBuf[0], FLASH_ID_SIZE)
+			printf(ex"busOpenCheck IsFill pre=%d, id=%d\n", preCheck, idCheck)
+			if (preCheck = FALSE) OR (idCheck = FALSE)  then
+				ReadFlashChipId = TRUE
+			End If
+		Else
+			printf(ex"busOpenCheck pre, id bin match\n")
 		Endif
 
+	End Function
+
+	Function FillCheck(buf AS BytePtr, c as Byte, size AS Long) AS BOOL
+		Dim i = 0 AS Long
+		FillCheck=TRUE
+		do
+			if i >= size then ExitDo
+			if buf[i] <> c then
+				FillCheck = FALSE
+				ExitDo
+			End If
+			i++
+		Loop
 	End Function
 
 	Function AdrBank(adr AS DWord) As Byte
@@ -253,6 +285,47 @@ Private
 		SendControl(hSerial, CBUS_DEFAULT)
 	End Sub
 
+
+	Function FlashWaitOperation(offset As DWord, expect AS Long, timeout_ms As DWord, pc AS *ProgressCallBack)(swMode AS BOOL) AS BOOL
+		Dim i as Long, start AS DWord, lastDur AS DWord
+		start = GetTickCount()
+		Do
+			Dim poll AS Byte
+
+			if swMode then
+				ReadROM(hSerial, VarPtr(poll), 0, baseBusAdr + offset, 1, FALSE)
+			Else
+				poll = DatabusRead(hSerial)
+			End If
+			printf(ex"[FlashPoll] value=%02X, expected=%02X, inv=%d, tgl=%d,%d, DQ5Fail=%d, DQ3=%d, dur=%dms\n", _
+				poll, expect, _
+				(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
+				GetTickCount() - start)
+
+	'		SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)		
+
+			if expect > 0 then
+				if poll = expect then
+					FlashWaitOperation = TRUE
+					ExitDo
+				End If
+			End If
+
+			dim dur AS DWord
+			dur = (GetTickCount() - start)
+			if dur > timeout_ms then
+				ExitDo
+			End If
+			if pc then
+				pc->Step(dur - lastDur, dur)
+				lastDur = dur
+			End If
+			Sleep(PollInterval)
+			i++
+		Loop
+
+	End Function
+	
 End Class
 
 ' utils
@@ -297,3 +370,34 @@ Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId) 
 		End If
 	Next
 End Function
+
+/*
+
+Function FlashWriteSoftware(buf As *BufferClass, pc AS *ProgressCallBack)
+
+	Dim i as DWord, start AS DWord
+	start = GetTickCount()
+	for i=0 To buf->length()-1
+		' 
+		SetCartRegister(cmdBank, cmdOffset + &H0555, &HAA, FALSE)
+		SetCartRegister(cmdBank, cmdOffset + &H02AA, &H55, FALSE)
+		SetCartRegister(cmdBank, cmdOffset + &H0555, &HA0, FALSE)
+
+		SetCartRegister(i>>16, i And &HFFFF, buf->ptr[i], FALSE)
+
+		if FlashWaitOperation(i, buf->ptr[i], 500) = FALSE then
+			DBM("failed program flash.")
+			Exitfor
+		End If
+
+		if (GetTickCount() - start) > 2000 then
+			DBMf("programming... %Xh/%Xh", i, buf->length())
+			PumpMessage()
+			start = GetTickCount()
+		End If
+		
+		pc->Step(1,i)
+
+	Next
+End Function
+*/

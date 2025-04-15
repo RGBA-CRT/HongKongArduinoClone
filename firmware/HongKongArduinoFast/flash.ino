@@ -54,17 +54,10 @@ inline byte bulkReadAcquire()
 // return: error(true) or ok(false)
 inline bool flashWaitOperation(byte expect_byte){
   bool ret = false;
-#ifdef POLL_ONLY_DQ7
-  expect_byte &= 0x80;
-#endif
   bulkReadInit();
 
   for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
-#ifdef POLL_ONLY_DQ7
-    if((bulkReadAcquire() & 0x80) == expect_byte){
-#else
     if(bulkReadAcquire() == expect_byte){
-#endif
       goto fwoExit;
     }
   }
@@ -117,6 +110,7 @@ void flashWriteCart() {
 
   flashBulkWriteInit();
 
+  // メモリは余っているので速度優先でじゃんじゃんつかおう
   byte* bufptr = buf;
   word remain = 1; // 最初は必ず受信させる
 
