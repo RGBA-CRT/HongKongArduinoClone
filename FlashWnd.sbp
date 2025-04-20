@@ -35,9 +35,31 @@ End Function
 	cmdBank = &H00
 	cmdOffset=&H8000
 
+Sub GenerateFlashLayoutText(layoutText AS BytePtr, mapMode AS Long, chipInfo AS *FlashChipInfo)
+	Dim start AS DWord, tail AS DWord
+	if mapMode = SFC_MAP_LoROM then
+		start = LoROM_OFFSET_ADR
+		tail = chipInfo->size*2 + start -&H8001
+	Else
+		start = HiROM_START_ADR
+		tail = start + chipInfo->size -1
+	End If
+	wsprintf(layoutText, "%02x:%04x-%02x:%04x %d Mbit %s", _
+		start >> 16, start And &HFFFF, _
+		tail >> 16, tail And &HFFFF, _
+		(chipInfo->size*8)/1024/1024, chipInfo->name)
+End Sub
+
 Sub FlashWnd_CommandButton1_Click()
+	Dim mapMode AS DWord
 	dim flashId AS FlashChipId
 	Dim flashCmdType AS Long
+
+	mapMode = getSelectedMapMode(FWnd(MAPPING))
+	if mapMode >= SFC_MAP_TYPE__NUM then
+		DBM("WARN: Please select 'Map' mode")
+		mapMode = SFC_MAP_LoROM
+	End If
 
 	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId))
 	if flashCmdType = FlashCmdTypeNotFlash Then
@@ -47,22 +69,25 @@ Sub FlashWnd_CommandButton1_Click()
 		ExitSub
 	End If
 
-	Dim set As FlashCmdSet
-	DBMf("flashCmdType = %d", flashCmdType)
-	GetFlashCmdSet(flashCmdType, set)
-	SetDlgItemText(hFlashWnd, ComboBox1, set.name)
+	SendMessage(FWnd(ComboBox1), CB_SETCURSEL, flashCmdType, 0)
 
+	' EditBox: FlashName
 	Dim flashName AS BytePtr, chipInfo AS *FlashChipInfo
 	chipInfo = GetFlashChipInfo(VarPtr(flashId))
 	if chipInfo = NULL Then
 		flashName = "<unknown>"
 	else
 		flashName = chipInfo->name
+		' ListBox: Layout
+		Dim layoutText[128] AS Byte
+		GenerateFlashLayoutText(layoutText, mapMode, chipInfo)
+		SendMessage(FWnd(ListBox1), LB_RESETCONTENT, 0, 0)
+		SendMessage(FWnd(ListBox1), LB_ADDSTRING, 0, layoutText)
+		SendMessage(FWnd(ListBox1), LB_ADDSTRING, 0, "todo: impl this")
 	End If
-
 	SetDlgItemText(hFlashWnd, FlashName, flashName)
-	
-	FlashCmdExit(cmdBank, cmdOffset)	
+
+
 
 	' TODO: DETECT LOROM/HIROM layout
 	
@@ -70,7 +95,7 @@ Sub FlashWnd_CommandButton1_Click()
 
 	Dim info AS SFC_CART_INFO
 	wsprintf(info.Title, "<FLASH DETECTION MODE>", flashName)
-	info.MapType = SFC_MAP_LoROM
+	info.MapType = mapMode
 	if chipInfo then info.RomSize = chipInfo->size
 	SetCartInfo(VarPtr(info))
 	
@@ -78,148 +103,77 @@ Sub FlashWnd_CommandButton1_Click()
 
 End Sub
 
+Function getSelectedFlashCmdType() AS DWord
+	Dim idx AS Long
 
-Function FlashWaitOperationHW(expect AS Long, timeout_ms As DWord, pc AS *ProgressCallBack) AS BOOL
-	Dim i as Long, start AS DWord, lastDur AS DWord
-	start = GetTickCount()
-	Do
-		Dim poll AS Byte
-		poll = DatabusRead(hCOM)
-		printf(ex"[FlashPoll] value=%02X, expected=%02X, invert=%d, toggles=%d,%d, DQ5_Fail=%d, DQ3=%d, dur=%dms\n", _
-			poll, expect, _
-			(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
-			GetTickCount() - start)
-
-'		SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)		
-
-		if expect > 0 then
-			if poll = expect then
-				FlashWaitOperationHW = TRUE
-				ExitDo
-			End If
-		End If
-
-		dim dur AS DWord
-		dur = (GetTickCount() - start)
-		if dur > timeout_ms then
-			ExitDo
-		End If
-		if pc then
-			pc->Step(dur - lastDur, dur)
-			lastDur = dur
-		End If
-		PumpMessage()
-		Sleep(PollInterval)
-		i++
-	Loop
-
+	idx=SendMessage(FWnd(ComboBox1),CB_GETCURSEL,0,0)
+	if idx<0 or idx>=FlashCmdTypeMAX Then
+		idx=FlashCmdTypeMAX
+	End If
+	getSelectedFlashCmdType=idx AS DWord
 End Function
-
-Sub FlashCmdInit(cmdBank AS Byte, cmdOffset As Word)
-	SendControl(hCOM, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
-	SendControl(hCOM, CBUS_OE OR CBUS_WE OR CBUS_RST)
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
-End Sub
-
-Sub FlashCmdExit(cmdBank AS Byte, cmdOffset As Word)
-	' Reset Flash
-	SetCartRegister(cmdBank, cmdOffset + &H0000, &HF0, FALSE)
-	SendControl(hCOM, CBUS_DEFAULT)
-End Sub
-
-Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
-	elm.address = adr
-	elm.data = data
-End Sub
-
-Sub UpdateFlashConfig(cmdBase As DWord)
-	Dim cmdOffset AS Word
-	cmdOffset = (cmdBase And &HFFFF) As Word
-	Dim FlashConfig16bit AS FlashConfig
-	With FlashConfig16bit
-		.bank = cmdBase >> 16
-		FLASH_CMD(.cmdList[0], cmdOffset + &H5555, &HAA)
-		FLASH_CMD(.cmdList[1], cmdOffset + &H2AAA, &H55)
-		FLASH_CMD(.cmdList[2], cmdOffset + &H5555, &HA0)
-	End With
-	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
-
-End Sub
-
-Function FlashWriteHardware(cmdBase As DWord, buf As *BufferClass, mmodel As *SFC_MMAP_MODEL, pc AS *ProgressCallBack) As BOOL
-	If mmodel->rom.init_cb Then mmodel->rom.init_cb(hCOM)
-
-	Dim bus_addr AS DWord, last_bank AS DWord
-	bus_addr = mmodel->rom.next_cb(hCOM, cmdBase, 0)
-	last_bank = &HFFFFFFFF
-
-
-	Const FLASH_WRITE_BUF_SIZE = &H4000
-	Dim img_offset=0 AS DWord
-	Dim block_size=FLASH_WRITE_BUF_SIZE AS DWord
-
-	Dim i as DWord, start AS DWord
-	start = GetTickCount()
-	Do
-		if last_bank <> (bus_addr>>16) then
-			UpdateFlashConfig(bus_addr)
-			last_bank = (bus_addr>>16)
-		endif
-
-		Dim dur_ms AS DWord, speed AS Single
-		dur_ms = (GetTickCount() - start)
-		if dur_ms = 0 then dur_ms++
-		speed = (img_offset AS Single) / (dur_ms)
-		DBMf("%X: %Xh/%Xh %d.%ds %d.%dKB/s", bus_addr, img_offset, buf->length(), dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
-		PumpMessage()
-				
-		if DatabusFlashWrite(hCOM, buf->ptr + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
-			FlashWaitOperationHW(-1, 2000, NULL)
-			DBM("failed to program ROM.")
-			ExitDo
-		End If
-		img_offset += block_size
-		
-		pc->Step(FLASH_WRITE_BUF_SIZE AS Long, img_offset)
-
-		if (buf->length() - img_offset) > FLASH_WRITE_BUF_SIZE then
-			block_size = FLASH_WRITE_BUF_SIZE
-		Else
-			block_size = buf->length() - img_offset
-			if block_size = 0 then 
-				FlashWriteHardware = TRUE
-				ExitDo
-			End If
-		endif
-		bus_addr = mmodel->rom.next_cb(hCOM, bus_addr, block_size)
-		i++
-	Loop
-
-	If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hCOM, NULL)
-End Function
-
 
 
 Sub FlashWnd_CommandButton2_Click()
-	
+	Dim mapMode AS DWord	
+	mapMode = getSelectedMapMode(FWnd(MAPPING))
+	if mapMode >= SFC_MAP_TYPE__NUM then
+		DBM(ex"Error: Please select 'Map' mode\r\n")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
+	Dim mmap As SFC_MMAP_MODEL
+	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
+
+
+	Dim cmdType AS DWord
+	cmdType = getSelectedFlashCmdType()
+	if cmdType >= FlashCmdTypeMAX then
+		DBM(ex"WriteError: Please 'Detect' your flash or select the 'Type' manually.\r\n")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
+	' todo: detectŒ‹‰Ê‚ðŠo‚¦‚Ä‚¨‚¢‚Äˆ—‚·‚éB¡‚Í1ŒÂ‚µ‚©‘Î‰ž‚Å‚«‚È‚¢
+
 	Dim pc AS *ProgressCallBack
 	pc = new_GenericProgressCallBack("FlashErase", "ms")
 
-	Dim fc AS FlashChipController
-	'' TODO: Get Param from GUI
+	DBM(ex"Start erase...")
 
-	fc.Init(hCOM, FlashCmdTypeJDEC8, 0)
-	fc.ChipErase(pc)
+	Dim fc AS FlashChipController
+
+	fc.Init(hCOM, cmdType, mmap.rom.adr)
+	if fc.ChipErase(pc) then
+		DBM(ex"Chip Erase done!\r\n")
+	Else
+		DBM(ex"Chip Erase failed.\r\n")
+	End If
+
+	delete_GenericProgressCallBack(pc)
 End Sub
 
 Sub FlashWnd_Program(file AS BytePtr)
-	Dim mapMode AS Long
+	Dim buf AS BufferClass
+	Dim mapMode AS DWord	
+	mapMode = getSelectedMapMode(FWnd(MAPPING))
+	if mapMode >= SFC_MAP_TYPE__NUM then
+		DBM(ex"Error: Please select 'Map' mode\r\n")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
+
 	Dim mmap As SFC_MMAP_MODEL
-	mapMode = getSelectedMapMode()
 	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
 
-	Dim buf AS BufferClass
+	Dim cmdType AS DWord
+	cmdType = getSelectedFlashCmdType()
+	if cmdType >= FlashCmdTypeMAX then
+		DBM(ex"WriteError: Please 'Detect' your flash or select the 'Type' manually.\r\n")
+		MessageBeep(MB_ICONHAND)
+		ExitSub
+	End If
 
 	if LoadFileToMemory(file, VarPtr(buf)) = FALSE then
 		DBM("failed to load file.")
@@ -233,7 +187,7 @@ Sub FlashWnd_Program(file AS BytePtr)
 	Dim pc AS *ProgressCallBack
 	pc = new_GenericProgressCallBack("FlashProg", "")
 	pc->Init(buf.length())
-
+/*
 	FlushCom(hCOM)
 	FlashCmdInit(cmdBank, cmdOffset)
 	
@@ -241,7 +195,16 @@ Sub FlashWnd_Program(file AS BytePtr)
 	FlashWriteHardware(cmdBank<<16 + cmdOffset, VarPtr(buf), VarPtr(mmap), pc)
 
 	FlashCmdExit(cmdBank, cmdOffset)
-	DBM("program exit.")
+	*/
+	
+	Dim fc AS FlashChipController
+	fc.Init(hCOM, cmdType, mmap.rom.adr)
+	if fc.Program(buf.ptr, buf.length(), VarPtr(mmap), pc) then
+		DBM(ex"Program flash done!\r\n")
+	Else
+		DBM(ex"Program flash failed.\r\n")
+	End If
+
 	
 	pc->Final()
 
@@ -285,9 +248,31 @@ Sub FlashWnd_Create(ByRef CreateStruct As CREATESTRUCT)
 	SetWindowText(FWnd(MAPPING), "<PLEASE SELECT MAPPING>")
 
 	
-	SendMessage(FWnd(ListView1), LB_ADDSTRING, 0, "<SELECT MAPPING AND PRESS DETECT>" As Long)
+	SendMessage(FWnd(ListBox1), LB_ADDSTRING, 0, "<SELECT MAPPING AND PRESS DETECT>" As Long)
+	
+	for i = 0 To FlashCmdTypeMAX-1
+		Dim set AS FlashCmdSet
+		GetFlashCmdSet(i, set)
+		SendMessage(FWnd(ComboBox1), CB_ADDSTRING, 0, set.name As Long)
+	Next i
+
+	SetCheckBox(FWnd(CheckBox1), FALSE)
+	FlashWnd_CheckBox1_Click()
+
 End Sub
 
 Sub FlashWnd_Static4_Click()
 
+End Sub
+Sub FlashWnd_CheckBox1_Click()
+	EnableWindow(FWnd(ComboBox1), GetCheckBox(FWnd(CheckBox1)))
+	EnableWindow(FWnd(FlashName), FALSE)
+End Sub
+
+Sub FlashWnd_ComboBox1_EditChange()
+
+End Sub
+
+Sub FlashWnd_Destroy()
+	hFlashWnd = NULL
 End Sub

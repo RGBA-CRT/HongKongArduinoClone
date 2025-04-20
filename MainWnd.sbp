@@ -1010,20 +1010,26 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	ExitSub
 End Function
 
-Function getSelectedMapMode() AS Long
+Function getSelectedMapMode()(hWnd AS HWND) AS DWord
 	Dim idx AS Long
-	idx=SendMessage(MWnd(MAPPING),CB_GETCURSEL,0,0) Mod SFC_MAP_TYPE__NUM
-	if idx<0 or idx>=SFC_MAP_TYPE__NUM Then
-		DBM("!!!!ASSERT, idx is over.")
-		idx=0
-	End If
-	getSelectedMapMode=idx
 
+	if hWnd = 0 then
+		hWnd = MWnd(MAPPING)
+	End If
+	idx=SendMessage(hWnd,CB_GETCURSEL,0,0) 'Mod SFC_MAP_TYPE__NUM
+	if idx<0 or idx>=SFC_MAP_TYPE__NUM Then
+		idx=SFC_MAP_TYPE__NUM
+	End If
+	getSelectedMapMode=idx AS DWord
 End Function
+
 Sub GetDlgOption(info As *SFC_CART_INFO)
 	'LoROM/HiROMの選択とMAD1のチェック取得
 	If GetCheckBox(MWnd(CB_MANUAL)) Then
 		info->MapType = getSelectedMapMode()
+		if info->MapType >= SFC_MAP_TYPE__NUM then
+			info->MapType = SFC_MAP_LoROM
+		End If
 		'		info->MapMode = (info->MapMode And &HF0) or info->MapType
 		info->RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info->SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
@@ -1327,7 +1333,7 @@ End Sub
 
 
 Sub MainWnd_MAPPING_SelChange()
-	Dim SelectedMapMode AS Long
+	Dim SelectedMapMode AS DWord
 	SelectedMapMode = getSelectedMapMode()
 	
 	If SelectedMapMode = SFC_MAP_SF_MENU Then

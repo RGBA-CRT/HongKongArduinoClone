@@ -20,6 +20,10 @@ Enum FlashCmdType
 	FlashCmdTypeNotFlash
 End Enum
 
+Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
+	elm.address = adr
+	elm.data = data
+End Sub
 Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS BOOL
 	GetFlashCmdSet = TRUE
 
@@ -195,17 +199,75 @@ Public
 		GetFlashChipId = TRUE
 	End Function
 
-	Sub ChipErase(pc AS *ProgressCallBack)
+	Function ChipErase(pc AS *ProgressCallBack) AS BOOL
 		FlushCom(hSerial)
 		EnterCommandMode()
 		DoFlashCmd(VarPtr(cmdSet.chipErase()))
 
 		if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
-		FlashWaitOperation(baseBusAdr, &HFF, FLASH_ERASE_TIMEOUT_MS, pc/*, TRUE*/)
+		ChipErase = FlashWaitOperation(baseBusAdr, &HFF, FLASH_ERASE_TIMEOUT_MS, pc/*, TRUE*/)
 		if pc then pc->Final()
-	End Sub
+
+		ExitCommandMode()
+	End Function
+
+	Function Program(buf AS BytePtr, bufsize AS DWord, mmodel AS *SFC_MMAP_MODEL, pc AS *ProgressCallBack) AS BOOL
+		FlushCom(hSerial)
+		EnterCommandMode()
+
+		If mmodel->rom.init_cb Then mmodel->rom.init_cb(hCOM)
+
+		Dim bus_addr AS DWord, last_bank AS DWord
+		bus_addr = mmodel->rom.next_cb(hCOM, baseBusAdr, 0)
+		last_bank = &HFFFFFFFF
+
+		Const FLASH_WRITE_BUF_SIZE = &H4000
+		Dim img_offset=0 AS DWord
+		Dim block_size=FLASH_WRITE_BUF_SIZE AS DWord
+
+		Dim i as DWord, start AS DWord
+		start = GetTickCount()
+		Do
+			if last_bank <> (bus_addr>>16) then
+				UpdateFlashConfig(bus_addr)
+				last_bank = (bus_addr>>16)
+			endif
+
+			Dim dur_ms AS DWord, speed AS Single
+			dur_ms = (GetTickCount() - start)
+			if dur_ms = 0 then dur_ms++
+			speed = (img_offset AS Single) / (dur_ms)
+			DBMf("%X: %Xh/%Xh %d.%ds %d.%dKB/s", bus_addr, img_offset, bufsize, dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
+					
+			if DatabusFlashWrite(hCOM, buf + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
+				FlashWaitOperation(bus_addr, -1, 2000, NULL)
+				DBM("failed to program ROM.")
+				ExitDo
+			End If
+			img_offset += block_size
+			
+			if pc then pc->Step(FLASH_WRITE_BUF_SIZE AS Long, img_offset)
+
+			if (bufsize - img_offset) > FLASH_WRITE_BUF_SIZE then
+				block_size = FLASH_WRITE_BUF_SIZE
+			Else
+				block_size = bufsize - img_offset
+				if block_size = 0 then 
+					Program = TRUE
+					ExitDo
+				End If
+			endif
+			bus_addr = mmodel->rom.next_cb(hCOM, bus_addr, block_size)
+			i++
+		Loop
+
+		If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hCOM, NULL)
+
+		ExitCommandMode()
+	End Function
 
 Private
+	
 
 	Function ReadFlashChipId(ByRef flashIdBuf[FLASH_ID_SIZE] AS Byte) AS BOOL
 		Dim preId[ELM(FLASH_ID_SIZE)] As Byte
@@ -285,6 +347,29 @@ Private
 		SendControl(hSerial, CBUS_DEFAULT)
 	End Sub
 
+
+	Sub UpdateFlashConfig(cmdBase As DWord)
+		Dim cmdOffset AS Word
+		cmdOffset = AdrOfs(baseBusAdr)
+		Dim FlashConfig16bit AS FlashConfig		
+		dim i =0 As DWord
+		
+		With FlashConfig16bit
+			.bank = AdrBank(baseBusAdr)
+			Do
+				if i => cmdSet.program.count then ExitDo
+				if i => FLASH_CMD_LIST_LEN then 
+					ErrMes(hMainWnd, "ASSERT!!: Flash program cmd length is too long", 0, 0)
+					ExitDo
+				End If
+				.cmdList[i].address = cmdOffset + cmdSet.program.elm[i].address
+				.cmdList[i].data = cmdOffset + cmdSet.program.elm[i].data
+				i++
+			Loop
+		End With
+
+		DatabusFlashConfig(hSerial, VarPtr(FlashConfig16bit))
+	End Sub
 
 	Function FlashWaitOperation(offset As DWord, expect AS Long, timeout_ms As DWord, pc AS *ProgressCallBack)(swMode AS BOOL) AS BOOL
 		Dim i as Long, start AS DWord, lastDur AS DWord

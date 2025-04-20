@@ -597,7 +597,8 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	MakeRomFileName(filenametest, 124, header,0)
 	
 	info.cat(ex"DBG:FN:")
-	info.cat(filenametest)	
+	info.cat(filenametest)
+	info.cat(ex"\r\n")
 #endif
 
 	Dim copy_size AS SIZE_T
