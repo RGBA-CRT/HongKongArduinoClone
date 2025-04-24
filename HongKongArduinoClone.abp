@@ -10,6 +10,7 @@
 '  libdatabus‚Æ‚µ‚Ä•ª—£Aoffsetˆø”íœ
 ' TODO: ProgressCallback‚ÉsnesAddr‚ª‚ ‚é‚Ì‚Í‚¢‚©‚ª‚È‚à‚Ì‚©B
 ' TODO: TOGGLE‚ğg‚Á‚½‚‘¬‰»
+' TODO: ATMEGA168P‘Î‰
 /*
 ' INI‚Ö‚ÌIF‚ğ’ñ‹Ÿ
 Class IniConfig

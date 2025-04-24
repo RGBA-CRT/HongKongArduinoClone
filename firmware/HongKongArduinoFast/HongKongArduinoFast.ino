@@ -63,7 +63,7 @@ Si5351 clockgen;
 #define G0  11
 #define G1  12
 #define G2  13
-
+// #define SWAP_CEOE
 //[PORTC]コントロールピン
 #define DIR  14
 #define CK  15
@@ -72,6 +72,8 @@ Si5351 clockgen;
 #define WE  18
 #define RST  19
 
+const uint8_t PIN_PORTC_OE_MASK = 0b00000100;
+const uint8_t PIN_PORTC_CE_MASK = 0b00001000;
 
 //bus buffer direction
 #define BB_DIR_OUTPUT() PORTC |= 0x01 // DIR=HIGH
@@ -89,9 +91,34 @@ Si5351 clockgen;
 #define CART_WRITE_TOGGLE()   PINC  =  0b00010000
 
 // cart /OE control
-#define CART_OUTPUT_ENABLE()   PORTC &= 0b11111011
-#define CART_OUTPUT_DISABLE()  PORTC |= 0b00000100
-#define CART_OUTPUT_TOGGLE()   PINC  =  0b00000100
+static uint8_t val_oe_or_mask;  // speed > ram_usage
+static uint8_t val_oe_and_mask;
+static uint8_t val_ce_or_mask; // speed < ram_usage
+
+void SetFlashOECtrl(bool swap_ce_oe){
+  if(!swap_ce_oe){
+    val_oe_or_mask = PIN_PORTC_OE_MASK;
+    val_oe_and_mask = ~(PIN_PORTC_OE_MASK);
+    val_ce_or_mask = PIN_PORTC_CE_MASK;
+  }else{
+    val_oe_or_mask = PIN_PORTC_CE_MASK;
+    val_oe_and_mask = ~PIN_PORTC_CE_MASK;
+    val_ce_or_mask = PIN_PORTC_OE_MASK;
+  }
+}
+#if 0
+#define CART_OUTPUT_ENABLE()   PORTC &= ~(PIN_PORTC_OE_MASK)
+#define CART_OUTPUT_DISABLE()  PORTC |= PIN_PORTC_OE_MASK
+#define CART_OUTPUT_TOGGLE()   PINC  =  PIN_PORTC_OE_MASK
+#else
+#define CART_OUTPUT_ENABLE()   PORTC &= val_oe_and_mask
+#define CART_OUTPUT_DISABLE()  PORTC |= val_oe_or_mask
+#define CART_OUTPUT_TOGGLE()   PINC  =  val_oe_or_mask
+
+#define CART_CHIP_ENABLE()   PORTC &= ~val_ce_or_mask
+#define CART_CHIP_DISABLE()  PORTC |= val_ce_or_mask
+#define CART_CHIP_TOGGLE()   PINC  =  val_ce_or_mask
+#endif
 
 // databus
 #define getDataPin() (PIND >> 2) | ((PINB << 6))
@@ -221,8 +248,8 @@ inline void readCart(byte isLoROM) {
 
   do {
     setAddress(bank, address++, isLoROM);
-    //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-    for(byte i=6; i; --i);
+    __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+    //for(byte i=100; i; --i);
     serial_send(readData());
   } while(--datasize);
 
@@ -275,8 +302,16 @@ void writeCart(int isLoROM = false) {
   }*/
 
 inline void setCtrlBus(byte b) {
-  digitalWrite(OE , (b & 0b0001) ? HIGH : LOW);
-  digitalWrite(CS , (b & 0b0010) ? HIGH : LOW);
+  if (b & 0b0001) {
+    CART_OUTPUT_DISABLE();
+  }else{
+    CART_OUTPUT_ENABLE();
+  }
+  if (b & 0b0010) {
+    CART_CHIP_DISABLE();
+  }else{
+    CART_CHIP_ENABLE();
+  }
   digitalWrite(WE , (b & 0b0100) ? HIGH : LOW);
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
@@ -305,13 +340,13 @@ inline byte readbyte_cart(byte bank, word address) {
   setAddress(bank, address, false);
 
   // /OEのパルスを成立させるためのWait
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t");
   //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_OUTPUT_ENABLE();
 
   // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte ret = readData();
 
@@ -381,8 +416,6 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
 
 void setup()
 {
-
-
   //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
@@ -402,6 +435,7 @@ void setup()
   digitalWrite(WE, HIGH);
   digitalWrite(RST, LOW);
 
+  SetFlashOECtrl(false);
 
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化

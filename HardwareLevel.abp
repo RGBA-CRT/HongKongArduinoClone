@@ -436,7 +436,9 @@ Const FLASH_CMD_LIST_LEN = 3
 Type Align(1) FlashConfig
 	bank AS Byte
 	cmdList[ELM(FLASH_CMD_LIST_LEN)] AS FlashCmdElm
+	flags AS Byte
 End Type
+Const FLASH_CONFIG_CEOE_SWAP = 1
 
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
@@ -454,9 +456,12 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 		cmd[c] = (config->cmdList[i].address >>  8) AS Byte : c++
 		cmd[c] = (config->cmdList[i].data) AS Byte : c++
 	Next
+	cmd[c] = config->flags : c++
+	PrintPtr("FlashConfig:")
+	Dump(cmd,c)
 
-	WriteFile(hSerial,cmd,sizeof(FlashConfig)+1,VarPtr(dwWD),ByVal NULL)
-	Sleep(10)
+	WriteFile(hSerial,cmd,c,VarPtr(dwWD),ByVal NULL)
+
 End Function
 
 Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL

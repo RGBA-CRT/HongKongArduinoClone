@@ -152,7 +152,7 @@ End Type
 Const EON_FLASH_ID_OFFSET = &H100 ' EONのFlashはオフセットかけないと7F 7Fが帰る変な仕様
 Const FLASH_ID_SIZE = 64
 Const FLASH_ID_OFFSET = EON_FLASH_ID_OFFSET
-const FLASH_ERASE_TIMEOUT_MS = 15000 ' MAX: EN29F002 35sec
+const FLASH_ERASE_TIMEOUT_MS = 60000 ' MAX: EN29F002 35sec
 Const PollInterval=32
 ' logic
 Class FlashChipController
@@ -161,6 +161,7 @@ Private
 	flashType AS FlashCmdType
 	cmdSet AS FlashCmdSet
 	baseBusAdr AS DWord
+	isSwapCE_OE AS BOOL
 
 Public
 	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord)
@@ -171,6 +172,7 @@ Public
 		this.hSerial = com_handle
 		this.flashType = flashType
 		this.baseBusAdr = base
+		this.isSwapCE_OE = TRUE
 	End Sub
 
 	Function GetFlashChipId(id As *FlashChipId) AS BOOL		
@@ -188,10 +190,12 @@ Public
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[1]
+				if id->vendor = id->product then ExitFunction
 			Elseif flashType = FlashCmdTypeJDEC16Shift8 then
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
+				if id->vendor = id->product then ExitFunction
 			Else
 				ExitFunction
 			endif
@@ -229,7 +233,7 @@ Public
 		start = GetTickCount()
 		Do
 			if last_bank <> (bus_addr>>16) then
-				UpdateFlashConfig(bus_addr)
+				UpdateFlashConfig(bus_addr, isSwapCE_OE)
 				last_bank = (bus_addr>>16)
 			endif
 
@@ -285,13 +289,20 @@ Private
 		Dump(VarPtr(flashIdBuf),FLASH_ID_SIZE,0)
 		
 		ExitCommandMode()
+		/*
+		 pre    id
+		0rand 0rand .. OK
+		0rand 1flat .. NG
+		1flat 0rand .. OK
+		1flat 1flat .. NG
+		*/
 
 		if memcmp(preId, flashIdBuf, FLASH_ID_SIZE) <> 0 then
 			Dim preCheck AS BOOL, idCheck AS BOOL
 			preCheck = FillCheck(preId, preId[0], FLASH_ID_SIZE)
 			idCheck  = FillCheck(flashIdBuf, flashIdBuf[0], FLASH_ID_SIZE)
 			printf(ex"busOpenCheck IsFill pre=%d, id=%d\n", preCheck, idCheck)
-			if (preCheck = FALSE) OR (idCheck = FALSE)  then
+			if (idCheck = FALSE)  then
 				ReadFlashChipId = TRUE
 			End If
 		Else
@@ -335,8 +346,10 @@ Private
 	End Sub
 
 	Sub EnterCommandMode()
+		UpdateFlashConfig(this.baseBusAdr, this.isSwapCE_OE)
 		SendControl(hSerial, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
 		SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)
+
 		' Reset Flash
 		DoFlashCmd(VarPtr(cmdSet.reset))
 	End Sub
@@ -345,10 +358,12 @@ Private
 		' Reset Flash
 		DoFlashCmd(VarPtr(cmdSet.reset))
 		SendControl(hSerial, CBUS_DEFAULT)
+
+		UpdateFlashConfig(this.baseBusAdr, FALSE)
 	End Sub
 
 
-	Sub UpdateFlashConfig(cmdBase As DWord)
+	Sub UpdateFlashConfig(cmdBase As DWord, swapCEOE AS BOOL)
 		Dim cmdOffset AS Word
 		cmdOffset = AdrOfs(baseBusAdr)
 		Dim FlashConfig16bit AS FlashConfig		
@@ -366,6 +381,11 @@ Private
 				.cmdList[i].data = cmdOffset + cmdSet.program.elm[i].data
 				i++
 			Loop
+			if swapCEOE then
+				.flags = FLASH_CONFIG_CEOE_SWAP
+			Else
+				.flags = 0
+			endif
 		End With
 
 		DatabusFlashConfig(hSerial, VarPtr(FlashConfig16bit))

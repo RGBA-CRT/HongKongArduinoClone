@@ -1,21 +1,34 @@
 #pragma GCC push_options
 #pragma GCC optimize("O3")
 
+
+#define FLASH_OE_ENABLE()   PORTC &= val_oe_and_mask
+#define FLASH_OE_DISABLE()  PORTC |= val_oe_or_mask
+#define FLASH_OE_TOGGLE()   PINC  =  val_oe_or_mask
+
+#define FLASH_CE_ENABLE()   PORTC &= ~val_ce_or_mask
+#define FLASH_CE_DISABLE()  PORTC |= val_ce_or_mask
+#define FLASH_CE_TOGGLE()   PINC  =  val_ce_or_mask
+
 //flash config
 #define FLASH_COMMAND_LENGTH 3
 static byte flash_bank;
 static word flash_address[FLASH_COMMAND_LENGTH];  // = {0xAAAA,0x5555,0xAAAA}
 static byte flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
 
+#define FLASH_CONFIG_CEOE_SWAP 0x01
+
 void flashReceiveConfig() {
   // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
-  while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3))
+  while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3 + 1))
     ;
   flash_bank = Serial.read();
   for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
     flash_address[i] = Serial_readWord();
     flash_cmd[i] = Serial.read();
   }
+  uint8_t flags = Serial.read();
+  SetFlashOECtrl((flags & FLASH_CONFIG_CEOE_SWAP));
 }
 
 inline void bulkReadInit(){
@@ -29,13 +42,13 @@ inline void bulkReadExit(){
 }
 inline byte bulkReadAcquire()
 {
-  CART_OUTPUT_TOGGLE();
+  FLASH_OE_TOGGLE();
   
   __asm__ volatile("nop");
 
   byte b = getDataPin();
 
-  CART_OUTPUT_TOGGLE();
+  FLASH_OE_TOGGLE();
   // __asm__ volatile(
   //   "nop\n"
   // );
@@ -71,15 +84,17 @@ fwoExit:
 void flashBulkWriteInit(){
   // 初期PIN状態。ループ内最適化のためtoggleなどしているため注意。
   CART_WRITE_DISABLE();
-  CART_OUTPUT_DISABLE();
+  FLASH_OE_DISABLE();
   BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
+  FLASH_CE_ENABLE();
 
 }
 
 void flashBulkWriteExit(){
+  FLASH_CE_DISABLE();
   CART_WRITE_DISABLE();
-  CART_OUTPUT_DISABLE();
+  FLASH_OE_DISABLE();
   BB_OUT_DISABLE();
   BB_DIR_INPUT();
 }

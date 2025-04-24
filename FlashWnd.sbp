@@ -66,6 +66,7 @@ Sub FlashWnd_CommandButton1_Click()
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
 		SetDlgItemText(hFlashWnd, FlashName, "<not flash>")
+		SendMessage(FWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		ExitSub
 	End If
 
