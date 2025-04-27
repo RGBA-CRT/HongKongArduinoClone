@@ -54,6 +54,7 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim mapMode AS DWord
 	dim flashId AS FlashChipId
 	Dim flashCmdType AS Long
+	Dim swapCEOE AS BOOL
 
 	mapMode = getSelectedMapMode(FWnd(MAPPING))
 	if mapMode >= SFC_MAP_TYPE__NUM then
@@ -61,7 +62,7 @@ Sub FlashWnd_CommandButton1_Click()
 		mapMode = SFC_MAP_LoROM
 	End If
 
-	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId))
+	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId), VarPtr(swapCEOE))
 	if flashCmdType = FlashCmdTypeNotFlash Then
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
@@ -87,8 +88,7 @@ Sub FlashWnd_CommandButton1_Click()
 		SendMessage(FWnd(ListBox1), LB_ADDSTRING, 0, "todo: impl this")
 	End If
 	SetDlgItemText(hFlashWnd, FlashName, flashName)
-
-
+	SetSwapCeOeGui(swapCEOE)
 
 	' TODO: DETECT LOROM/HIROM layout
 	
@@ -108,7 +108,7 @@ Function getSelectedFlashCmdType() AS DWord
 	Dim idx AS Long
 
 	idx=SendMessage(FWnd(ComboBox1),CB_GETCURSEL,0,0)
-	if idx<0 or idx>=FlashCmdTypeMAX Then
+	if idx<=FlashCmdTypeNotFlash or idx>=FlashCmdTypeMAX Then
 		idx=FlashCmdTypeMAX
 	End If
 	getSelectedFlashCmdType=idx AS DWord
@@ -145,11 +145,13 @@ Sub FlashWnd_CommandButton2_Click()
 
 	Dim fc AS FlashChipController
 
-	fc.Init(hCOM, cmdType, mmap.rom.adr)
+	fc.Init(hCOM, cmdType, mmap.rom.adr, GetSwapCeOeGui())
 	if fc.ChipErase(pc) then
 		DBM(ex"Chip Erase done!\r\n")
+		SE_OK()
 	Else
 		DBM(ex"Chip Erase failed.\r\n")
+		SE_NG()
 	End If
 
 	delete_GenericProgressCallBack(pc)
@@ -199,11 +201,13 @@ Sub FlashWnd_Program(file AS BytePtr)
 	*/
 	
 	Dim fc AS FlashChipController
-	fc.Init(hCOM, cmdType, mmap.rom.adr)
+	fc.Init(hCOM, cmdType, mmap.rom.adr, GetSwapCeOeGui())
 	if fc.Program(buf.ptr, buf.length(), VarPtr(mmap), pc) then
 		DBM(ex"Program flash done!\r\n")
+		SE_OK()
 	Else
 		DBM(ex"Program flash failed.\r\n")
+		SE_NG()
 	End If
 
 	
@@ -267,6 +271,7 @@ Sub FlashWnd_Static4_Click()
 End Sub
 Sub FlashWnd_CheckBox1_Click()
 	EnableWindow(FWnd(ComboBox1), GetCheckBox(FWnd(CheckBox1)))
+	EnableWindow(FWnd(CheckBox2), GetCheckBox(FWnd(CheckBox1)))
 	EnableWindow(FWnd(FlashName), FALSE)
 End Sub
 
@@ -276,4 +281,11 @@ End Sub
 
 Sub FlashWnd_Destroy()
 	hFlashWnd = NULL
+End Sub
+
+Function GetSwapCeOeGui() AS BOOL
+	GetSwapCeOeGui = GetCheckBox(FWnd(CheckBox2))
+End Function
+Sub SetSwapCeOeGui(en AS BOOL)
+	SetCheckBox(FWnd(CheckBox2), en)
 End Sub

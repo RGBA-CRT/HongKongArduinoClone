@@ -14,10 +14,10 @@ Type FlashCmdSet
 End Type
 
 Enum FlashCmdType
-	FlashCmdTypeJDEC8 = 0
+	FlashCmdTypeNotFlash = 0
+	FlashCmdTypeJDEC8
 	FlashCmdTypeJDEC16Shift8
 	FlashCmdTypeMAX
-	FlashCmdTypeNotFlash
 End Enum
 
 Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
@@ -164,7 +164,7 @@ Private
 	isSwapCE_OE AS BOOL
 
 Public
-	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord)
+	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord, swapCE_OE AS BOOL)
 		if GetFlashCmdSet(flashType, cmdSet) = FALSE then
 			flashType = FlashCmdTypeNotFlash
 			ExitSub
@@ -172,7 +172,7 @@ Public
 		this.hSerial = com_handle
 		this.flashType = flashType
 		this.baseBusAdr = base
-		this.isSwapCE_OE = TRUE
+		this.isSwapCE_OE = swapCE_OE
 	End Sub
 
 	Function GetFlashChipId(id As *FlashChipId) AS BOOL		
@@ -241,7 +241,10 @@ Public
 			dur_ms = (GetTickCount() - start)
 			if dur_ms = 0 then dur_ms++
 			speed = (img_offset AS Single) / (dur_ms)
-			DBMf("%X: %Xh/%Xh %d.%ds %d.%dKB/s", bus_addr, img_offset, bufsize, dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
+			DBMf("%Xh %d/%d %d.%ds %d.%dKB/s", _
+				bus_addr, _
+				img_offset/1024, bufsize/1024, _
+				dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
 					
 			if DatabusFlashWrite(hCOM, buf + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
 				FlashWaitOperation(bus_addr, -1, 2000, NULL)
@@ -463,14 +466,29 @@ Function GetFlashChipInfo(chipId AS *FlashChipId) As *FlashChipInfo
 End Function
 
 ' retrn: FlashCmdType
-Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId) AS Long
-	FlashDetect = FlashCmdTypeNotFlash
+Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS *BOOL) AS Long
+	FlashDetect = FlashCmdTypeNotFlash	
+	if isSwapCEOE = NULL then exitFunction
+
+	Dim ret AS Long
+	ret = FlashDetect_(hSerial, base, flashId, TRUE)
+	if ret = FlashCmdTypeNotFlash then
+		ret = FlashDetect_(hSerial, base, flashId, FALSE)
+		SetDWord(isSwapCEOE, FALSE)
+	Else
+		SetDWord(isSwapCEOE, TRUE)
+	endif
+	FlashDetect = ret
+End Function
+
+Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS BOOL) AS Long
+	FlashDetect_ = FlashCmdTypeNotFlash
 	Dim fc AS FlashChipController
 	Dim i aS Long
 	For i = 0 To FlashCmdTypeMAX-1
-		fc.Init(hSerial, i As FlashCmdType, base)
+		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE)
 		if fc.GetFlashChipId(flashId) then
-			FlashDetect = i
+			FlashDetect_ = i
 			ExitFunction
 		End If
 	Next
