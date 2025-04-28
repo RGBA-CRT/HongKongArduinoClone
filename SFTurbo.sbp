@@ -110,7 +110,7 @@ End Sub
 Sub SFTurbo_CommandButton1_Click()
 	Dim outFile As File
 	Dim index As Long
-	Dim mmapModel As SFC_MMAP_MODEL, pc As *DumpRomProgressCallBack
+	Dim mmapModel As SFC_MMAP_MODEL, pc As *ProgressCallBack
 	Dim header As SFT_ROM_HEADER
 	Dim path As BytePtr, filter_index As DWord
 	Dim marged_rom_mode As BOOL
@@ -168,7 +168,14 @@ Sub SFTurbo_CommandButton1_Click()
 	SFTWnd_SetEnable(FALSE)
 
 	rom = calloc( rom_size )
+		
+	DBM("(Pless Esc to Cancel)")
+	DBMN("SFTurbo Dumping")
+
 	DumpRom2(hCOM, rom, rom_size, VarPtr(mmapModel), pc)
+	
+	DBM("done.")
+
 	outFile.write(rom, rom_size)	
 	outFile.close()
 

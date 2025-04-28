@@ -12,7 +12,17 @@
 
 Function FlashWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As LPARAM) As DWord
 	' TODO: この位置にウィンドウメッセージを処理するためのコードを記述します。
+	if dwMsg=WM_COMMAND then
+		'アクセラレータキー経由だと、ActiveBasicのEventCallに引っかからないので、アクセラレータフラグを消す
+		'printf(ex"WM_COMMAND nofty=%X %X\n",wParam>>16,lParam)
+		If lParam=NULL Then wParam = wParam And &HFFFeFFFF
 
+		'タブストップの処理（手動）
+		If wParam=ID_DLG_TAB Then  
+			SetFocus( GetNextDlgTabItem(hFlashWnd,  GetFocus(), FALSE))
+			ExitFunction
+		End If
+	endif
 	' イベントプロシージャの呼び出しを行います。
 	FlashWndProc=EventCall_FlashWnd(hWnd,dwMsg,wParam,lParam)
 End Function
@@ -92,7 +102,7 @@ Sub FlashWnd_CommandButton1_Click()
 
 	' TODO: DETECT LOROM/HIROM layout
 	
-	DBMf("Flash VID=%02X PID=%02X %s", flashId.vendor, flashId.product, flashName)
+	DBMf("FlashID:%02X %02X %s", flashId.vendor, flashId.product, flashName)
 
 	Dim info AS SFC_CART_INFO
 	wsprintf(info.Title, "<FLASH DETECTION MODE>", flashName)
@@ -139,8 +149,9 @@ Sub FlashWnd_CommandButton2_Click()
 	' todo: detect結果を覚えておいて処理する。今は1個しか対応できない
 
 	Dim pc AS *ProgressCallBack
-	pc = new_GenericProgressCallBack("FlashErase", "ms")
+	pc = new_GenericProgressCallBack(TRUE)
 
+	DBM("(Pless Esc to Cancel)")
 	DBM(ex"Start erase...")
 
 	Dim fc AS FlashChipController
@@ -188,7 +199,7 @@ Sub FlashWnd_Program(file AS BytePtr)
 	endif
 
 	Dim pc AS *ProgressCallBack
-	pc = new_GenericProgressCallBack("FlashProg", "")
+	pc = new_GenericProgressCallBack(FALSE)
 	pc->Init(buf.length())
 /*
 	FlushCom(hCOM)
@@ -288,4 +299,8 @@ Function GetSwapCeOeGui() AS BOOL
 End Function
 Sub SetSwapCeOeGui(en AS BOOL)
 	SetCheckBox(FWnd(CheckBox2), en)
+End Sub
+
+Sub FlashWnd_Activate(state As Integer, minimized As Integer)
+	MainWnd_Activate(state, minimized)
 End Sub

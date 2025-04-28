@@ -253,7 +253,13 @@ Public
 			End If
 			img_offset += block_size
 			
-			if pc then pc->Step(FLASH_WRITE_BUF_SIZE AS Long, img_offset)
+			if pc then 
+				pc->Step(FLASH_WRITE_BUF_SIZE AS Long, img_offset)
+				if pc->isCancel() then
+					DBM("Aborted by user")
+					Exitdo
+				End If
+			End If
 
 			if (bufsize - img_offset) > FLASH_WRITE_BUF_SIZE then
 				block_size = FLASH_WRITE_BUF_SIZE
@@ -427,6 +433,10 @@ Private
 			if pc then
 				pc->Step(dur - lastDur, dur)
 				lastDur = dur
+				if pc->isCancel() then
+					PrintPtr(ex"user cancelled.\n")
+					Exitdo
+				Endif
 			End If
 			Sleep(PollInterval)
 			i++

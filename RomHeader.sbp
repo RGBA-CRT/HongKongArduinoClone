@@ -514,7 +514,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	Dim info AS StringClass
 	info.allocStr(HEADER_INFO_TEXT_LEN)
 
-	info.cat(ex"\r\n==== Cartridge infomation ====")
+	info.cat(ex"\r\n====== Cartridge infomation ======")
 	info.sprintf(ex"\r\n- Title: %s ", header->Title As DWord)
 	
 	Dim publisher_text AS BytePtr
@@ -542,7 +542,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 
 	Dim fastrom[1] = ["Slow", "Fast"] As BytePtr
 	Dim lohi[1]	= ["Hi","Lo"] As BytePtr
-	info.sprintf(ex"\r\n- RomType : Mode%02X, %s%sROM", _
+	info.sprintf(ex"\r\n- RomType  : Mode%02X, %s%sROM", _
 			header->rawHeader.MapMode  		As DWord, _
 			fastrom[header->isFastRom And 1] 	As DWord, _
 			lohi[model.rom.isLoROM And 1]		As DWord)
@@ -553,12 +553,12 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 	Dim chipset_text AS BytePtr
 	chipset_text = GetChipsetString(header)
 	if lstrlen(chipset_text) < 15 Then
-		info.sprintf(ex"\r\n- Chipset : %02Xh %s", header->Chipset, chipset_text As DWord)
+		info.sprintf(ex"\r\n- Chipset  : %02Xh %s", header->Chipset, chipset_text As DWord)
 	Else
-		info.sprintf(ex"\r\n- Chipset : %02Xh\r\n - %s", header->Chipset, chipset_text As DWord)
+		info.sprintf(ex"\r\n- Chipset  : %02Xh\r\n - %s", header->Chipset, chipset_text As DWord)
 	End If
 
-	info.cat(ex"\r\n- SaveType: ")
+	info.cat(ex"\r\n- SaveType : ")
 	If header->isFlashSave Then 
 		info.cat("FLASH")
 	Elseif header->SramSize = 0 Then
@@ -571,7 +571,7 @@ Function GenerateHeaderInfoText(header As *SFC_CART_INFO, text_buffer as BytePtr
 
 	if header->SramSize Then
 		lastbank = (model.sram.adr + (model.sram.bankStep) * (ceil(header->SramSize/model.sram.bankSize-1))) + model.sram.bankSize-1
-		info.sprintf(ex"\r\n - Map: $%02X:%04X-$%02X:%04X %dbank", _
+		info.sprintf(ex"\r\n  - Map: $%02X:%04X-$%02X:%04X %dbank", _
 			model.sram.adr>>16, model.sram.adr And &HFFFF, _
 			lastbank>>16, lastbank And &HFFFF, _
 			ceil(header->SramSize/model.sram.bankSize))
