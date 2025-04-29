@@ -38,7 +38,6 @@ Const LoROM_OFFSET_ADR = &H008000
 Const HiROM_START_ADR  = &HC00000
 TypeDef MODEL_ARRAY_TYPE = DWord '本当はVoidPtrのほうが良いけどキャストが面倒
 
-
 ' MemoryModelを決定する
 Function GetMmapModel(map As SFC_MAP_TYPE, isWrite AS BOOL, model As *SFC_MMAP_MODEL) As BOOL
 	' コールバックは省略可能
@@ -233,8 +232,14 @@ Function GetMmapModel(map As SFC_MAP_TYPE, isWrite AS BOOL, model As *SFC_MMAP_M
 			model->sram.bankStep =  &H010000
 			model->sram.bankSize =  &H008000
 			model->sram.ctrlBus  =  CBUS_RST or CBUS_ROMSEL
-			model->rom.adr       =  LoROM_OFFSET_ADR
-			model->rom.isLoROM   =  TRUE
+			if isWrite then
+				model->rom.adr       =  HiROM_START_ADR
+				model->rom.isLoROM   =  FALSE
+				model->rom.next_cb   =  AddressOf(JraPatFlash_nextAddress)
+			Else
+				model->rom.adr       =  LoROM_OFFSET_ADR
+				model->rom.isLoROM   =  TRUE
+			endif
 
 
 		Case SFC_MAP_SFTURBO
@@ -635,6 +640,14 @@ End Function
 
 Function XBAND_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
 	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, &H00, FALSE)
+End Function
+
+
+
+' ============== JRA PAT =============
+Function JraPatFlash_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) As DWord
+	JraPatFlash_nextAddress = adr + readSize
+	if (JraPatFlash_nextAddress And &HFFFF) >= &H8000 Then JraPatFlash_nextAddress += &H8000
 End Function
 
 

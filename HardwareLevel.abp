@@ -457,8 +457,8 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 		cmd[c] = (config->cmdList[i].data) AS Byte : c++
 	Next
 	cmd[c] = config->flags : c++
-	PrintPtr("FlashConfig:")
-	Dump(cmd,c)
+	'PrintPtr("FlashConfig:")
+	'Dump(cmd,c)
 
 	WriteFile(hSerial,cmd,c,VarPtr(dwWD),ByVal NULL)
 

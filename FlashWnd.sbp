@@ -72,7 +72,10 @@ Sub FlashWnd_CommandButton1_Click()
 		mapMode = SFC_MAP_LoROM
 	End If
 
-	flashCmdType = FlashDetect(hCOM, &H8000, VarPtr(flashId), VarPtr(swapCEOE))
+	Dim mmap As SFC_MMAP_MODEL
+	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
+
+	flashCmdType = FlashDetect(hCOM, mmap.rom.adr, VarPtr(flashId), VarPtr(swapCEOE))
 	if flashCmdType = FlashCmdTypeNotFlash Then
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")

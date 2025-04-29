@@ -104,7 +104,7 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 30
+Const FLASH_ID_TABLE_MAX = 33
 Const MBIT(x) = (x * &H20000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
@@ -122,6 +122,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2F7, "MX29F1611"  , MBIT(16) ], ' NintendoPower
 	[ &HC26B, "MX29F1615"  , MBIT(16) ], ' NintendoPower
 	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
+	[ &H0120, "AM29F010"   , MBIT( 1) ], ' 
 	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
 	[ &H01D5, "AM29F080"   , MBIT( 8) ],
 	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
@@ -137,6 +138,8 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H1C97, "EN29F002B"  , MBIT( 2) ],
 	[ &HDA0B, "W49F002U"   , MBIT( 2) ], ' [TESTED] ByteProgram: 50us ChipErase 0.2sec
 	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
+	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' 
+	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
 ] As FlashChipInfo
 
 ' うまく書き込めないときはPLCCソケットの接触を確認しよう
@@ -285,17 +288,16 @@ Private
 	Function ReadFlashChipId(ByRef flashIdBuf[FLASH_ID_SIZE] AS Byte) AS BOOL
 		Dim preId[ELM(FLASH_ID_SIZE)] As Byte
 		FlushCom(hSerial)
-
-		ReadROM(hSerial,VarPtr(preId),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
-		PrintPtr(ex"preid\n")
-		Dump(VarPtr(preId),FLASH_ID_SIZE,0)
+		ReadROM(hSerial,VarPtr(preId),0,baseBusAdr + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 
 		EnterCommandMode()
 		DoFlashCmd(VarPtr(cmdSet.detect()))
 
-		ReadROM(hSerial,VarPtr(flashIdBuf),AdrBank(baseBusAdr),AdrOfs(baseBusAdr) + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
+		ReadROM(hSerial,VarPtr(flashIdBuf),0,baseBusAdr + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
+		PrintPtr(ex"preid\n")
+		Dump(VarPtr(preId),16,0)
 		PrintPtr(ex"flash id\n")
-		Dump(VarPtr(flashIdBuf),FLASH_ID_SIZE,0)
+		Dump(VarPtr(flashIdBuf),16,0,TRUE)
 		
 		ExitCommandMode()
 		/*
@@ -481,8 +483,10 @@ Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, 
 	if isSwapCEOE = NULL then exitFunction
 
 	Dim ret AS Long
+	PrintPtr(ex"[DETECT][L1] Try OE/CE swap mode...\n")
 	ret = FlashDetect_(hSerial, base, flashId, TRUE)
 	if ret = FlashCmdTypeNotFlash then
+		PrintPtr(ex"[DETECT][L1] Try OE/CE non-swap mode...\n")
 		ret = FlashDetect_(hSerial, base, flashId, FALSE)
 		SetDWord(isSwapCEOE, FALSE)
 	Else
@@ -495,7 +499,8 @@ Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId,
 	FlashDetect_ = FlashCmdTypeNotFlash
 	Dim fc AS FlashChipController
 	Dim i aS Long
-	For i = 0 To FlashCmdTypeMAX-1
+	For i = 1 To FlashCmdTypeMAX-1
+		printf(ex"[DETECT][L2] Try FlashType=%d...\n", i)
 		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE)
 		if fc.GetFlashChipId(flashId) then
 			FlashDetect_ = i
