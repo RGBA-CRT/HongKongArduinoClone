@@ -323,6 +323,10 @@ Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord)
 	GetFirmware = FALSE
 
 *HW_GF_RETRY
+	DBMN(".")
+	PumpMessage()
+	if GetCancelKey() then ExitFunction
+
 	ioOk = WriteFile(hSerial, "v", 1, VarPtr(dwWD), ByVal NULL)
 	if ioOk<>TRUE Then ExitFunction
 

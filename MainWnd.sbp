@@ -44,7 +44,7 @@ Function MainWndProc(hWnd As HWND, dwMsg As DWord, wParam As WPARAM, lParam As L
 
 		Else if DlgStatus=STATUS_CONNECTED Then
 			'Arduinoが抜けてないかチェック
-			If CheckFirmware(hCOM, FALSE, hMainWnd)=FALSE Then
+			If CheckFirmware(hCOM, FALSE, hMainWnd)<>RET_OK Then
 				DisconnectDevice()
 				DBM("Device disconnected.")
 			End If
@@ -294,10 +294,14 @@ Sub BaudrateErrorMessage()
 	' 初回
 	if isFirstBaudrateError = FALSE Then
 		Dim text_jpn=ex"通信に失敗しました。\nリトライしても治らない場合はボーレートを調整してください。(詳細はReadme参照)\n\n推奨ボーレートは使用しているArduino（シリアルコンバータ）に依存します。\n例:\n  [公式Arduino UNO] ATmega8U2: 500,000 bps\n  [Arduino互換機] CH340: 1,000,000 bps" As BytePtr
-		Dim text_eng=ex"Communication failed. \r\nPlease adjust baudrate for your Arduino (see README.md)" As BytePtr
+		Dim text_eng=ex"Communication failed. \r\nPlease adjust baudrate for your Arduino (see README.md)\n\nRecommended baudrate:\r\n- Offical Arduino: 500000bps\r\n- Compatible(CH340): 1000000bps" As BytePtr
 		DBM(text_eng)
-		DBM(ex"Recommended baudrate:\r\n- Offical Arduino: 500000bps\r\n- Compatible(CH340): 1000000bps")
-		MessageBox(hMainWnd, text_jpn, text_eng, MB_OK OR MB_ICONERROR)
+		DBM(ex"")
+		if langJP Then
+			ErrMes(hMainWnd, text_jpn, "Communication error", 0)
+		Else
+			ErrMes(hMainWnd, text_eng, "Communication error", 0)
+		endif
 		isFirstBaudrateError=TRUE
 	End If
 End Sub
@@ -327,7 +331,7 @@ Sub ConnectDevice()
 	GetDlgItemText(hMainWnd, EditBox6, buf, 1024)
 	rcAsciiToInt(buf, VarPtr(rate))
 	If rate = 0 Then
-		ErrMes(hMainWnd, "ボーレートが不正です。", "Invalid baud rate", 0)
+		ErrMes(hMainWnd, ex"invalid baud rate.\n\nボーレートが不正です。", "Invalid baud rate", 0)
 		ExitSub
 	End If
 	
@@ -352,7 +356,7 @@ Sub ConnectDevice()
 	'connect and reset ボーレート
 	hCOM = OpenComPort(txCom, INITIAL_BAUDRATE, bufferSize, 1024 * 10)
 	if hCOM=NULL Then 
-		ErrMes(hMainWnd, "シリアルポートを開けませんでした。","Failed to open port", MB_OK,GetLastError())
+		ErrMes(hMainWnd, ex"Failed to open serial port.\n\nシリアルポートを開けませんでした。 ","Failed to open port", MB_OK,GetLastError())
 		goto * HKAF_CON_ERR
 	End If
 
@@ -361,18 +365,22 @@ Sub ConnectDevice()
 	ResetArduino(hCOM)
 
 	'正常なデータ通信を確立(できるようになるまでリトライ）
-	If CheckFirmware(hCOM, TRUE, hMainWnd) = FALSE Then
+	Dim ret AS Long
+	ret = CheckFirmware(hCOM, TRUE, hMainWnd)
+	If ret <> RET_OK Then
 		FlushCom(hCOM)
 		CloseHandle(hCOM): hCOM=NULL
 		Sleep(500)
 		
-		retry++
-		if retry<2 Then
-			DBM(ex"failed. retry.\r\n")
-			Goto *RECONNECT
+		if ret <> RET_CANCELED_BY_USER then			
+			retry++
+			if retry<2 Then
+				DBM(ex"failed. retry.\r\n")
+				Goto *RECONNECT
+			endif
+			
+			ErrMes(hMainWnd, ex"This device is not HongKongArduino.\n\nこのデバイスはHongKongArduinoではありません。","Failed to connect device",0,GetLastError())
 		endif
-		
-		ErrMes(hMainWnd, ex"接続エラーが発生しました。","Failed to connect device",0,GetLastError())
 		goto * HKAF_CON_ERR
 	End If
 	DBM(ex"Connection Stage2 OK.\r\n")
@@ -383,19 +391,22 @@ Sub ConnectDevice()
 		
 		'変更後の正常なデータ通信を確立
 		DBMf("Switch baudrate to %dbps...", rate)
-		If CheckFirmware(hCOM, FALSE, hMainWnd) = FALSE Then
+		ret = CheckFirmware(hCOM, FALSE, hMainWnd)
+		If ret <> RET_OK Then
 			'ちゃんとリトライカウントつけること
 			FlushCom(hCOM)
 			CloseHandle(hCOM): hCOM=NULL
 			Sleep(500)
 			
-			retry++
-			if retry<3 Then
-				DBM(ex"failed. retry.\r\n")
-				Goto *RECONNECT
-			endif
+			if ret <> RET_CANCELED_BY_USER then			
+				retry++
+				if retry<3 Then
+					DBM(ex"failed. retry.\r\n")
+					Goto *RECONNECT
+				endif
 
-			BaudrateErrorMessage()
+				BaudrateErrorMessage()
+			endif
 			goto * HKAF_CON_ERR
 		End If
 	End If
@@ -550,11 +561,15 @@ Sub MainWnd_CommandButton2_Click()
 	Dim rom_title[MAX_PATH] As Byte
 	MakeRomFileName(rom_title, MAX_PATH, VarPtr(info),0)	
 
-#ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc", rom_title)
-	If path=0 Then ExitSub
-#else
-	path=dir.MakePath("dump.sfc")
+#ifdef _DEBUG
+	If (GetKeyState(VK_SHIFT) And &H80) = 0 Then
+		path=dir.MakePath("dump.sfc")
+	Else
+#endif
+	path=SaveDialogCalloc(GetRomSaveDialogFilter(), "sfc", rom_title)
+	If path = 0 Then ExitSub
+#ifdef _DEBUG
+	End If
 #endif
 
 
@@ -620,6 +635,9 @@ Sub MainWnd_CommandButton3_Click()
 	Dim fout As File
 	Dim info As SFC_CART_INFO
 	Dim path As BytePtr
+#ifdef _DEBUG
+	Dim dir As BinalyDirectory
+#endif
 
 	If GetDumpConfig(VarPtr(info)) <> TRUE Then 
 		DBM("GetDumpConfig() Error")
@@ -637,11 +655,16 @@ Sub MainWnd_CommandButton3_Click()
 	Dim default_ext = "srm" AS BytePtr
 	if info.isFlashSave then default_ext = "flh"
 	
-#ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm, *.flh)\0*.srm;*.flh\0すべてのファイル(*.*)\0*.*\0\0",default_ext,rom_title)
-	If path=0 Then ExitSub
-#else
-	path="dump.srm"
+
+#ifdef _DEBUG
+	If (GetKeyState(VK_SHIFT) And &H80) = 0 Then
+		path=dir.MakePath("dump.srm")
+	Else
+#endif
+	path=SaveDialogCalloc(GetSramSaveDialogFilter(),default_ext,rom_title)
+	If path = 0 Then ExitSub
+#ifdef _DEBUG
+	End If
 #endif
 
 	If fout.openFile(path, GENERIC_WRITE) = FALSE Then
@@ -699,30 +722,34 @@ Sub MainWnd_CommandButton4_Click()
 	End If
 
 	If info.isFlashSave Then
-		ErrMes(hMainWnd, "フラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "未実装", 0)
+		ErrMes(hMainWnd, ex"Currently, flash save rewrite is not implemented.\n\nフラッシュメモリ方式のセーブデータ書き込みは現在未実装です。", "not implemented", 0)
 		If (GetKeyState(VK_ESCAPE) And &H80) = 0 Then exitsub
 		DBMf("key%x", GetKeyState(VK_ESCAPE))
 	End If
 	
 #ifndef _DEBUG
-	path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
-	If path = 0 Then ExitSub
-#else
-	If GetKeyState(VK_SHIFT) And &H80 Then
-		path = LoadDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0", "srm")
-	If path = 0 Then ExitSub
-	Else
+	If (GetKeyState(VK_SHIFT) And &H80) = 0 Then
 		path = "write.srm"
+	Else
+#endif
+	path = LoadDialogCalloc(GetSramSaveDialogFilter(), "srm")
+	If path = 0 Then ExitSub
+#ifndef _DEBUG
 	End If
 #endif
 
-	If MessageBox(hMainWnd, ex"セーブデータが上書きされます。\nデータは復元できません。\n続行しますか？", ProgramName+" - SRAM write", MB_YESNO or MB_ICONWARNING) <> IDYES Then ExitSub
+	Dim msgWarn AS BytePtr
+	if langJP Then
+		msgWarn = ex"カートリッジのセーブデータが上書きされます。\nデータは復元できません。\n続行しますか？"
+	Else
+		msgWarn = ex"Any save data on the cartridge will be overwritten.\nThe data cannot be restored.\nDo you want to continue?"
+	endif
+	If ErrMes(hMainWnd, msgWarn, "SRAM write warning", MB_YESNO or MB_ICONWARNING) <> IDYES Then ExitSub
 
 	'READ FILE
 	Dim writeBuffer As BytePtr
 	If fin.openFile(path, GENERIC_READ) = FALSE Then
-		DBMf("Cannot open file: %s", path As DWord)
-		ErrMes(hMainWnd, "SRAMファイルが開けませんでした。", "File Open Error", 0, GetLastError())
+		DBMf("Failed to open file: %s", path As DWord)
 		Goto *WS_EXIT
 	End If
 
@@ -800,7 +827,7 @@ Function SaveDialogCalloc(filter As BytePtr, ext As BytePtr)(defFileName As Byte
 	'ファイルオープン構造体の初期化
 	tOfn.lStructSize = SizeOf(OPENFILENAME) - SizeOf(DWord) * 2 - SizeOf(VoidPtr)
 	tOfn.hwndOwner = hMainWnd
-	tOfn.lpstrFilter = filter'ex"wavファイル(*.wav)\0*.wav\0すべてのファイル(*.*)\0*.*\0\0"'StrPtr(sFilter)
+	tOfn.lpstrFilter = filter
 	tOfn.nFilterIndex = 1
 	tOfn.nMaxFile = MAX_PATH
 	tOfn.Flags = OFN_OVERWRITEPROMPT
@@ -832,7 +859,7 @@ Function LoadDialogCalloc(filter As BytePtr, ext As String) As BytePtr
 	'ファイルオープン構造体の初期化
 	tOfn.lStructSize = SizeOf(OPENFILENAME) - SizeOf(DWord) * 2 - SizeOf(VoidPtr)
 	tOfn.hwndOwner = hMainWnd
-	tOfn.lpstrFilter = filter'ex"wavファイル(*.wav)\0*.wav\0すべてのファイル(*.*)\0*.*\0\0"'StrPtr(sFilter)
+	tOfn.lpstrFilter = filter
 	tOfn.nFilterIndex = 1
 	tOfn.nMaxFile = MAX_PATH
 	tOfn.Flags = OFN_OVERWRITEPROMPT
@@ -1018,18 +1045,16 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 	/*ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)
 	SloveCartInfo(buf As *SFC_CART_HEADER,VarPtr(info))*/
 	
-	PrintPtr("GCI TP1"):FlushCom(hCOM)
+	FlushCom(hCOM)
 '	SetCPU_Clock(hCOM,HKAC_CLOCK_NORMAL)	'clock
 	if SendControl(hCOM,CBUS_DEFAULT)=FALSE Then	'default
 		Goto *GCI_ERR
 	End If
 
-	PrintPtr("GCI TP2"):FlushCom(hCOM)
 	If ReadROM(hCOM,buf, 0, SFC_SPEC_HEADER_ADDR, SFC_SPEC_HEADER_SIZE,FALSE)<SFC_SPEC_HEADER_SIZE Then
 		Goto *GCI_ERR
 	End If
 	
-	PrintPtr("GCI TP3"):FlushCom(hCOM)
 	SloveCartInfo(buf As *SFC_CART_HEADER,info)
 
 	getCartInfo = TRUE
@@ -1038,7 +1063,7 @@ Function getCartInfo(info As *SFC_CART_INFO) As BOOL
 *GCI_ERR
 	lstrcpy(info->Title,"[ERR]通信エラー")
 	SetCartInfo(info)
-	ErrMes(hMainWnd,ex"通信エラーが発生しました。\nArduinoをリセットしてください。","Device was lost",0)
+	ErrMes(hMainWnd,ex"Failed to communication device.\nPlease reset Arduino.\n\n通信エラーが発生しました。吸い出し機の電源を入れ直してください。","Device was lost",0)
 	DisconnectDevice()
 	ExitSub
 End Function
@@ -1846,8 +1871,17 @@ End Function
 Const HKAC_CHECKFIRM_RETRY = 3
 Const HKAC_CHECKFIRM_WAIT = 100
 
-Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
+Dim msgFirmwareError AS BOOL
+
+Enum HKACResult
+	RET_OK = 0
+	RET_ERROR
+	RET_CANCELED_BY_USER
+End Enum
+
+Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS HKACResult
 	Dim rsv[5] As Byte, FwVer AS Byte, retry AS Long
+	CheckFirmware = RET_ERROR
 
 *SEND_VER_CHECK
 	if GetFirmware(hSerial, rsv, 5) <> TRUE Then
@@ -1860,44 +1894,58 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 	
 	if lstrcmp(rsv, FIRMWARE_ID) = 0 Then
 		if FwVer = FIRMWARE_VERSION Then
-			CheckFirmware = TRUE
+			CheckFirmware = RET_OK
 			
 		Elseif FwVer < FIRMWARE_VERSION Then
 			if msg = FALSE Then
-				CheckFirmware = TRUE
+				CheckFirmware = RET_OK
 				ExitFunction
 			end if
-			if MessageBox(hWnd,
-				sprintfStr(ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\nDevice：v%c\nHost：v%c\n\n続行しますか？",
-				FwVer,
-				FIRMWARE_VERSION
-				),
-				"Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
-				
-				CheckFirmware = TRUE
+			if msgFirmwareError = FALSE then
+				Const msgLowerFw_JP = ex"低いバージョンのファームウェアが検出されました。\nArduinoへ新しいファームウェアを書込んでください。\n\nDevice: v%c\nExpected: v%c\n\n続行しますか？"
+				Const msgLowerFw_EN = ex"The dumper firmware version is too old.\nPlease program new firmware to Arduino\n\nDevice: v%c\nExpected: v%c\n\nForce to continue?"
+				Dim msgLowerFw = msgLowerFw_EN AS BytePtr
+				if langJP then msgLowerFw = msgLowerFw_JP
+
+				if MessageBox(hWnd,
+					sprintfStr(msgLowerFw,
+					FwVer,
+					FIRMWARE_VERSION
+					),
+					"Firmware version mismatch", MB_YESNO or MB_ICONWARNING) = IDYES Then
+					
+					CheckFirmware = RET_OK
+					msgFirmwareError = TRUE
+				Else
+					CheckFirmware = RET_CANCELED_BY_USER
+				End If
 			Else
-				CheckFirmware = FALSE
-			End If
+				CheckFirmware = RET_OK
+			endif
 		Else
 			if msg = TRUE Then
+				Const msgHigherFw_JP = ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nDevice: v%c\nThis software supports: v%c"
+				Const msgHigherFw_EN = ex"The dumper firmware version is too new.\nPlease update this software.\n\nDevice: v%c\nThis software supports: v%c"
+				Dim msgHigherrFw = msgHigherFw_EN AS BytePtr
+				if langJP then msgHigherrFw = msgHigherFw_JP
+
 				MessageBox(hWnd,
-				sprintfStr(ex"高いバージョンのファームウェアが検出されました。\nこのプログラムを最新版に更新してください。\nArduino : FW.v%c\nRequest : FW.v%c",
-				FwVer,
-				FIRMWARE_VERSION
-				), "Detected higher number of Firmware version",
-				MB_ICONINFORMATION
-				)
-				
+					sprintfStr(msgHigherrFw,
+					FwVer,
+					FIRMWARE_VERSION
+					), "Detected higher number of Firmware version",
+					MB_ICONINFORMATION
+				)			
 			End If
 			
 			DBM("FW ver mismatch")
-			CheckFirmware = TRUE
+			CheckFirmware = RET_OK
 		End If
 	Else
 		if retry>HKAC_CHECKFIRM_RETRY Then
-			if msg = TRUE Then MessageBox(hWnd, ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。", "Firmware mismatch", MB_ICONERROR)
-			DBM("VerCheck Failed.")
-			CheckFirmware = FALSE
+			'if msg = TRUE Then MessageBox(hWnd, ex"接続に失敗しました。デバイスからの応答が不正です。\nCOMポート番号　通信レート Arduinoのスケッチなどを確認してください。\n\n正しい場合は、再試行してください。", "Firmware mismatch", MB_ICONERROR)
+			DBM("Firmware is not respond correctly.")
+			CheckFirmware = RET_ERROR
 		Else
 			retry++
 			DBM("VerCheck retry...")
@@ -1905,7 +1953,7 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 			
 			if GetKeyState(VK_ESCAPE) And &H80 Then
 				DBM("cancel")
-				CheckFirmware = FALSE
+				CheckFirmware = RET_ERROR
 			Else
 				FlushCom(hSerial)
 				Sleep(HKAC_CHECKFIRM_WAIT)
@@ -1919,23 +1967,31 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE) AS BOOL
 	End If
 End Function
 
-Sub MainWnd_ComboBox1_EditChange()
-
-End Sub
-
-Sub MainWnd_EditBox66_Change()
-
-End Sub
-
-Sub MainWnd_EditBox6_EditChange()
-
-End Sub
-
-Sub MainWnd_CB_MINIMIZE_ROM_Click()
-
-End Sub
-
-
-Sub MainWnd_SetFocus()
-
-End Sub
+function GetRomSaveDialogFilter() AS BytePtr
+	if langJP then
+		GetRomSaveDialogFilter=ex"SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0"
+	Else
+		GetRomSaveDialogFilter=ex"SNES ROM image(*.sfc)\0*.sfc\0All Files(*.*)\0*.*\0\0"
+	endif
+End Function
+function GetSramSaveDialogFilter() AS BytePtr
+	if langJP then
+		GetSramSaveDialogFilter=ex"SRAMイメージファイル(*.srm, *.flh)\0*.srm;*.flh\0すべてのファイル(*.*)\0*.*\0\0"
+	Else
+		GetSramSaveDialogFilter=ex"SRAM image(*.srm, *.flh)\0*.srm;*.flh\0All Files(*.*)\0*.*\0\0"
+	endif
+End Function
+function GetSfTurboSaveDialogFilter() AS BytePtr
+	if langJP then
+		GetSfTurboSaveDialogFilter=ex"SFTurboイメージファイル(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0"
+	Else
+		GetSfTurboSaveDialogFilter=ex"SFTurbo image(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROM image(*.sfc)\0*.sfc\0All Files(*.*)\0*.*\0\0"
+	endif
+End Function
+function GetBsMemSaveDialogFilter() AS BytePtr
+	if langJP then
+		GetBsMemSaveDialogFilter=ex"BSメモリーパックイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0"
+	Else
+		GetBsMemSaveDialogFilter=ex"BS Memory Pack image(*.bs)\0*.bs\0SNES ROM image(*.sfc)\0*.bs\0All Files(*.*)\0*.*\0\0"
+	endif
+End Function

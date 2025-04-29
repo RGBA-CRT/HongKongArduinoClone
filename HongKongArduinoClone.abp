@@ -87,6 +87,23 @@ HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 6
 RegisterSubClass()
 RegistAcceleratorKey()
 
+Dim langJP AS BOOL
+Const CP_JPN = 932
+Declare Function GetOEMCP Lib "kernel32.dll" ( ) As Long
+Dim SetConsoleOutputCP AS *Function(cp AS Long) AS BOOL
+SetConsoleOutputCP = GetProcAddress(GetModuleHandle("Kernel32"), "SetConsoleOutputCP")
+#ifndef _DEBUG
+if GetOEMCP() = CP_JPN then
+	langJP = TRUE
+endif
+#endif
+printf(ex"cp: %d, jp: %d\n", GetOEMCP(), langJP)
+if SetConsoleOutputCP then
+	SetConsoleOutputCP(CP_JPN)
+Else
+	PrintPtr(ex"skip to set console codepage\n")
+endif
+
 Dim msgMain As MSG, iResult As Long
 Do
 	iResult = GetMessage(msgMain, 0, 0, 0)

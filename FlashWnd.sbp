@@ -66,6 +66,8 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim flashCmdType AS Long
 	Dim swapCEOE AS BOOL
 
+	SendMessage(FWnd(ListBox1), LB_RESETCONTENT, 0, 0)
+
 	mapMode = getSelectedMapMode(FWnd(MAPPING))
 	if mapMode >= SFC_MAP_TYPE__NUM then
 		DBM("WARN: Please select 'Map' mode")
@@ -80,7 +82,6 @@ Sub FlashWnd_CommandButton1_Click()
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
 		SetDlgItemText(hFlashWnd, FlashName, "<not flash>")
-		SendMessage(FWnd(ListBox1), LB_RESETCONTENT, 0, 0)
 		ExitSub
 	End If
 
@@ -233,7 +234,7 @@ End Sub
 Sub FlashWnd_CommandButton4_Click()
 	Dim path As BytePtr
 
-	path = LoadDialogCalloc(ex"ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0", "sfc")
+	path = LoadDialogCalloc(GetRomSaveDialogFilter(), "sfc")
 	If path=0 Then ExitSub
 	FlashWnd_Program(path)
 	free(path)

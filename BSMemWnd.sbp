@@ -72,6 +72,7 @@ Function BSMWnd(child AS Long) AS HWND
 End Function
 
 Sub BSMemWnd_Create(ByRef CreateStruct As CREATESTRUCT)
+	InitBSM()
 	Dim i = 0 As Long
 	while slotNameTable[i]<>0
 		SendMessage(BSMWnd(BSM_CT), CB_ADDSTRING, 0, slotNameTable[i] As Long)
@@ -163,14 +164,8 @@ Sub BSMemWnd_CommandButton1_Click()
 	EscapeForFilePath(filename)
 
 	Dim path AS BytePtr
-#ifndef _DEBUG
-	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", filename)
+	path = SaveDialogCalloc(GetBsMemSaveDialogFilter(), "bs", filename)
 	If path = 0 Then ExitSub
-#else
-	path = "bsdump.bs"
-	path = SaveDialogCalloc(ex"BSMイメージ(*.bs)\0*.bs\0SFC ROMイメージ(*.sfc)\0*.bs\0すべてのファイル(*.*)\0*.*\0\0", "bs", filename)
-	If path = 0 Then ExitSub
-#endif
 	
 	MainWnd_DumpRomToFile(VarPtr(virtualHeader), VarPtr(mmap), path)
 

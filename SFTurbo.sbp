@@ -136,7 +136,7 @@ Sub SFTurbo_CommandButton1_Click()
 #ifndef _DEBUG
 	path=SaveDialogCalloc(_
 	'	ex"SFTurboイメージファイル(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROMイメージファイル(*.sfc)\0*.sfc\0BIOS混合ファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0",_
-		ex"SFTurboイメージファイル(*.st)\0*.st\0イメージファイル(*.bin)\0*.bin\0SFC ROMイメージファイル(*.sfc)\0*.sfc\0すべてのファイル(*.*)\0*.*\0\0",_
+		GetSfTurboSaveDialogFilter(),_
 		"st", _
 		header.title,_
 		VarPtr(filter_index)
@@ -219,7 +219,7 @@ Sub SFTurbo_CommandButton2_Click()
 	End If
 
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",header.title)
+	path=SaveDialogCalloc(GetSramSaveDialogFilter(),"srm",header.title)
 	If path=0 Then ExitSub
 #else
 	path="dump.sf.sram"
@@ -281,7 +281,7 @@ Sub SFTurbo_CommandButton3_Click()
 	End If
 
 #ifndef _DEBUG
-	path=SaveDialogCalloc(ex"SRAMイメージファイル(*.srm)\0*.srm\0すべてのファイル(*.*)\0*.*\0\0","srm",header.title)
+	path=SaveDialogCalloc(GetSramSaveDialogFilter(), "srm", header.title)
 	If path=0 Then ExitSub
 #else
 	path="write.srm"
@@ -621,7 +621,7 @@ Function GetSFTurboMmapModel(index As Long, marged_mode As BOOL, model As *SFC_M
 	
 	model->rom.isLoROM = TRUE
 	model->rom.init_cb = NULL
-	model->rom.next_cb = NULL
+	model->rom.next_cb = AddressOf(LoROM_nextAddress)
 	model->rom.exit_cb = NULL
 
 	model->sram.adr      =  SFT_SRAM_OFFSET_TABLE[index]

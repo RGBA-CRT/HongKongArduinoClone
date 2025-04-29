@@ -321,7 +321,7 @@ inline byte readData()
   CART_OUTPUT_ENABLE();
   dataDirInput();
   BB_OUT_ENABLE();
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   byte b = getDataPin();
 
@@ -364,13 +364,13 @@ void writebyte_cart(byte bank, word address, byte data) {
 
   // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
   // 74HC245 -> SFC へのデータ安定化
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_WRITE_ENABLE();
 
   // /WEパルスの時間稼ぎ
   // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_WRITE_DISABLE();
 
@@ -435,8 +435,12 @@ void setup()
   digitalWrite(WE, HIGH);
   digitalWrite(RST, LOW);
 
-  SetFlashOECtrl(false);
+#ifdef _ENABLE_CIC
+  //クロックジェネレータの動作を開始
+  setupCloclGen(true, false, true, false);
+#endif
 
+  SetFlashOECtrl(false);
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
   dataDirOutput();
@@ -444,12 +448,6 @@ void setup()
   setFF(0, 0x00); lastadr[0] = 0;
   setFF(1, 0x00); lastadr[1] = 0;
   setFF(2, 0x00); lastadr[2] = 0;
-
-
-#ifdef _ENABLE_CIC
-  //クロックジェネレータの動作を開始
-  setupCloclGen(true, false, true, false);
-#endif
 
   digitalWrite(OE, HIGH);
   digitalWrite(CS, LOW);

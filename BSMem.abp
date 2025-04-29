@@ -51,13 +51,21 @@ Const BSX_MEMPACK_ADR_HiROM = &HE00000
 Const BSX_MEMPACK_ADR_SA1   = &HF00000 
 Const BSX_MEMPACK_ADR_BIOS  = &HC00000 
 
-Dim slotNameTable[BSM_SLOT_TYPE_NUM] = [
+Dim slotNameTableJP[BSM_SLOT_TYPE_NUM] = [
 	"BS-X BIOS",
 	"SA-1  (ﾊﾞｽ釣 ｶﾞﾝﾀﾞﾑ)[非推奨]",
 	"HiROM (鮫亀 天牌 奏)",
 	"LoROM (ﾀﾞﾋﾞｽﾀ96 ﾉﾍﾞﾙ ﾂｸｰﾙ)",
 	0
 ] AS BytePtr 
+Dim slotNameTableEN[BSM_SLOT_TYPE_NUM] = [
+	"BS-X BIOS",
+	"SA-1 [not recommended]",
+	"HiROM",
+	"LoROM",
+	0
+] AS BytePtr 
+Dim slotNameTable AS *BytePtr
 
 Enum BSM_PACK_TYPE
 	BSM_8M_TYPE1 =0
@@ -70,16 +78,37 @@ Enum BSM_PACK_TYPE
 	BSM_PACK_TYPE_NUM
 End Enum
 
-Dim packNameTable[BSM_PACK_TYPE_NUM] = [
-	"8Mメモリパック TYPE 1",
-	"8Mメモリパック TYPE 2",
-	"8Mメモリパック TYPE 3",
-	"8Mメモリパック TYPE 4",
+Dim packNameTableJP[BSM_PACK_TYPE_NUM] = [
+	"BS 8Mメモリパック TYPE 1",
+	"BS 8Mメモリパック TYPE 2",
+	"BS 8Mメモリパック TYPE 3",
+	"BS 8Mメモリパック TYPE 4",
 	"GNEXT ユニット＆マップコレクション",
 	"鮫亀キャラカセット",
 	"(不明)",
 	0
 ] AS BytePtr 
+Dim packNameTableEN[BSM_PACK_TYPE_NUM] = [
+	"BS Memory Pack TYPE 1",
+	"BS Memory Pack TYPE 2",
+	"BS Memory Pack TYPE 3",
+	"BS Memory Pack TYPE 4",
+	"GNEXT Unit and Map collection",
+	"Same-Game character carriage",
+	"(unknwon)",
+	0
+] AS BytePtr 
+Dim packNameTable AS *BytePtr
+
+Sub InitBSM()
+	if langJP Then
+		slotNameTable = slotNameTableJP
+		packNameTable = packNameTableJP
+	Else
+		slotNameTable = slotNameTableEN
+		packNameTable = packNameTableEN
+	endif
+End Sub
 
 Dim BSX_MEMPACK_ADR_TABLE[BSM_PACK_TYPE_NUM] = [ 
 	BSX_MEMPACK_ADR_BIOS,
