@@ -1,5 +1,5 @@
 # HongKongArduinoClone
- 「[こーどねーむホンコン with Arduino](http://hongkongarduino.web.fc2.com)」を高速化・高機能化するプロジェクト  
+ 「[こーどねーむホンコン with Arduino](https://susumutaniyama.github.io/HongKongArduino/)」を高速化・高機能化するプロジェクト  
 SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program  
 
 ![SS](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1SS.png "SS")  　
@@ -13,7 +13,7 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 + This project supports high-speed dumping, SRAM read/write, BS-X Memory Pack and other.  　　  　
 
 ## リンク / Link
-+ [こーどねーむ「ホンコン」 with Arduino / Original page](http://hongkongarduino.web.fc2.com)
++ [こーどねーむ「ホンコン」 with Arduino / Original page](https://susumutaniyama.github.io/HongKongArduino/)
 + [たにやま氏のリポジトリ / Original repository](https://github.com/SusumuTaniyama/HongKongArduino)
 + [このプログラムについてのページ / My page](http://rgbacrt.seesaa.net/article/435543541.html)
 
@@ -95,16 +95,16 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 + Language：[ActiveBasic4](https://www.activebasic.com/) + [RGBALib](https://github.com/RGBA-CRT/RGBALib)
 
 ## ライセンス / Licenses
-+ たにやま氏制作部分（HongKongArduinoFast.ino）にはクリエイティブコモンズby-ncが適用されます。
++ ファームウェア（HongKongArduinoFast.ino）は、たにやま氏の流用であるため、クリエイティブコモンズby-ncを継承します。
 [![cc](https://licensebuttons.net/l/by-nc/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc/4.0/)  
 
 + 私が制作した部分(Windowsプログラム,　HongKongArduinoFast.ino以外のファイル)はCC0が適応されます。
 [![cc0](https://licensebuttons.net/p/zero/1.0/80x15.png)](http://creativecommons.org/publicdomain/zero/1.0/)  
 
 ## 参考資料 / Referenced documents
- * <http://hongkongarduino.web.fc2.com/archive>  
- * <https://github.com/sanni/cartreader/> 
- * <http://problemkaputt.de/fullsnes.txt>  
+ * https://susumutaniyama.github.io/HongKongArduino/archive/
+ * https://github.com/sanni/cartreader/
+ * http://problemkaputt.de/fullsnes.txt
  
 ---
 
