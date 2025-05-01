@@ -162,14 +162,15 @@ WINDOW:FlashWnd
     ITEM      = Static3,8,69,32,12,"Flash",&H50000000,&H00000000,11
     ITEM      = CommandButton2,78,236,88,21,"Chip&Erase",&H50010000,&H00000000,1
     ITEM      = FlashName,43,65,216,21,"",&H50000880,&H00000200,4
-    ITEM      = CommandButton3,5,236,54,21,"TestWrite",&H50000000,&H00000000,1
+    ITEM      = CommandButton3,5,239,54,21,"TestWrite",&H50000000,&H00000000,1
     ITEM      = CommandButton4,170,236,88,21,"&WriteROM",&H50010000,&H00000000,1
     ITEM      = CommandButton5,103,209,88,21,"BlankCheck",&H58000000,&H00000000,1
     ITEM      = ComboBox1,45,37,214,200,"",&H50210042,&H00000000,3
     ITEM      = MAPPING,45,10,215,242,"",&H50210002,&H00000000,3
     ITEM      = Static4,8,14,25,12,"Map",&H50000000,&H00000000,11
-    ITEM      = CheckBox1,114,92,66,15,"Manual",&H50010003,&H00000000,2
+    ITEM      = CheckBox1,112,92,56,15,"Manual",&H50010003,&H00000000,2
     ITEM      = ListBox1,18,123,233,76,"",&H50200001,&H00000200,8
     ITEM      = GroupBox1,8,105,251,100,"MemoryLayout",&H50000007,&H00000000,5
     ITEM      = CheckBox2,174,92,88,15,"Swap CE-OE",&H50010003,&H00000000,2
+    ITEM      = Static2,177,270,208,12,"add filepath slot, add chiperase warning",&H58000000,&H00000000,11
 END

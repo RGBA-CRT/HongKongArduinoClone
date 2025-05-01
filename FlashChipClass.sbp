@@ -124,7 +124,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
 	[ &H0120, "AM29F010"   , MBIT( 1) ], ' 
 	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
-	[ &H01D5, "AM29F080"   , MBIT( 8) ],
+	[ &H01D5, "AM29F080"   , MBIT( 8) ], ' [TESTED]
 	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
 	[ &HBFB5, "SST39SF020A", MBIT( 2) ],
 	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' [TESTED] ByteProgram: 14us, ChipErase: 0.1sec
@@ -138,7 +138,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H1C97, "EN29F002B"  , MBIT( 2) ],
 	[ &HDA0B, "W49F002U"   , MBIT( 2) ], ' [TESTED] ByteProgram: 50us ChipErase 0.2sec
 	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
-	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' 
+	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' [TESTED] JRA-PAT
 	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
 ] As FlashChipInfo
 

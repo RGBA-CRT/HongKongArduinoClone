@@ -308,3 +308,7 @@ End Sub
 Sub FlashWnd_Activate(state As Integer, minimized As Integer)
 	MainWnd_Activate(state, minimized)
 End Sub
+
+Sub FlashWnd_Static2_Click()
+
+End Sub

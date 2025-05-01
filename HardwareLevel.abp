@@ -58,7 +58,7 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 	SetCommState(hSerial,dcb)
 
 	'通信タイムアウトの設定
-	SetComTimeOut(hSerial,1000)
+	SetComTimeOut(hSerial,100)
 
 '	DBM("baudrate="+Str$(rate)+"bps")
 	
@@ -136,8 +136,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	
 	printf(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
 End Function
-Declare Function timeEndPeriod Lib "winmm" Alias "timeEndPeriod" (ByVal uPeriod As Long) As Long
-Declare Function timeBeginPeriod Lib "winmm" Alias "timeBeginPeriod" (ByVal uPeriod As Long) As Long
+
 Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long
 	Dim TotalReadByte As DWord	
 	Dim dwReadByte As DWord
@@ -316,36 +315,16 @@ End Function
 
 Const HKAC_GETFIRM_RETRY = 10
 Const HKAC_GETFIRM_WAIT = 10
-Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord) As BOOL
+Function RequestFirmwareInfo(hSerial As HANDLE) As BOOL
 	Dim cmd[2] AS Byte
 	Dim dwWD As DWord, ioOk AS BOOL, retry As DWord
 
-	GetFirmware = FALSE
-
-*HW_GF_RETRY
-	DBMN(".")
-	PumpMessage()
-	if GetCancelKey() then ExitFunction
+	RequestFirmwareInfo = FALSE
 
 	ioOk = WriteFile(hSerial, "v", 1, VarPtr(dwWD), ByVal NULL)
 	if ioOk<>TRUE Then ExitFunction
 
-	Sleep(10)
-
-	printf(ex"\n[GetFirm%d] ", retry)
-	dwWD = ReceiveFromReader(hSerial, firmStr, firmStrLen, 10)
-		if dwWD<>firmStrLen Then 	
-		printf(ex" retry #%d, %d ", retry, dwWD)
-		if retry>=HKAC_GETFIRM_RETRY Then ExitFunction
-		FlushCom(hSerial)
-		Sleep(HKAC_GETFIRM_WAIT)
-		retry++
-		Goto *HW_GF_RETRY
-	End If
-
-	FlushCom(hSerial)
-	printf(ex"\n")
-	GetFirmware = TRUE
+	RequestFirmwareInfo = TRUE
 End Function
 
 
