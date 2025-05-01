@@ -244,46 +244,6 @@ Sub ListUpComPort(Wnd As HWND)
 	free(lastDevice)	
 End Sub
 
-Sub DBM(Text As BytePtr)
-	Dim LastPos As DWord, hEB As HANDLE
-	hEB = MWnd(EditBox1)
-	LastPos = GetWindowTextLength(hEB)
-	
-	'10KBを超えてたらログをクリア
-	If LastPos>1024 * 10 Then
-		'1KB残す
-		Dim txt AS BytePtr
-		txt = calloc(LastPos + 1)
-		GetWindowText(hEB, txt, LastPos)
-		SetWindowText(hEB, txt + LastPos -1024)
-		free(txt)
-		LastPos = 1025
-	End If
-	
-	SendMessage(hEB, EM_SETSEL, LastPos, LastPos)
-	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
-	SendMessage(hEB, EM_REPLACESEL, 0, ex"\r\n" As Long)
-	OutputDebugString(Text)
-	OutputDebugString(ex"\r\n")
-End Sub
-
-Sub DBMN(Text As BytePtr)
-	Dim LastPos As DWord, hEB As HANDLE
-	hEB = MWnd(EditBox1)
-	LastPos = GetWindowTextLength(hEB)
-	SendMessage(hEB, EM_SETSEL, LastPos, LastPos)
-	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
-End Sub
-
-'printfのDBM版
-Sub DBMf(lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e As DWord ,f As DWord ,g As DWord ,h As DWord ,i As DWord ,j As DWord ,k As DWord ,l As DWord ,m As DWord ,n As DWord ) 
-	Dim dbuf[1024] As Byte
-	Dim p AS DWord
-	p=wsprintf(dbuf,lpFormat,a,b,c,d,e,f,g,h,i,j,k,l,m,n)
-
-	DBM(dbuf)
-EndSub
-
 Sub BaudrateErrorMessage()
 	' 初回
 	if isFirstBaudrateError = FALSE Then
@@ -791,10 +751,10 @@ Sub MainWnd_CommandButton4_Click()
 	Else
 		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
-		printf(ex"=== write ===\n")
-		Dump(writeBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
-		printf(ex"=== actual ===\n")
-		Dump(verifyBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
+		logger(ex"=== write ===\n")
+		DumpHKAC(writeBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
+		logger(ex"=== actual ===\n")
+		DumpHKAC(verifyBuffer+(diffPos And &HFFFFFFF0), 32, (diffPos And &HFFFFFFF0))
 
 		if retry<HKAC_SRAM_WRITE_RETRY_LIMIT Then 
 			retry++
@@ -913,7 +873,7 @@ Sub MainWnd_CommandButton6_Click()
 		p + = wsprintf(p, "[%c]", data[i])
 	Next i
 	DBM(data + &H5000)
-	Dump(data, 128)
+	DumpHKAC(data, 128)
 End Sub
 
 Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
@@ -922,7 +882,7 @@ Sub MainWnd_MButtonDblClick(flags As Long, x As Integer, y As Integer)
 		MoveWindow(hMainWnd,0,0,505,330,TRUE)
 		AllocConsole()
 		_System_hConsoleOut=GetStdHandle(STD_OUTPUT_HANDLE)
-		printf(ex"Welcome to debug console\n")
+		logger(ex"Welcome to debug console\n")
 	End If
 
 End Sub
@@ -963,8 +923,8 @@ Sub SetRomInfoToDlg_FromROM()
 	'ヘッダを読み出し
 	FlushCom(hCOM)
 	getCartInfo(VarPtr(cartInfo))
-	printf(ex"=== ROM HEADER ===\n")
-	Dump(VarPtr(cartInfo.rawHeader), sizeof(SFC_CART_HEADER))
+	logger(ex"=== ROM HEADER ===\n")
+	DumpHKAC(VarPtr(cartInfo.rawHeader), sizeof(SFC_CART_HEADER))
 
 	'ダイアログに表示
 	SetCartInfo(VarPtr(cartInfo))
@@ -1095,7 +1055,7 @@ Sub GetDlgOption(info As *SFC_CART_INFO)
 		'		info->MapMode = (info->MapMode And &HF0) or info->MapType
 		info->RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
 		info->SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
-		printf(ex"custom rom size = %d\n", (info->RomSize / 1024 / 1024) AS DWord)
+		logger(ex"custom rom size = %d\n", (info->RomSize / 1024 / 1024) AS DWord)
 	End If
  End Sub
 
@@ -1911,10 +1871,10 @@ Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord,
 		ExitFunction
 	End If
 
-	printf(ex"\n[GetFirm%2d] ", retry)
+	logger(ex"\n[GetFirm%2d] ", retry)
 	dwWD = ReceiveFromReader(hSerial, firmStr, firmStrLen, 100)
 	if dwWD<>firmStrLen Then
-		printf(ex"| RX %d bytes at try #%d %d ms ", dwWD, retry, (GetTickCount() - start))
+		logger(ex"| RX %d bytes at try #%d %d ms ", dwWD, retry, (GetTickCount() - start))
 		if (GetTickCount() - start) > timeout then
 			GetFirmware = RET_TIMEOUT
 			ExitFunction
@@ -1926,7 +1886,7 @@ Function GetFirmware(hSerial As HANDLE, firmStr AS BytePtr, firmStrLen As DWord,
 	End If
 
 	FlushCom(hSerial)
-	printf(ex"\n")
+	logger(ex"\n")
 	GetFirmware = RET_OK
 End Function
 

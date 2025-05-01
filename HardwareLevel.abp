@@ -70,7 +70,7 @@ Function SendControl(hSerial AS HANDLE,b AS Byte) As BOOL
 	Dim cmd[1] AS Byte,dwAB AS DWord
 	cmd[0]=Asc("c")
 	cmd[1]=b
-	printf(ex"[CTRL] OE=%d CE=%d WE=%d RST=%d\n", b And 1, (b>>1) And 1, (b>>2) And 1, (b>>3) And 1)
+	logger(ex"[CTRL] OE=%d CE=%d WE=%d RST=%d\n", b And 1, (b>>1) And 1, (b>>2) And 1, (b>>3) And 1)
 	if WriteFile(hSerial,cmd,2,VarPtr(dwAB),ByVal NULL)=FALSE or dwAB<>2 Then 
 		DBM("CTL_ERR "+Str$(GetLastError()))
 		SendControl=FALSE
@@ -134,7 +134,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 
 	ReadROM=ReceiveFromReader(hSerial, data, size)
 	
-	printf(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
+	logger(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
 End Function
 
 Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(TimeoutMul AS Single) As Long
@@ -155,7 +155,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 	rx_time = ( (size*1000*8) / (GetComBaudrate(hSerial)) )
 	Dim HKAC_HW_RETRY As DWord
 	HKAC_HW_RETRY = ( (rx_time * HKAC_TRANSFER_FLOAT_TIME_MUL * TimeoutMul + HKAC_RX_TIMEOUT_MARGIN) ) + 1 AS DWord
-	printf(ex"論理転送時間 %dms->%dms(%d) ", (rx_time) As DWord, HKAC_HW_RETRY, size)
+	logger(ex"論理転送時間 %dms->%dms(%d) ", (rx_time) As DWord, HKAC_HW_RETRY, size)
 
 	timeBeginPeriod(1)
 
@@ -188,7 +188,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 		if TotalReadByte >= size Then exitdo
 	Loop
 
-	printf(ex"実 %03dms 試 %03d ",GetTickCount()-start, retry)
+	logger(ex"実 %03dms 試 %03d ",GetTickCount()-start, retry)
 	timeEndPeriod(1)
 
 	ReceiveFromReader=TotalReadByte
@@ -211,14 +211,14 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 			if readLen > 0 Then
 				if rsv=requestChar Then 
 					WaitForRequest=TRUE
-					printf(ex"[WaitRequest] OK: responce=%c wait=%dms retry=%d\n",requestChar, GetTickCount() - start, retry)
+					logger(ex"[WaitRequest] OK: responce=%c wait=%dms retry=%d\n",requestChar, GetTickCount() - start, retry)
 					ExitDo
 				Else
-					printf(ex"[WaitRequest] Error: Unexpected responce : real=%X[%c] expect=%X[%c] %d %dms \n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start)
+					logger(ex"[WaitRequest] Error: Unexpected responce : real=%X[%c] expect=%X[%c] %d %dms \n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start)
 					ExitDo
 				End if
 			Else
-				printf(ex"[WaitRequest] Warn: read error : real=%X[%c], expect=%X[%c] %d %dms GLE=\n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start, GetLastError())
+				logger(ex"[WaitRequest] Warn: read error : real=%X[%c], expect=%X[%c] %d %dms GLE=\n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start, GetLastError())
 			End  If
 		End  If
 
@@ -258,7 +258,7 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	WriteCount=0
 
 	Do
-		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
+		logger("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
@@ -293,7 +293,7 @@ Sub SetCPU_Clock(hSerial AS HANDLE, flag AS HKAC_CLOCK_STATE)
 	
 	ReadFile(hSerial, cmd, 1, VarPtr(dwWB), ByVal NULL)
 	
-	printf(ex"ClockOutput: %d, %d, %d, oc:%d ret:%X dwAB:%d\n", (flag And 1), (flag And 2)>>1, (flag And 4)>>2, (flag And 8)>>3, cmd[0], dwWB)
+	logger(ex"ClockOutput: %d, %d, %d, oc:%d ret:%X dwAB:%d\n", (flag And 1), (flag And 2)>>1, (flag And 4)>>2, (flag And 8)>>3, cmd[0], dwWB)
 End Sub
 
 
@@ -335,15 +335,15 @@ Sub FlushCom(hSerial AS HANDLE)
 	Dim cs AS COMSTAT, dwErrors AS DWord
 	ClearCommError(hSerial, VarPtr(dwErrors), cs)
 		
-'	printf("[flush] i%d o%d", cs.cbInQue, cs.cbOutQue)
+'	logger("[flush] i%d o%d", cs.cbInQue, cs.cbOutQue)
 	if cs.cbInQue = 0 Then ExitSub
 	
 	'受信バッファを全部取り出す
 	Dim tmp aS BytePtr
 	tmp = calloc(cs.cbInQue)
 	LoadFile(hSerial, tmp, cs.cbInQue)
-	printf("ゴミ %d", cs.cbInQue)
-	Dump(tmp, cs.cbInQue)
+	logger("ゴミ %d", cs.cbInQue)
+	DumpHKAC(tmp, cs.cbInQue)
 	
 	free(tmp)
 	tmp = NULL
@@ -367,7 +367,7 @@ Sub SetCartRegister(bank AS Byte, address AS Word, val AS Byte)(isLoROM AS BOOL)
 	cmd[4] = val
 	
 	WriteFile(hCOM, cmd, 5, VarPtr(dwAB), ByVal NULL)
-	printf(ex"[CMD_%c]%02X%04X = %X\n", cmd[0], bank, address, val)
+	logger(ex"[CMD_%c]%02X%04X = %X\n", cmd[0], bank, address, val)
 End Sub
 
 
@@ -386,10 +386,10 @@ Function ST018_BiosDump(hSerial AS HANDLE, data AS BytePtr)(progress AS * Progre
 	For i = 0 To 159
 		dwReadByte = ReceiveFromReader(hSerial, data + ReadByteSum, ST018_BIOS_TRANSFER_SIZE, 4)
 		if dwReadByte <> ST018_BIOS_TRANSFER_SIZE Then
-			printf(ex"[BIOS DUMP] TRANSFER ERROR %X/%X\n", dwReadByte, ST018_BIOS_TRANSFER_SIZE)
+			logger(ex"[BIOS DUMP] TRANSFER ERROR %X/%X\n", dwReadByte, ST018_BIOS_TRANSFER_SIZE)
 			Goto * SBD_ERR
 		End if
-		printf(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n", i * ST018_BIOS_TRANSFER_SIZE, dwReadByte, ST018_BIOS_TRANSFER_SIZE)
+		logger(ex"[BIOS DUMP] %03X:%X/%X bytes received.\n", i * ST018_BIOS_TRANSFER_SIZE, dwReadByte, ST018_BIOS_TRANSFER_SIZE)
 		ReadByteSum = ReadByteSum + dwReadByte
 		
 		'Continue 送信
@@ -440,8 +440,8 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 		cmd[c] = (config->cmdList[i].data) AS Byte : c++
 	Next
 	cmd[c] = config->flags : c++
-	'PrintPtr("FlashConfig:")
-	'Dump(cmd,c)
+	'logger("FlashConfig:")
+	'DumpHKAC(cmd,c)
 
 	WriteFile(hSerial,cmd,c,VarPtr(dwWD),ByVal NULL)
 
@@ -473,7 +473,7 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 	WriteCount=0
 
 	Do
-		printf("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
+		logger("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then
 			DBM("Flash request failed.")
 			ExitDo

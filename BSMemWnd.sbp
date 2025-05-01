@@ -309,14 +309,14 @@ Function BSM_GetMemPackInfo(mempackinfo AS * BSM_MEMPACK_INFO) AS BOOL
 	'WAIT
 	
 	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
-	Dump(info,16)
+	DumpHKAC(info,16)
 	
 	'request chip info part2
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &H72, isLoROM)
 	SetCartRegister(cmdBank, cmdOffset + &H0000, &H75, isLoROM)
 	
 	ReadROM(hCOM, info, 0, cmdAddress or &H00FF00, 16, isLoROM)
-	Dump(info, 16)
+	DumpHKAC(info, 16)
 	
 	ParseMpInfo(info, mempackinfo)
 

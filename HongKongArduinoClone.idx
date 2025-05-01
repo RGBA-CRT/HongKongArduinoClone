@@ -24,6 +24,7 @@
 #include "SoundEffect.abp"
 #include "FlashWnd.sbp"
 #include "FlashChipClass.sbp"
+#include "Log.abp"
 
 'RADツールが生成するウィンドウ生成プログラム
 #include "MakeWindow.wbp"

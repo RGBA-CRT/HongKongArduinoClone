@@ -294,10 +294,10 @@ Private
 		DoFlashCmd(VarPtr(cmdSet.detect()))
 
 		ReadROM(hSerial,VarPtr(flashIdBuf),0,baseBusAdr + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
-		PrintPtr(ex"preid\n")
-		Dump(VarPtr(preId),16,0)
-		PrintPtr(ex"flash id\n")
-		Dump(VarPtr(flashIdBuf),16,0,TRUE)
+		logger(ex"preid\n")
+		DumpHKAC(VarPtr(preId),16,0)
+		logger(ex"flash id\n")
+		DumpHKAC(VarPtr(flashIdBuf),16,0,TRUE)
 		
 		ExitCommandMode()
 		/*
@@ -312,12 +312,12 @@ Private
 			Dim preCheck AS BOOL, idCheck AS BOOL
 			preCheck = FillCheck(preId, preId[0], FLASH_ID_SIZE)
 			idCheck  = FillCheck(flashIdBuf, flashIdBuf[0], FLASH_ID_SIZE)
-			printf(ex"busOpenCheck IsFill pre=%d, id=%d\n", preCheck, idCheck)
+			logger(ex"busOpenCheck IsFill pre=%d, id=%d\n", preCheck, idCheck)
 			if (idCheck = FALSE)  then
 				ReadFlashChipId = TRUE
 			End If
 		Else
-			printf(ex"busOpenCheck pre, id bin match\n")
+			logger(ex"busOpenCheck pre, id bin match\n")
 		Endif
 
 	End Function
@@ -413,7 +413,7 @@ Private
 			Else
 				poll = DatabusRead(hSerial)
 			End If
-			printf(ex"[FlashPoll] value=%02X, expected=%02X, inv=%d, tgl=%d,%d, DQ5Fail=%d, DQ3=%d, dur=%dms\n", _
+			logger(ex"[FlashPoll] value=%02X, expected=%02X, inv=%d, tgl=%d,%d, DQ5Fail=%d, DQ3=%d, dur=%dms\n", _
 				poll, expect, _
 				(poll>>7) And 1, (poll>>6) And 1, (poll>>2) And 1, (poll>>5) And 1, (poll>>3) And 1, _
 				GetTickCount() - start)
@@ -436,7 +436,7 @@ Private
 				pc->Step(dur - lastDur, dur)
 				lastDur = dur
 				if pc->isCancel() then
-					PrintPtr(ex"user cancelled.\n")
+					logger(ex"user cancelled.\n")
 					Exitdo
 				Endif
 			End If
@@ -483,10 +483,10 @@ Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, 
 	if isSwapCEOE = NULL then exitFunction
 
 	Dim ret AS Long
-	PrintPtr(ex"[DETECT][L1] Try OE/CE swap mode...\n")
+	logger(ex"[DETECT][L1] Try OE/CE swap mode...\n")
 	ret = FlashDetect_(hSerial, base, flashId, TRUE)
 	if ret = FlashCmdTypeNotFlash then
-		PrintPtr(ex"[DETECT][L1] Try OE/CE non-swap mode...\n")
+		logger(ex"[DETECT][L1] Try OE/CE non-swap mode...\n")
 		ret = FlashDetect_(hSerial, base, flashId, FALSE)
 		SetDWord(isSwapCEOE, FALSE)
 	Else
@@ -500,7 +500,7 @@ Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId,
 	Dim fc AS FlashChipController
 	Dim i aS Long
 	For i = 1 To FlashCmdTypeMAX-1
-		printf(ex"[DETECT][L2] Try FlashType=%d...\n", i)
+		logger(ex"[DETECT][L2] Try FlashType=%d...\n", i)
 		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE)
 		if fc.GetFlashChipId(flashId) then
 			FlashDetect_ = i

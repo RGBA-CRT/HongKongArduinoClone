@@ -107,7 +107,7 @@ Function getNPStatus(ByRef info AS NP_STATUS_INFO) AS BOOL
 	Dim reg aS NP_STATUS_REG
 	NP_command(&H09)
 	getNPStatus = ReadROM(hCOM, VarPtr(reg), 0, &H2400, sizeof(NP_STATUS_REG), FALSE)
-	Dump(VarPtr(reg), sizeof(NP_STATUS_REG))
+	DumpHKAC(VarPtr(reg), sizeof(NP_STATUS_REG))
 	NP_Status_RegToInfo(reg, info)
 End Function
 

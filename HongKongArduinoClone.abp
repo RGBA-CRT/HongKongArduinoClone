@@ -84,6 +84,8 @@ HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 6
 '---------------------------
 '  Window Message Loop
 '---------------------------
+DBM_Init()
+
 RegisterSubClass()
 RegistAcceleratorKey()
 
@@ -95,7 +97,7 @@ if GetOEMCP() = CP_JPN then
 	langJP = TRUE
 endif
 #endif
-printf(ex"cp: %d, jp: %d\n", GetOEMCP(), langJP)
+logger(ex"cp: %d, jp: %d\n", GetOEMCP(), langJP)
 SetConsoleOutputCP(CP_JPN)
 
 Dim msgMain As MSG, iResult As Long

@@ -321,10 +321,10 @@ Sub SFTurbo_CommandButton3_Click()
 	Else
 		DBMf(ex"NG at %08Xh", diffPos)
 		DBM(ex"Failed to write SRAM.\r\n")
-		printf(ex"=== write ===\n")
-		Dump(sram_buf+(diffPos And &HFFFFFFF0), 32)
-		printf(ex"=== actual ===\n")
-		Dump(verify_buf+(diffPos And &HFFFFFFF0), 32)
+		logger(ex"=== write ===\n")
+		DumpHKAC(sram_buf+(diffPos And &HFFFFFFF0), 32)
+		logger(ex"=== actual ===\n")
+		DumpHKAC(verify_buf+(diffPos And &HFFFFFFF0), 32)
 
 		MessageBeep(MB_ICONHAND)
 	End If
@@ -348,7 +348,7 @@ Sub SFTurbo_CommandButton4_Click()
 			ErrMes(hSFTurbo,"ROM io error.",0,0):	ExitSub
 		endif
 		
-		Dump(VarPtr(slot[i]),sizeof(SFT_ROM_HEADER))
+		DumpHKAC(VarPtr(slot[i]),sizeof(SFT_ROM_HEADER))
 
 		info.sprintf(ex"%s:\r\n", SFT_SLOT_NAME_TABLE[i] As DWord)
 		SFTurboRomHeaderToStringSimple(VarPtr(info), VarPtr(slot[i]))
@@ -370,8 +370,8 @@ Sub OnSelectSlot(index As Long)
 		ErrMes(hSFTurbo,"SRAM io error.",0,0):	ExitSub
 	endif
 
-	Dump(VarPtr(slot), sizeof(SFT_ROM_HEADER))
-	Dump(VarPtr(sram), sizeof(SFT_SRAM_HEADER))
+	DumpHKAC(VarPtr(slot), sizeof(SFT_ROM_HEADER))
+	DumpHKAC(VarPtr(sram), sizeof(SFT_SRAM_HEADER))
 	'SFTWnd_SetTitleBox(index, VarPtr(slot) )
 
 	Dim info As StringClass

@@ -264,13 +264,13 @@ function BSM_getHeaderFromSerial(hFile AS HANDLE,baseAddress AS DWord,nextAdrFun
 	'check lorom
 	adr = nextAdrFunc(hFile,baseAddress,BSM_FILE_HEADER_ADR_Lo)
 	ReadROM(hFile,VarPtr(tmp),0,adr,sizeof(BSM_FILE_HEADER),FALSE)
-	Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
+	DumpHKAC(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
 
 	If BSM_isHeader(VarPtr(tmp)) =FALSE Then
 		'check hirom
 		adr = nextAdrFunc(hFile,baseAddress,BSM_FILE_HEADER_ADR_Hi)
 		ReadROM(hFile,VarPtr(tmp),0,adr,sizeof(BSM_FILE_HEADER),FALSE)
-		Dump(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
+		DumpHKAC(VarPtr(tmp),sizeof(BSM_FILE_HEADER),adr)
 		
 		'not bsm image
 		If BSM_isHeader(VarPtr(tmp)) =FALSE Then
@@ -333,8 +333,8 @@ Function BSM_printInfo(_header As *BSM_FILE_INFO)  AS BytePtr
 			status.cat(ex"playable")
 		Else
 			status.cat(ex"may be deleted\r\n   unknown status.")
-			Dump(header As BytePtr,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
-			PrintPtr("-GUIDE-- |BlockAlloca|§ ŒÀ|ŒŽ|“ú|}|Šø|33|Šg|cksum|/sum |")
+			DumpHKAC(header As BytePtr,sizeof(BSM_FILE_HEADER),BSM_FILE_HEADER_ADR_Lo And &H0FFF)
+			logger("-GUIDE-- |BlockAlloca|§ ŒÀ|ŒŽ|“ú|}|Šø|33|Šg|cksum|/sum |")
 		End If
 	End if
 
@@ -404,7 +404,7 @@ Sub ParseMpInfo(info AS BytePtr, mempackinfo AS * BSM_MEMPACK_INFO)
 	for i=0 to 4
 		mempackinfo->Serial[i*2+0] = bcd2char(info[8+i*2]>>4)
 		mempackinfo->Serial[i*2+1] = bcd2char(info[8+i*2] And &HF)
-	'	Dump(mempackinfo,sizeof(BSM_MEMPACK_INFO))
+	'	DumpHKAC(mempackinfo,sizeof(BSM_MEMPACK_INFO))
 	Next i
 	mempackinfo->Serial[8] = 0
 	memcpy(mempackinfo->raw, info,16)

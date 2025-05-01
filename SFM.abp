@@ -82,7 +82,7 @@ Function NP_wakeup() AS BOOL
 			Goto *HKAF_WNP
 		Endif
 	End If
-	Dump(cmd,3)
+	DumpHKAC(cmd,3)
 EndFunction
 
 
