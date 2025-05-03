@@ -40,6 +40,7 @@ inline void bulkReadExit(){
   BB_DIR_TOGGLE();
   dataDirOutput();
 }
+
 inline byte bulkReadAcquire()
 {
   FLASH_OE_TOGGLE();

@@ -36,7 +36,7 @@ if config.GetConfigInt(CONFIG_ID)<1 then
 
 */
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v3.0alfa3" ' sync this to git tag
+Const VerStr = "v3.0alfa4" ' sync this to git tag
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 

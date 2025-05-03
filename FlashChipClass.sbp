@@ -17,6 +17,9 @@ Enum FlashCmdType
 	FlashCmdTypeNotFlash = 0
 	FlashCmdTypeJDEC8
 	FlashCmdTypeJDEC16Shift8
+	FlashCmdTypeMX29F1610
+	FlashCmdTypeFastDetect
+	FlashCmdTypeFastDetect2
 	FlashCmdTypeMAX
 End Enum
 
@@ -34,6 +37,7 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 			set.chipErase.count = 0
 			set.program.count = 0
 			set.reset.count = 0
+			
 		Case FlashCmdTypeJDEC8
 			set.name = "JDEC Standard 8bit (A14)"
 			With set.detect
@@ -92,6 +96,91 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				.count = 1
 				FLASH_CMD(.elm[0], &H0000, &HF0)
 			End With
+
+			
+		Case FlashCmdTypeMX29F1610
+			set.name = "[TEST] Long Reset"
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H80)
+
+				FLASH_CMD(.elm[3], &H5555, &HAA)
+				FLASH_CMD(.elm[4], &H2AAA, &H55)
+				FLASH_CMD(.elm[5], &H5555, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HA0)
+			End With
+			With set.reset
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HF0)
+			End With
+		Case FlashCmdTypeFastDetect
+			set.name = "[TEST] Detect write adr 0"
+			With set.detect
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H80)
+
+				FLASH_CMD(.elm[3], &H5555, &HAA)
+				FLASH_CMD(.elm[4], &H2AAA, &H55)
+				FLASH_CMD(.elm[5], &H5555, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
+		Case FlashCmdTypeFastDetect2
+			set.name = "[TEST] Detect write adr 0 and lonreset"
+			With set.detect
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &H80)
+
+				FLASH_CMD(.elm[3], &H5555, &HAA)
+				FLASH_CMD(.elm[4], &H2AAA, &H55)
+				FLASH_CMD(.elm[5], &H5555, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H5555, &HAA)
+				FLASH_CMD(.elm[1], &H2AAA, &H55)
+				FLASH_CMD(.elm[2], &H5555, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
+
 		Case Else
 			GetFlashCmdSet = FALSE
 	End Select
@@ -189,18 +278,18 @@ Public
 		End If
 
 		if id then 
-			if flashType = FlashCmdTypeJDEC8 Then
-				id->idSize = 1
-				id->vendor = flashIdBuf[0]
-				id->product = flashIdBuf[1]
-				if id->vendor = id->product then ExitFunction
-			Elseif flashType = FlashCmdTypeJDEC16Shift8 then
+			' todo move this
+			if flashType = FlashCmdTypeJDEC16Shift8 then
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
 				if id->vendor = id->product then ExitFunction
+
 			Else
-				ExitFunction
+				id->idSize = 1
+				id->vendor = flashIdBuf[0]
+				id->product = flashIdBuf[1]
+				if id->vendor = id->product then ExitFunction
 			endif
 		End If
 		GetFlashChipId = TRUE
@@ -312,12 +401,12 @@ Private
 			Dim preCheck AS BOOL, idCheck AS BOOL
 			preCheck = FillCheck(preId, preId[0], FLASH_ID_SIZE)
 			idCheck  = FillCheck(flashIdBuf, flashIdBuf[0], FLASH_ID_SIZE)
-			logger(ex"busOpenCheck IsFill pre=%d, id=%d\n", preCheck, idCheck)
 			if (idCheck = FALSE)  then
 				ReadFlashChipId = TRUE
 			End If
+			logger(ex"busOpenCheck IsFill pre=%d, id=%d. IsFlashId=%d\n", preCheck, idCheck, ReadFlashChipId)
 		Else
-			logger(ex"busOpenCheck pre, id bin match\n")
+			logger(ex"busOpenCheck pre, id bin match. not FlashID.\n")
 		Endif
 
 	End Function
