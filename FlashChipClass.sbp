@@ -295,9 +295,9 @@ Private
 
 		ReadROM(hSerial,VarPtr(flashIdBuf),0,baseBusAdr + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
 		logger(ex"preid\n")
-		DumpHKAC(VarPtr(preId),16,0)
+		DumpHKAC(VarPtr(preId),64,0)
 		logger(ex"flash id\n")
-		DumpHKAC(VarPtr(flashIdBuf),16,0,TRUE)
+		DumpHKAC(VarPtr(flashIdBuf),64,0,TRUE)
 		
 		ExitCommandMode()
 		/*

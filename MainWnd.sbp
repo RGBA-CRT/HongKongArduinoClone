@@ -691,14 +691,14 @@ Sub MainWnd_CommandButton4_Click()
 		DBMf("key%x", GetKeyState(VK_ESCAPE))
 	End If
 	
-#ifndef _DEBUG
+#ifdef _DEBUG
 	If (GetKeyState(VK_SHIFT) And &H80) = 0 Then
 		path = "write.srm"
 	Else
 #endif
 	path = LoadDialogCalloc(GetSramSaveDialogFilter(), "srm")
 	If path = 0 Then ExitSub
-#ifndef _DEBUG
+#ifdef _DEBUG
 	End If
 #endif
 
