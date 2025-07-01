@@ -1081,7 +1081,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 	If info->RomSize =0 Then
 		SetWindowText(MWnd(ROM_SIZE),"None")		
 	Else
-		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%d KB [%d Mbit]",
+		SetWindowText(MWnd(ROM_SIZE),sprintfStr("%dKB [%dMbit]",
 							(info->RomSize/1024) As DWord, (info->RomSize*8/(1024^2)) As DWord))
 	End If
 	If info->SramSize =0 Then
@@ -1093,7 +1093,7 @@ Sub SetCartInfo(info As *SFC_CART_INFO)
 		Else
 			FLASH_TEXT=""
 		End If
-		SetWindowText(MWnd(SRAM_SIZE),sprintfStr("%d KB [%d Kbit]%s",
+		SetWindowText(MWnd(SRAM_SIZE),sprintfStr("%dKB [%dKbit]%s",
 			(info->SramSize/1024) As DWord, (info->SramSize*8/1024) As DWord, FLASH_TEXT As DWord))
 	End If
 

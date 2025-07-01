@@ -105,13 +105,13 @@ inline void writebyte_cart2(byte bank, word address, byte data) {
   setAddress_(bank, address);
   setDataPin(data);
 
-  // __asm__ volatile("nop");
-  // __asm__ volatile("nop");
+  __asm__ volatile("nop");
+  __asm__ volatile("nop");
 
   CART_WRITE_TOGGLE();
 
-  // __asm__ volatile("nop");
-  // __asm__ volatile("nop");
+  __asm__ volatile("nop");
+  __asm__ volatile("nop");
 
   CART_WRITE_TOGGLE();
 }

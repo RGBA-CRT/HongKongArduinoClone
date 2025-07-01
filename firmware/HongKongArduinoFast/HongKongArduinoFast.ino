@@ -126,7 +126,7 @@ void SetFlashOECtrl(bool swap_ce_oe){
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 // RXバッファ
-#define BUFFER_LEN 0x500 //ホスト側とサイズを合わせる
+#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 

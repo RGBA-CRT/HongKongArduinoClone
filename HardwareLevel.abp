@@ -449,7 +449,7 @@ End Function
 
 Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL
 	Dim cmd[7] AS Byte
-	Dim WriteCount As DWord
+	Dim ofs As DWord
 	Dim dwWD As DWord
 
 	if isLoROM Then
@@ -470,17 +470,32 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 	WriteFile(hSerial,cmd,6,VarPtr(dwWD),ByVal NULL)
 	Sleep(10)
 
-	WriteCount=0
+	ofs=0
+
+	Dim write_size AS DWord
+	write_size = HKAC_WRITE_BUFFER_LEN
 
 	Do
-		logger("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
+		if (ofs+write_size) >  size then
+			write_size = size - ofs
+		Else 
+			write_size = HKAC_WRITE_BUFFER_LEN
+		endif
+		
+		Dim bus_addr_range_end AS DWord
+		bus_addr_range_end = address+ofs+write_size-1
+
+		logger("[WRITE] %Xh-%Xh %xh",address+ofs,bus_addr_range_end, write_size)
+
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then
 			DBM("Flash request failed.")
 			ExitDo
 		End If
 		FlushCom(hSerial)
 
-		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
+		' ここwrite_sizeを使わず固定値で書いているのは仕様。
+		' データサイズで止まるので、WRITE_SIZEをリミットする必要はない。バッファオーバーランはするので対策しないと...
+		WriteFile(hSerial, data+ofs , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
 		if dwWD<>HKAC_WRITE_BUFFER_LEN Then
 			FlushCom(hSerial)
@@ -488,8 +503,8 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 			ExitDo
 		End If
 
-		WriteCount+=dwWD
-		if WriteCount => size Then 
+		ofs+=dwWD
+		if ofs => size Then 
 			DatabusFlashWrite=TRUE
 			ExitDo
 		End If

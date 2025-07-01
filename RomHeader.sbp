@@ -151,7 +151,7 @@ Sub SloveCartInfo(data As * SFC_CART_HEADER, info As * SFC_CART_INFO)
 	info->Version = data->Version
 	info->CheckSum1 = data->Checksum1
 	info->CheckSum2 = data->Checksum2
-	info->isFastRom = data->MapMode And &H10
+	info->isFastRom = (data->MapMode>>4) And &H1
 
 	info->enableChecksum = TRUE	' ‰¼Œˆ’è
 	info->isFlashSave = FALSE 	' ‰¼Œˆ’è
@@ -683,7 +683,7 @@ Function checkRomTrimmable(rom As BytePtr, romSize As DWord) AS DWord
 	Dim trimSum As Word
 	Dim trimQuarterSize As DWord
 	trimQuarterSize  = romSize>>2
-debug
+
 	if isSameBin(rom + trimQuarterSize*2, rom + trimQuarterSize*3, trimQuarterSize) Then
 		DBMf("[TrimRom] trimbale")
 		DBMf("[TrimRom] size=%d KB, %Xh",((trimQuarterSize*3)/1024) AS DWord, (trimQuarterSize*3) As DWord)

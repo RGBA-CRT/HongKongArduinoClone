@@ -59,7 +59,7 @@ Const HKAC_SRAM_WRITE_RETRY_LIMIT = 2
 
 'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
-Const HKAC_WRITE_BUFFER_LEN = &H500 ' TODO: auto nego UNO/NANO
+Const HKAC_WRITE_BUFFER_LEN = &H400 ' TODO: auto nego UNO/NANO
 Const FIRMWARE_ID = "HKAF"
 Const FIRMWARE_VERSION = &H35
 
@@ -90,7 +90,6 @@ RegisterSubClass()
 RegistAcceleratorKey()
 
 Dim langJP AS BOOL
-Const CP_JPN = 932
 
 #ifndef _DEBUG
 if GetOEMCP() = CP_JPN then

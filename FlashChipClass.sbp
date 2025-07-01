@@ -193,7 +193,7 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 33
+Const FLASH_ID_TABLE_MAX = 34
 Const MBIT(x) = (x * &H20000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
@@ -229,6 +229,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
 	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' [TESTED] JRA-PAT
 	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
+	[ &H017E, "S29GL032N/S29GL064N", MBIT(32) ], ' 
 ] As FlashChipInfo
 
 ' うまく書き込めないときはPLCCソケットの接触を確認しよう
@@ -362,6 +363,13 @@ Public
 					ExitDo
 				End If
 			endif
+
+			' LoROMバンク跨ぎ防止
+			printf(ex"%xh - %x %d %xh\n", bus_addr, bus_addr+block_size-1, block_size,block_size)
+			if ((bus_addr And &H7FFF) + block_size) > &H8000 then
+				debug
+				block_size = &H8000 - (bus_addr And &H7FFF)
+			endif
 			bus_addr = mmodel->rom.next_cb(hCOM, bus_addr, block_size)
 			i++
 		Loop
@@ -371,6 +379,64 @@ Public
 		ExitCommandMode()
 	End Function
 
+	Sub CfiDump()
+		Dim cmd As FlashCmdList
+		cmd.count = &H1
+		FLASH_CMD(cmd.elm[0], &HAA, &H98)
+		
+		EnterCommandMode()
+		DoFlashCmd(VarPtr(cmd))
+
+		Dim buf[&H100] AS Byte
+		ReadROM(hSerial, buf, 0, baseBusAdr + &H20, &H100, FALSE)
+		Dump(buf, &H100)
+
+		ExitCommandMode()
+	End Sub
+
+	Sub TestSectorUnprotect()
+		Dim cmd As FlashCmdList
+		cmd.count = &H1
+		FLASH_CMD(cmd.elm[0], &HAA, &H60)
+		
+		EnterCommandMode()
+		BusFlashCmd(baseBusAdr + 0, &H60)
+		BusFlashCmd(baseBusAdr + &He000 + &H4, &H60)
+		Sleep(1)
+		BusFlashCmd(baseBusAdr + &He000 + &H4, &H40)
+
+		Dim buf[&H100] AS Byte
+		ReadROM(hSerial, buf, 0, baseBusAdr + &He000 + &H24, &H100, FALSE)
+		Dump(buf, &H100)
+
+		ExitCommandMode()
+	End Sub
+
+	Sub MX29LV320_SectorProtectDump()
+		Dim flashIdBuf[FLASH_ID_SIZE] AS Byte
+		Dim SECTOR_SIZE = 8*1024 AS DWord
+		Dim i AS Long
+
+		Do 
+			Dim bus_addr, flash_ofs AS DWord
+			flash_ofs = i*SECTOR_SIZE
+			bus_addr = baseBusAdr + FLASH_ID_OFFSET + flash_ofs
+
+			EnterCommandMode()
+			DoFlashCmd(VarPtr(cmdSet.detect()))
+			ReadROM(hSerial,(flashIdBuf),0,bus_addr,FLASH_ID_SIZE,FALSE)
+			ExitCommandMode()
+
+			logger(ex"SectorProtectCheck %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
+			if flashIdBuf[4] <> 0 then
+				DBMf(ex"Protected %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
+			endif
+			i++
+			if (4*1024*1024) <= (i*SECTOR_SIZE) then exitdo
+		Loop
+
+
+	End Sub
 Private
 	
 
@@ -534,6 +600,7 @@ Private
 		Loop
 
 	End Function
+
 	
 End Class
 
@@ -593,6 +660,7 @@ Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId,
 		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE)
 		if fc.GetFlashChipId(flashId) then
 			FlashDetect_ = i
+			fc.CfiDump()
 			ExitFunction
 		End If
 	Next
