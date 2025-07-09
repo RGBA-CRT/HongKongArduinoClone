@@ -10,8 +10,15 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 //シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
 #define SERIAL_CONFIG SERIAL_8N1
+
+#define HKAC_DEBUG
+#ifndef HKAC_DEBUG
 #define FIRMWARE_NAME "HKAF"
 #define FIRMWARE_VERSION "5" // FWのAPIが変わったらインクリメント
+#else
+#define FIRMWARE_NAME "HKAD" // debug branch
+#define FIRMWARE_VERSION "0"
+#endif
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 
 /* version history

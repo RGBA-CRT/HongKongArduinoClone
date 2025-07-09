@@ -105,8 +105,12 @@ Sub FlashWnd_CommandButton1_Click()
 	SetSwapCeOeGui(swapCEOE)
 
 	' TODO: DETECT LOROM/HIROM layout
-	
-	DBMf("FlashID:%02X %02X %s", flashId.vendor, flashId.product, flashName)
+
+	if flashId.extend then
+		DBMf("FlashID:%02X%02X(%04X) %s", flashId.vendor, flashId.product, flashId.extend, flashName)
+	Else
+		DBMf("FlashID:%02X%02X %s", flashId.vendor, flashId.product, flashName)
+	End If
 
 	Dim info AS SFC_CART_INFO
 	wsprintf(info.Title, "<FLASH DETECTION MODE>", flashName)
@@ -317,11 +321,16 @@ Sub FlashWnd_CommandButton6_Click()
 		ExitSub
 	End If
 
+	Dim romSize AS DWord
+	romSize = GetDlgRomSize()
 	Dim fc AS FlashChipController
 	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
 
+	Dim pc AS *ProgressCallBack
+	pc = new_GenericProgressCallBack(FALSE)
+
 	DBM(ex"Start sector protect check...\n")
-	fc.MX29LV320_SectorProtectDump()
+	fc.MX29LV320_SectorProtectDump(romSize, VarPtr(opt.mmap), pc)
 	DBM(ex"protect check done!\n")
 
 End Sub

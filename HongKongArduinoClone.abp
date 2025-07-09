@@ -1,6 +1,8 @@
 #include <RGBALib.sbp>
 #include "HongKongArduinoClone.idx"
 
+#define DEBUG_BRANCH
+
 ' Todo: BSMとSFT, SFMemの検証　→　BSM（SA1除く）とSFT検証完了
 ' Todo: ini control class
 ' Todo: mmodelのcallbackをNULLにするんじゃない
@@ -60,8 +62,14 @@ Const HKAC_SRAM_WRITE_RETRY_LIMIT = 2
 'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
 Const HKAC_WRITE_BUFFER_LEN = &H400 ' TODO: auto nego UNO/NANO
+
+#ifndef DEBUG_BRANCH
 Const FIRMWARE_ID = "HKAF"
 Const FIRMWARE_VERSION = &H35
+#else
+Const FIRMWARE_ID = "HKAD"
+Const FIRMWARE_VERSION = &H30
+#endif
 
 const ID_DLG_TAB = &H1001
 Dim INIFILE_PATH AS BytePtr

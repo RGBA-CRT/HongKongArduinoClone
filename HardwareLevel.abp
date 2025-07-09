@@ -489,6 +489,14 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then
 			DBM("Flash request failed.")
+			Dim ErrReport[5] AS Byte
+			ReceiveFromReader(hSerial, ErrReport, 6)
+			if ErrReport[5] = GetByte("X") then
+				DBMf("@ %02X%02X%02Xh: %02Xh --> %02Xh (exp->real)", ErrReport[0], ErrReport[1], ErrReport[2], ErrReport[3], ErrReport[4])
+			Else
+				DBMf("invalid err report signature.")
+				Dump(ErrReport,5)
+			endif
 			ExitDo
 		End If
 		FlushCom(hSerial)
@@ -515,6 +523,10 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 		DBM("[DBG]Firmware Error!")
 		DBM("èëçûÉãÅ[É`Éìñ\ëñíÜ")
 	End If
+	
+	Dim max_loop As Word
+	ReceiveFromReader(hSerial, VarPtr(max_loop), 2)
+	logger(" HW loop=%x ", max_loop)
 End Function
 
 Function DatabusRead(hSerial AS HANDLE) As Long

@@ -1053,11 +1053,19 @@ Sub GetDlgOption(info As *SFC_CART_INFO)
 			info->MapType = SFC_MAP_LoROM
 		End If
 		'		info->MapMode = (info->MapMode And &HF0) or info->MapType
-		info->RomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
-		info->SramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
+		info->RomSize = GetDlgRomSize()
+		info->SramSize = GetDlgSramSize()
 		logger(ex"custom rom size = %d\n", (info->RomSize / 1024 / 1024) AS DWord)
 	End If
  End Sub
+
+Function GetDlgRomSize() As DWord
+	GetDlgRomSize = HKAC_GetWindowInt(MWnd(ROM_SIZE))
+End Function
+
+Function GetDlgSramSize() As DWord
+	GetDlgSramSize = HKAC_GetWindowInt(MWnd(SRAM_SIZE))
+End Function
 
 'MapMode (20 SrowRom LoROMÇÃÇ‚Ç¬ÅjÇÃGUIópä÷êî
 Function MapModeToComboboxIndex(mapMode As SFC_MAP_TYPE) As Long

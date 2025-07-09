@@ -20,6 +20,7 @@ Enum FlashCmdType
 	FlashCmdTypeMX29F1610
 	FlashCmdTypeFastDetect
 	FlashCmdTypeFastDetect2
+	FlashCmdTypeS29GL032N
 	FlashCmdTypeMAX
 End Enum
 
@@ -181,6 +182,34 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				FLASH_CMD(.elm[0], &H0000, &HF0)
 			End With
 
+		Case FlashCmdTypeS29GL032N
+			set.name = "Spansion with page buf (8bit mode)"
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &H80)
+
+				FLASH_CMD(.elm[3], &H2AAA, &HAA)
+				FLASH_CMD(.elm[4], &H5555, &H55)
+				FLASH_CMD(.elm[5], &H2AAA, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &H2AAA, &HAA)
+				FLASH_CMD(.elm[1], &H5555, &H55)
+				FLASH_CMD(.elm[2], &H2AAA, &HA0)
+			End With
+			With set.reset
+				.count = 1
+				FLASH_CMD(.elm[0], &H0000, &HF0)
+			End With
 		Case Else
 			GetFlashCmdSet = FALSE
 	End Select
@@ -193,7 +222,7 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 34
+Const FLASH_ID_TABLE_MAX = 44
 Const MBIT(x) = (x * &H20000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
@@ -229,7 +258,14 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
 	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' [TESTED] JRA-PAT
 	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
-	[ &H017E, "S29GL032N/S29GL064N", MBIT(32) ], ' 
+	[ &H017E, "S29GL032N/S29GL064N", MBIT(64) ], ' 
+	[ &H0C01017E, "S29GL064N(00/02/V1/V2)", MBIT(64) ], ' 
+	[ &H1000017E, "S29GL064N(04)", MBIT(64) ], ' 
+	[ &H1001017E, "S29GL064N(03)", MBIT(64) ], ' 
+	[ &H1301017E, "S29GL064N(06/07/V6/V7)", MBIT(64) ], ' 
+	[ &H1D00017E, "S29GL032N(00/02/V1/V2)", MBIT(32) ], ' 
+	[ &H1A00017E, "S29GL032N(04)", MBIT(32) ], ' 
+	[ &H1A01017E, "S29GL032N(03)", MBIT(32) ], ' 
 ] As FlashChipInfo
 
 ' うまく書き込めないときはPLCCソケットの接触を確認しよう
@@ -238,6 +274,7 @@ Type FlashChipId
 	idSize AS Long
 	vendor AS Word
 	product AS Word
+	extend AS DWord
 End Type
 
 ' ========== implments =============
@@ -245,7 +282,7 @@ End Type
 Const EON_FLASH_ID_OFFSET = &H100 ' EONのFlashはオフセットかけないと7F 7Fが帰る変な仕様
 Const FLASH_ID_SIZE = 64
 Const FLASH_ID_OFFSET = EON_FLASH_ID_OFFSET
-const FLASH_ERASE_TIMEOUT_MS = 60000 ' MAX: EN29F002 35sec
+const FLASH_ERASE_TIMEOUT_MS = 130000 ' MAX: EN29F002 35sec -> S29GL064 128sec
 Const PollInterval=32
 ' logic
 Class FlashChipController
@@ -284,12 +321,22 @@ Public
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
+				id->extend = 0
+				if id->vendor = id->product then ExitFunction
+				if (id->vendor = &H01) And (id->product = &H7E) then ExitFunction ' Skip to FlashCmdTypeS29GL032N
+
+			Elseif flashType = FlashCmdTypeS29GL032N then
+				id->idSize = 1
+				id->vendor = flashIdBuf[0]
+				id->product = flashIdBuf[2]
+				id->extend = (flashIdBuf[&H1C]<<8) OR (flashIdBuf[&H1E])
 				if id->vendor = id->product then ExitFunction
 
 			Else
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[1]
+				id->extend = 0
 				if id->vendor = id->product then ExitFunction
 			endif
 		End If
@@ -412,11 +459,13 @@ Public
 		ExitCommandMode()
 	End Sub
 
-	Sub MX29LV320_SectorProtectDump()
+	Sub MX29LV320_SectorProtectDump(size AS DWord, mmodel AS *SFC_MMAP_MODEL, pc AS *ProgressCallBack)
 		Dim flashIdBuf[FLASH_ID_SIZE] AS Byte
 		Dim SECTOR_SIZE = 8*1024 AS DWord
 		Dim i AS Long
+'		Dim lastTs AS DWord
 
+		if pc then pc->Init(size)
 		Do 
 			Dim bus_addr, flash_ofs AS DWord
 			flash_ofs = i*SECTOR_SIZE
@@ -428,14 +477,29 @@ Public
 			ExitCommandMode()
 
 			logger(ex"SectorProtectCheck %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
-			if flashIdBuf[4] <> 0 then
-				DBMf(ex"Protected %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
+			if flashIdBuf[4] = 0 then
+				' do nothing
+			Elseif flashIdBuf[4] = 1 then
+				DBMf(ex"\nProtected %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
+			Else
+				DBMf(ex"\nInvalid protect status? %x: %x-%x %02x %02x\n", bus_addr, flash_ofs, flash_ofs + SECTOR_SIZE-1, flashIdBuf[&H4], flashIdBuf[&H6])
+			endif
+			
+			if pc then 
+				'if GetTickCount()-lastTs > 250 then
+					pc->Step(SECTOR_SIZE AS Long, (i*SECTOR_SIZE))
+					if pc->isCancel() then
+						DBM("Aborted by user")
+						Exitdo
+					End If
+				'	lastTs = GetTickCount()
+				'End If
 			endif
 			i++
-			if (4*1024*1024) <= (i*SECTOR_SIZE) then exitdo
+			if size <= (i*SECTOR_SIZE) then exitdo
 		Loop
 
-
+		if pc then pc->Final()
 	End Sub
 Private
 	
@@ -620,10 +684,12 @@ End Function*/
 
 Function GetFlashChipInfo(chipId AS *FlashChipId) As *FlashChipInfo
 	Dim i As Long
+	Dim id AS DWord
+	
 	GetFlashChipInfo = NULL
 	if chipId->idSize = 1 then
-		Dim id AS Word
-		id = (chipId->vendor << 8) OR (chipId->product)
+		id = (chipId->vendor << 8) OR (chipId->product) OR (chipId->extend << 16)
+
 		for i = 0 To FLASH_ID_TABLE_MAX-1
 			if FlashChipInfoTable[i].id = id Then
 				GetFlashChipInfo = VarPtr(FlashChipInfoTable[i])

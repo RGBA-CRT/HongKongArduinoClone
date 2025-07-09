@@ -62,20 +62,26 @@ inline byte bulkReadAcquire()
 // clockは16MHz, 1cycle1命令とする(今もそうなのか？). 62.5ns
 // readDataが108clkぐらい
 // その他関数内のループを少なく見積もって5clkぐらい。7,062.5ns
-#define FLASH_WAIT_TIMEOUT_CYCLE 140
+#define FLASH_WAIT_TIMEOUT_CYCLE 0xffff
 // #define POLL_ONLY_DQ7
 
-// return: error(true) or ok(false)
-inline bool flashWaitOperation(byte expect_byte){
-  bool ret = false;
+word max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
+inline byte flashWaitOperation(byte expect_byte){
+  byte ret;
+
+  // S29L032N tBusy  
+  __asm__ volatile("nop");
+  __asm__ volatile("nop");
+
   bulkReadInit();
 
-  for(byte i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
-    if(bulkReadAcquire() == expect_byte){
+  for(word i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
+    ret = bulkReadAcquire();
+    if(ret == expect_byte){
+      max_loop = (max_loop>i) ? i : max_loop;
       goto fwoExit;
     }
   }
-  ret = true;
 
 fwoExit:
   bulkReadExit();
@@ -156,8 +162,16 @@ void flashWriteCart() {
     address++;
     bufptr++;
 
-    if(flashWaitOperation(b)){
+    byte wait_ret = flashWaitOperation(b);
+    if(wait_ret != b ){
       // report fail to write
+      address--;
+      serial_send('X');
+      serial_send(bank);
+      serial_send((byte)(address>>8));
+      serial_send((byte)address);
+      serial_send(b);
+      serial_send(wait_ret);
       serial_send('X');
       break;
     }
@@ -168,6 +182,8 @@ void flashWriteCart() {
 
   //Send End Signal
   serial_send('E');
+  serial_send((byte)(max_loop>>8));
+  serial_send((byte)max_loop);
   //  Serial.println("WRITE_END");
 }
 
