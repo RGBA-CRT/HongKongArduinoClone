@@ -2,13 +2,13 @@
 #pragma GCC optimize("O3")
 
 
-#define FLASH_OE_ENABLE()   PORTC &= val_oe_and_mask
-#define FLASH_OE_DISABLE()  PORTC |= val_oe_or_mask
-#define FLASH_OE_TOGGLE()   PINC  =  val_oe_or_mask
+#define FLASH_OE_ENABLE() PORTC &= val_oe_and_mask
+#define FLASH_OE_DISABLE() PORTC |= val_oe_or_mask
+#define FLASH_OE_TOGGLE() PINC = val_oe_or_mask
 
-#define FLASH_CE_ENABLE()   PORTC &= ~val_ce_or_mask
-#define FLASH_CE_DISABLE()  PORTC |= val_ce_or_mask
-#define FLASH_CE_TOGGLE()   PINC  =  val_ce_or_mask
+#define FLASH_CE_ENABLE() PORTC &= ~val_ce_or_mask
+#define FLASH_CE_DISABLE() PORTC |= val_ce_or_mask
+#define FLASH_CE_TOGGLE() PINC = val_ce_or_mask
 
 //flash config
 #define FLASH_COMMAND_LENGTH 3
@@ -31,28 +31,24 @@ void flashReceiveConfig() {
   SetFlashOECtrl((flags & FLASH_CONFIG_CEOE_SWAP));
 }
 
-inline void bulkReadInit(){
+inline void bulkReadInit() {
   setDataPin(0x00);
   dataDirInput();
   BB_DIR_INPUT();
 }
-inline void bulkReadExit(){
+inline void bulkReadExit() {
   BB_DIR_TOGGLE();
   dataDirOutput();
 }
 
-inline byte bulkReadAcquire()
-{
+inline byte bulkReadAcquire() {
   FLASH_OE_TOGGLE();
-  
+
   __asm__ volatile("nop");
 
   byte b = getDataPin();
 
   FLASH_OE_TOGGLE();
-  // __asm__ volatile(
-  //   "nop\n"
-  // );
 
   return b;
 }
@@ -66,39 +62,39 @@ inline byte bulkReadAcquire()
 // #define POLL_ONLY_DQ7
 
 word max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
-inline byte flashWaitOperation(byte expect_byte){
-  byte ret;
-
-  // S29L032N tBusy  
-  __asm__ volatile("nop");
-  __asm__ volatile("nop");
-
+inline byte flashWaitOperation(byte expect_byte) {
   bulkReadInit();
+  byte ret;
+  byte ok_cnt = 2;
+  word i = FLASH_WAIT_TIMEOUT_CYCLE;
+  // S29L032N tBusy
+  // __asm__ volatile("nop");
+  // __asm__ volatile("nop");
+  // __asm__ volatile("nop");
 
-  for(word i = FLASH_WAIT_TIMEOUT_CYCLE; i; --i){
+  do {
     ret = bulkReadAcquire();
-    if(ret == expect_byte){
-      max_loop = (max_loop>i) ? i : max_loop;
-      goto fwoExit;
+    if (ret == expect_byte) {
+      if (--ok_cnt) continue;
+      break;
     }
-  }
-
-fwoExit:
+  } while (--i);
   bulkReadExit();
+  
+  max_loop = (max_loop > i) ? i : max_loop;
   return ret;
 }
 
-void flashBulkWriteInit(){
+void flashBulkWriteInit() {
   // 初期PIN状態。ループ内最適化のためtoggleなどしているため注意。
   CART_WRITE_DISABLE();
   FLASH_OE_DISABLE();
   BB_DIR_OUTPUT();
   BB_OUT_ENABLE();
   FLASH_CE_ENABLE();
-
 }
 
-void flashBulkWriteExit(){
+void flashBulkWriteExit() {
   FLASH_CE_DISABLE();
   CART_WRITE_DISABLE();
   FLASH_OE_DISABLE();
@@ -107,19 +103,28 @@ void flashBulkWriteExit(){
 }
 
 //　/WRとかをちゃんと制御して書き込む
-inline void writebyte_cart2(byte bank, word address, byte data) {
+void writebyte_cart2(byte bank, word address, byte data) {
   setAddress_(bank, address);
   setDataPin(data);
 
-  __asm__ volatile("nop");
-  __asm__ volatile("nop");
+  // tAS: Address Setup Time: アドレスを出力してからWEを下げていいまで: 0ns @ S29GL032
+  // tAH: Address Hold Time: WEが下がってからアドレスを潰していいまで: 45ns
+  __asm__ volatile("nop"); // 100ns
+  __asm__ volatile("nop"); // 200ns
+  // longWait();
 
   CART_WRITE_TOGGLE();
 
+  // tDS: data setup time: データが出てからWEが立ち上がるまで: 35ns @ S29GL032
+  // tDH: Data Hold Time: WE立ち上がってから潰して良いまで: 0ns @ S29GL032
+  // tWP: WEパルスの幅: 35ns @ S29GL032
+
   __asm__ volatile("nop");
   __asm__ volatile("nop");
+  // nop2個で200nsぐらい（多分）
 
   CART_WRITE_TOGGLE();
+  __asm__ volatile("nop"); // 300ns
 }
 
 void flashWriteCart() {
@@ -134,7 +139,7 @@ void flashWriteCart() {
 
   // メモリは余っているので速度優先でじゃんじゃんつかおう
   byte* bufptr = buf;
-  word remain = 1; // 最初は必ず受信させる
+  word remain = 1;  // 最初は必ず受信させる
 
   do {
     //データ受信
@@ -163,27 +168,28 @@ void flashWriteCart() {
     bufptr++;
 
     byte wait_ret = flashWaitOperation(b);
-    if(wait_ret != b ){
+    if (wait_ret != b) {
       // report fail to write
-      address--;
+      --address;
       serial_send('X');
-      serial_send(bank);
-      serial_send((byte)(address>>8));
       serial_send((byte)address);
+      serial_send((byte)(address >> 8));
+      serial_send(bank);
       serial_send(b);
       serial_send(wait_ret);
       serial_send('X');
       break;
     }
-  
-  } while( --datasize );
+
+  } while (--datasize);
 
   flashBulkWriteExit();
 
   //Send End Signal
   serial_send('E');
-  serial_send((byte)(max_loop>>8));
-  serial_send((byte)max_loop);
+  serial_send((byte)(max_loop));
+  serial_send((byte)(max_loop >> 8));
+  max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
   //  Serial.println("WRITE_END");
 }
 

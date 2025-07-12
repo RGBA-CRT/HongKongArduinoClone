@@ -323,13 +323,24 @@ inline void setCtrlBus(byte b) {
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
+void longWait(){
+__asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+
+}
+
 inline byte readData()
 {
   CART_OUTPUT_ENABLE();
   dataDirInput();
   BB_OUT_ENABLE();
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
+  longWait();  
+  longWait();  
+  // AddressOutputDelay: 110nsぐらい
+  // Output Enable to Output Delay: 25nsぐらい
+  // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
+  // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
   byte b = getDataPin();
 
   BB_OUT_DISABLE();
