@@ -139,11 +139,7 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 		logger(ex"Warning: Read responce invalid. %xh\n", check)
 	endif
 */
-	Dim tmp AS BytePtr
-	tmp = calloc(size+1)
-	ReadROM=ReceiveFromReader(hSerial, tmp, size)
-	memcpy(data, tmp+1,size)
-	free(tmp)
+	ReadROM=ReceiveFromReader(hSerial, data, size)
 	
 	logger(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
 End Function

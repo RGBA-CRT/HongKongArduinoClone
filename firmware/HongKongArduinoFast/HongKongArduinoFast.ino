@@ -197,17 +197,17 @@ inline void setDataPin(byte b)
 inline void setFF(byte ch, byte b)
 {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
-  PORTB &= ~(0b00001000 << ch);
+  PINB = (0b00001000 << ch);
   setDataPin(b);
 
   // digitalWrite(CK, HIGH);
-  PORTC |= 0b00000010;
+  PINC = 0b00000010;
 
   //digitalWrite(CK, LOW);
-  PORTC &= 0b11111101;
+  PINC = 0b00000010;
 
   //digitalWrite(G0 + ch, HIGH); // WriteDisable
-  PORTB |= 0b00001000 << ch;
+  PINB = (0b00001000 << ch);
 }
 
 
@@ -245,6 +245,7 @@ inline void setAddress(byte bank, word address, byte isLoROM){
 
   BB_OUT_DISABLE();
   setAddress_(bank, address);
+  // longWait();
 }
 
 void readCart(byte isLoROM) {
@@ -253,57 +254,15 @@ void readCart(byte isLoROM) {
   byte bank = Serial.read();
   word datasize = Serial_readWord();
 
-  CART_WRITE_DISABLE();
-  CART_OUTPUT_DISABLE();
-  CART_CHIP_ENABLE();
-  BB_DIR_INPUT();
-  BB_OUT_DISABLE();
-
-  byte last_byte = 'S';
+  // note: 一見最適化の余地があるが、結局serial_sendで待ちが発生するので意味無し
   do {
-    dataDirOutput();
-    setAddress_(bank, address++);
-
-    dataDirInput();
-    BB_OUT_TOGGLE();
-    CART_OUTPUT_TOGGLE();
-
-    serial_send(last_byte);
-
-    // longWait();  
-    // AddressOutputDelay: 110nsぐらい
-    // Output Enable to Output Delay: 25nsぐらい
-    // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
-    // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
-    __asm__ volatile("nop");
-    last_byte = getDataPin();
+    setAddress(bank, address++, isLoROM);
+    // SA1でおかしくなったらsetAddressにnopを仕込む
     
-    BB_OUT_TOGGLE();
-    CART_OUTPUT_TOGGLE();
+    serial_send(readData());
   } while(--datasize);
 
-  CART_CHIP_DISABLE();
-  BB_OUT_DISABLE();
-  BB_DIR_INPUT();
-  
-  serial_send(last_byte);
-
 }
-// void readCart(byte isLoROM) {
-//   while (Serial.available() < 5);
-//   word address = Serial_readWord();
-//   byte bank = Serial.read();
-//   word datasize = Serial_readWord();
-
-//   serial_send('S');
-//   do {
-//     setAddress(bank, address++, isLoROM);
-//     __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-//     //for(byte i=100; i; --i);
-//     serial_send(readData());
-//   } while(--datasize);
-
-// }
 
 void writeCart(int isLoROM = false) {
   //コマンド受信
@@ -367,24 +326,40 @@ inline void setCtrlBus(byte b) {
 }
 
 void longWait(){
-// __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
+  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t"); // nop*16
+  // 1us～1.6usぐらい
 }
 
 inline byte readData()
 {
-  longWait();  
   dataDirInput();
   BB_OUT_ENABLE();
   CART_OUTPUT_ENABLE();
 
-  longWait();  
   // AddressOutputDelay: 110nsぐらい
   // Output Enable to Output Delay: 25nsぐらい
   // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
+// #define SUPER_SLOW_READ
+#ifndef SUPER_SLOW_READ
+  longWait();  
   byte b = getDataPin();
+#else
+  const byte ok_retry_max = 10;
+  const byte ng_retry_max = 30;
+  byte ok_cnt = ok_retry_max;
+  byte ng_cnt = ng_retry_max;
+retry:
+  longWait();  
+  byte b = getDataPin();
+  if(getDataPin() == b){
+    ng_cnt = ng_retry_max;
+    if(--ok_cnt) goto retry;
+  } else {
+    ok_cnt = ok_retry_max;
+    if(--ng_cnt) goto retry;
+  }
+#endif
 
   BB_OUT_DISABLE();
   dataDirOutput();

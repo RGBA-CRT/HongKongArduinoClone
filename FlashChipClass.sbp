@@ -183,7 +183,7 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 			End With
 
 		Case FlashCmdTypeS29GL032N
-			set.name = "Spansion with page buf (8bit mode)"
+			set.name = "Spansion with word write (8bit mode)"
 			With set.detect
 				.count = 3
 				FLASH_CMD(.elm[0], &H2AAA, &HAA)
@@ -258,14 +258,15 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H3786, "A29040"     , MBIT( 4) ], ' [TESTED] ByteProgram: 300us ChipErase 11sec
 	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' [TESTED] JRA-PAT
 	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
-	[ &H017E, "S29GL032N/S29GL064N", MBIT(64) ], ' 
-	[ &H0C01017E, "S29GL064N(00/02/V1/V2)", MBIT(64) ], ' 
-	[ &H1000017E, "S29GL064N(04)", MBIT(64) ], ' 
-	[ &H1001017E, "S29GL064N(03)", MBIT(64) ], ' 
-	[ &H1301017E, "S29GL064N(06/07/V6/V7)", MBIT(64) ], ' 
-	[ &H1D00017E, "S29GL032N(00/02/V1/V2)", MBIT(32) ], ' 
-	[ &H1A00017E, "S29GL032N(04)", MBIT(32) ], ' 
-	[ &H1A01017E, "S29GL032N(03)", MBIT(32) ], ' 
+	[ &H32B0, "M29W320"    , MBIT(32) ], ' [REPORTED OK] https://github.com/RGBA-CRT/HongKongArduinoClone/issues/8
+	[ &H017E, "S29GL032N/S29GL064N", MBIT(64) ], 		' [not supported]
+	[ &H0C01017E, "S29GL064N(00/02/V1/V2)", MBIT(64) ], ' [not supported]
+	[ &H1000017E, "S29GL064N(04)", MBIT(64) ], 			' [not supported]
+	[ &H1001017E, "S29GL064N(03)", MBIT(64) ], 			' [not supported]
+	[ &H1301017E, "S29GL064N(06/07/V6/V7)", MBIT(64) ], ' [not supported]
+	[ &H1D00017E, "S29GL032N(00/02/V1/V2)", MBIT(32) ], ' [not supported]
+	[ &H1A00017E, "S29GL032N(04)", MBIT(32) ], 			' [not supported]
+	[ &H1A01017E, "S29GL032N(03)", MBIT(32) ], 			' [not supported]
 ] As FlashChipInfo
 
 ' うまく書き込めないときはPLCCソケットの接触を確認しよう
