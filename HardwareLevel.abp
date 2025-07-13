@@ -132,7 +132,18 @@ Function ReadROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DW
 	WriteFile(hSerial,cmd,6,VarPtr(dwReadByte),ByVal NULL)
 	dwReadByte=0
 
-	ReadROM=ReceiveFromReader(hSerial, data, size)
+/*
+	Dim check=0 As Byte
+	ReadFile(hSerial, VarPtr(check), 1, VarPtr(dwReadByte), ByVal NULL)
+	if check <> GetByte("S") then
+		logger(ex"Warning: Read responce invalid. %xh\n", check)
+	endif
+*/
+	Dim tmp AS BytePtr
+	tmp = calloc(size+1)
+	ReadROM=ReceiveFromReader(hSerial, tmp, size)
+	memcpy(data, tmp+1,size)
+	free(tmp)
 	
 	logger(ex"$%02X:%04X %X/%X bytes received.\n",address>>16,address And &HFFFF,ReadROM,size)
 End Function
@@ -192,6 +203,7 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 	timeEndPeriod(1)
 
 	ReceiveFromReader=TotalReadByte
+'	Dump(data, size)
 End Function
 
 Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWord) AS BOOL

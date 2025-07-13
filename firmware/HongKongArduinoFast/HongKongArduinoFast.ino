@@ -247,20 +247,63 @@ inline void setAddress(byte bank, word address, byte isLoROM){
   setAddress_(bank, address);
 }
 
-inline void readCart(byte isLoROM) {
+void readCart(byte isLoROM) {
   while (Serial.available() < 5);
   word address = Serial_readWord();
   byte bank = Serial.read();
   word datasize = Serial_readWord();
 
+  CART_WRITE_DISABLE();
+  CART_OUTPUT_DISABLE();
+  CART_CHIP_ENABLE();
+  BB_DIR_INPUT();
+  BB_OUT_DISABLE();
+
+  byte last_byte = 'S';
   do {
-    setAddress(bank, address++, isLoROM);
-    __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-    //for(byte i=100; i; --i);
-    serial_send(readData());
+    dataDirOutput();
+    setAddress_(bank, address++);
+
+    dataDirInput();
+    BB_OUT_TOGGLE();
+    CART_OUTPUT_TOGGLE();
+
+    serial_send(last_byte);
+
+    // longWait();  
+    // AddressOutputDelay: 110nsぐらい
+    // Output Enable to Output Delay: 25nsぐらい
+    // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
+    // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
+    __asm__ volatile("nop");
+    last_byte = getDataPin();
+    
+    BB_OUT_TOGGLE();
+    CART_OUTPUT_TOGGLE();
   } while(--datasize);
 
+  CART_CHIP_DISABLE();
+  BB_OUT_DISABLE();
+  BB_DIR_INPUT();
+  
+  serial_send(last_byte);
+
 }
+// void readCart(byte isLoROM) {
+//   while (Serial.available() < 5);
+//   word address = Serial_readWord();
+//   byte bank = Serial.read();
+//   word datasize = Serial_readWord();
+
+//   serial_send('S');
+//   do {
+//     setAddress(bank, address++, isLoROM);
+//     __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+//     //for(byte i=100; i; --i);
+//     serial_send(readData());
+//   } while(--datasize);
+
+// }
 
 void writeCart(int isLoROM = false) {
   //コマンド受信
@@ -324,18 +367,18 @@ inline void setCtrlBus(byte b) {
 }
 
 void longWait(){
-__asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+// __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
   __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
 }
 
 inline byte readData()
 {
-  CART_OUTPUT_ENABLE();
+  longWait();  
   dataDirInput();
   BB_OUT_ENABLE();
+  CART_OUTPUT_ENABLE();
 
-  longWait();  
   longWait();  
   // AddressOutputDelay: 110nsぐらい
   // Output Enable to Output Delay: 25nsぐらい
