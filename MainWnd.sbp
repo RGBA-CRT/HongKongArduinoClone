@@ -1911,7 +1911,7 @@ Function CheckFirmware(hSerial AS HANDLE, msg As BOOL, hWnd AS HANDLE, timeout_m
 	FwVer = rsv[4]
 	rsv[4] = 0
 	
-	if lstrcmp(rsv, FIRMWARE_ID) = 0 Then
+	if (lstrcmp(rsv, FIRMWARE_ID) = 0) OR (lstrcmp(rsv, "HKAD") = 0) Then
 		if FwVer = FIRMWARE_VERSION Then
 			CheckFirmware = RET_OK
 			

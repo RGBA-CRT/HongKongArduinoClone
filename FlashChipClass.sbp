@@ -224,6 +224,7 @@ End Type
 
 Const FLASH_ID_TABLE_MAX = 44
 Const MBIT(x) = (x * &H20000)
+Const MegaByte(x) = (x * &H100000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2A4, "MX29F040"   , MBIT( 4) ], ' [TESTED]
 	[ &HC2D5, "MX29F080"   , MBIT( 8) ], ' ByteProgram: 7-210us, ChipErase: 8-64sec
@@ -243,6 +244,8 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &H0120, "AM29F010"   , MBIT( 1) ], ' 
 	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
 	[ &H01D5, "AM29F080"   , MBIT( 8) ], ' [TESTED]
+	[ &H01D6, "AM29F800BT" , MBIT( 8) ],
+	[ &H0158, "AM29F800BB" , MBIT( 8) ], ' [TESTED]
 	[ &HBFB5, "SST39SF010A", MBIT( 1) ],
 	[ &HBFB5, "SST39SF020A", MBIT( 2) ],
 	[ &HBFB7, "SST39SF040" , MBIT( 4) ], ' [TESTED] ByteProgram: 14us, ChipErase: 0.1sec

@@ -176,11 +176,15 @@ Sub FlashWnd_CommandButton2_Click()
 	Dim fc AS FlashChipController
 
 	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+
+	Dim time AS DWord
+	time = GetTickCount()
 	if fc.ChipErase(pc) then
-		DBM(ex"Chip Erase done!\r\n")
+		time = GetTickCount() - time
+		DBMf(ex"\r\nChip Erase done! %d.%d sec\r\n", time / 1000, time Mod 1000)
 		SE_OK()
 	Else
-		DBM(ex"Chip Erase failed.\r\n")
+		DBM(ex"\r\nChip Erase failed.\r\n")
 		SE_NG()
 	End If
 
@@ -202,6 +206,18 @@ Sub FlashWnd_Program(file AS BytePtr)
 	if buf.length() = 0 then
 		DBM("file size is zero.")
 		exitsub
+	endif
+	
+	if buf.length() = MegaByte(3) then
+		DBMf("un-trim: %d MB -> 4 MB", buf.length()/1024/1024)
+		buf.alloc(MegaByte(4))
+		buf.setLength(MegaByte(4))
+		memcpy(buf.ptr + MegaByte(3), buf.ptr + MegaByte(2), MegaByte(1))
+	Else if buf.length() = MegaByte(6) then
+		DBMf("un-trim: %d MB -> 8 MB", buf.length()/1024/1024)
+		buf.alloc(MegaByte(8))
+		buf.setLength(MegaByte(8))
+		memcpy(buf.ptr + MegaByte(6), buf.ptr + MegaByte(4), MegaByte(2))
 	endif
 
 	Dim pc AS *ProgressCallBack
