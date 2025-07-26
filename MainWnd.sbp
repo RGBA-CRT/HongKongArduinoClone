@@ -2014,3 +2014,20 @@ function GetBsMemSaveDialogFilter() AS BytePtr
 		GetBsMemSaveDialogFilter=ex"BS Memory Pack image(*.bs)\0*.bs\0SNES ROM image(*.sfc)\0*.bs\0All Files(*.*)\0*.*\0\0"
 	endif
 End Function
+
+Sub MainWnd_CheckBox8_Click()
+	Dim isSuperSlowEnable AS BOOL
+	isSuperSlowEnable = GetCheckBox(MWnd(CheckBox8))
+
+	Dim FlashConfig16bit AS FlashConfig		
+	if isSuperSlowEnable then
+		DBM("SuperSlowRead Enable")
+		FlashConfig16bit.flags = FLASH_SUPER_SLOW_READ_MODE
+		HKAC_TRANSFER_FLOAT_TIME_MUL *= 100
+	Else
+		DBM("SuperSlowRead DISABLED")
+		FlashConfig16bit.flags = 0
+		HKAC_TRANSFER_FLOAT_TIME_MUL /= 100
+	End If
+	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
+End Sub

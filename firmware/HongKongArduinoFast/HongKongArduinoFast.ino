@@ -20,6 +20,9 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define FIRMWARE_VERSION "0"
 #endif
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
+#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
+#define RX_BUFFER_LEN BUFFER_LEN
+static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
 
 /* version history
  * HKAF0: 2017/02: add version cmd
@@ -133,12 +136,15 @@ void SetFlashOECtrl(bool swap_ce_oe){
 #define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
 
 // RXバッファ
-#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
-#define RX_BUFFER_LEN BUFFER_LEN
 byte buf[BUFFER_LEN];
 
 //現在のアドレスの状態
 byte lastadr[3];
+
+byte gflags;
+#define FLASH_CONFIG_CEOE_SWAP 0x01
+#define FLASH_CONFIG_BYTE_VERIFY 0x02
+#define GFLAGS_SUPER_SLOW_READ 0x04
 
 //-----------------
 // serial comm
@@ -340,26 +346,26 @@ inline byte readData()
   // Output Enable to Output Delay: 25nsぐらい
   // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
-// #define SUPER_SLOW_READ
-#ifndef SUPER_SLOW_READ
   longWait();  
-  byte b = getDataPin();
-#else
-  const byte ok_retry_max = 10;
-  const byte ng_retry_max = 30;
-  byte ok_cnt = ok_retry_max;
-  byte ng_cnt = ng_retry_max;
+  byte b;
+  if(gflags & GFLAGS_SUPER_SLOW_READ){
+    const byte ok_retry_max = 10;
+    const byte ng_retry_max = 30;
+    byte ok_cnt = ok_retry_max;
+    byte ng_cnt = ng_retry_max;
 retry:
-  longWait();  
-  byte b = getDataPin();
-  if(getDataPin() == b){
-    ng_cnt = ng_retry_max;
-    if(--ok_cnt) goto retry;
-  } else {
-    ok_cnt = ok_retry_max;
-    if(--ng_cnt) goto retry;
+    longWait();  
+    b = getDataPin();
+    if(getDataPin() == b){
+      ng_cnt = ng_retry_max;
+      if(--ok_cnt) goto retry;
+    } else {
+      ok_cnt = ok_retry_max;
+      if(--ng_cnt) goto retry;
+    }
+  }else{
+    b = getDataPin();
   }
-#endif
 
   BB_OUT_DISABLE();
   dataDirOutput();
@@ -664,7 +670,7 @@ void loop() {
       } break;
 #endif
     default:
-      Serial.write("?");
+      Serial.write("?INVALIDCMD=");
       Serial.write(cmd);
   }
 }

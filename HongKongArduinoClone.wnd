@@ -64,6 +64,7 @@ WINDOW:MainWnd
     ITEM      = CB_MINIMIZE_ROM,356,228,44,13,"Trim",&H50004003,&H00000000,2
     ITEM      = CommandButton18,510,289,32,16,"bus",&H50000000,&H00000000,1
     ITEM      = ImageBox1,550,3,15,7,"",&H50000000,&H00000200,11
+    ITEM      = CheckBox8,482,270,74,15,"SuperSlow",&H50000003,&H00000000,2
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem
@@ -173,6 +174,7 @@ WINDOW:FlashWnd
     ITEM      = GroupBox1,8,105,251,100,"MemoryLayout",&H50000007,&H00000000,5
     ITEM      = CheckBox2,174,92,88,15,"Swap CE-OE",&H50010003,&H00000000,2
     ITEM      = Static2,177,270,208,12,"add filepath slot, add chiperase warning",&H58000000,&H00000000,11
-    ITEM      = CommandButton6,199,209,36,21,"PC",&H50000000,&H00000000,1
+    ITEM      = CommandButton6,192,209,36,21,"PC",&H50000000,&H00000000,1
     ITEM      = CommandButton7,233,209,25,19,"UPS",&H50000000,&H00000000,1
+    ITEM      = CommandButton8,250,219,25,19,"RST",&H50000000,&H00000000,1
 END

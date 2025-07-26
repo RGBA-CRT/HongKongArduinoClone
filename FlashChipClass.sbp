@@ -11,16 +11,19 @@ Type FlashCmdSet
 	chipErase AS FlashCmdList
 	program As FlashCmdList
 	reset As FlashCmdList
+	byteVerify AS BOOL
+	writePageSize AS Long
+	writePageWait_us AS Long 
+	eraseDoneExpect AS Long
 End Type
 
 Enum FlashCmdType
 	FlashCmdTypeNotFlash = 0
 	FlashCmdTypeJDEC8
 	FlashCmdTypeJDEC16Shift8
-	FlashCmdTypeMX29F1610
-	FlashCmdTypeFastDetect
-	FlashCmdTypeFastDetect2
 	FlashCmdTypeS29GL032N
+	FlashCmdTypeNonShiftA14
+	FlashCmdTypeMX29F1610MC
 	FlashCmdTypeMAX
 End Enum
 
@@ -30,6 +33,10 @@ Sub FLASH_CMD(ByRef elm as FlashCmdElm,adr AS Word, data as Byte)
 End Sub
 Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS BOOL
 	GetFlashCmdSet = TRUE
+	set.byteVerify = TRUE
+	set.writePageSize = 0
+	set.writePageWait_us = 0
+	set.eraseDoneExpect = &HFF
 
 	Select Case flashType
 		Case FlashCmdTypeNotFlash
@@ -98,90 +105,6 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				FLASH_CMD(.elm[0], &H0000, &HF0)
 			End With
 
-			
-		Case FlashCmdTypeMX29F1610
-			set.name = "[TEST] Long Reset"
-			With set.detect
-				.count = 3
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &H90)
-			End With
-			With set.chipErase
-				.count = 6
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &H80)
-
-				FLASH_CMD(.elm[3], &H5555, &HAA)
-				FLASH_CMD(.elm[4], &H2AAA, &H55)
-				FLASH_CMD(.elm[5], &H5555, &H10)
-			End With
-			With set.program
-				.count = 3
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &HA0)
-			End With
-			With set.reset
-				.count = 3
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &HF0)
-			End With
-		Case FlashCmdTypeFastDetect
-			set.name = "[TEST] Detect write adr 0"
-			With set.detect
-				.count = 1
-				FLASH_CMD(.elm[0], &H0000, &H90)
-			End With
-			With set.chipErase
-				.count = 6
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &H80)
-
-				FLASH_CMD(.elm[3], &H5555, &HAA)
-				FLASH_CMD(.elm[4], &H2AAA, &H55)
-				FLASH_CMD(.elm[5], &H5555, &H10)
-			End With
-			With set.program
-				.count = 3
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &HA0)
-			End With
-			With set.reset
-				.count = 1
-				FLASH_CMD(.elm[0], &H0000, &HF0)
-			End With
-		Case FlashCmdTypeFastDetect2
-			set.name = "[TEST] Detect write adr 0 and lonreset"
-			With set.detect
-				.count = 1
-				FLASH_CMD(.elm[0], &H0000, &H90)
-			End With
-			With set.chipErase
-				.count = 6
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &H80)
-
-				FLASH_CMD(.elm[3], &H5555, &HAA)
-				FLASH_CMD(.elm[4], &H2AAA, &H55)
-				FLASH_CMD(.elm[5], &H5555, &H10)
-			End With
-			With set.program
-				.count = 3
-				FLASH_CMD(.elm[0], &H5555, &HAA)
-				FLASH_CMD(.elm[1], &H2AAA, &H55)
-				FLASH_CMD(.elm[2], &H5555, &HA0)
-			End With
-			With set.reset
-				.count = 1
-				FLASH_CMD(.elm[0], &H0000, &HF0)
-			End With
-
 		Case FlashCmdTypeS29GL032N
 			set.name = "Spansion with word write (8bit mode)"
 			With set.detect
@@ -210,6 +133,45 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				.count = 1
 				FLASH_CMD(.elm[0], &H0000, &HF0)
 			End With
+
+		Case FlashCmdTypeMX29F1610MC, FlashCmdTypeNonShiftA14	
+			if flashType = FlashCmdTypeMX29F1610MC then
+				set.name = "128 bytes page write + cmd mask A14 w/o A-1 shift"
+				set.byteVerify = FALSE
+				set.writePageSize = 128
+				set.writePageWait_us = 110
+				set.eraseDoneExpect = &H80
+			Else
+				set.name = "cmd mask A14 w/o A-1 shift"
+			endif
+			With set.detect
+				.count = 3
+				FLASH_CMD(.elm[0], &HAAAA, &HAA)
+				FLASH_CMD(.elm[1], &H5554, &H55)
+				FLASH_CMD(.elm[2], &HAAAA, &H90)
+			End With
+			With set.chipErase
+				.count = 6
+				FLASH_CMD(.elm[0], &HAAAA, &HAA)
+				FLASH_CMD(.elm[1], &H5554, &H55)
+				FLASH_CMD(.elm[2], &HAAAA, &H80)
+
+				FLASH_CMD(.elm[3], &HAAAA, &HAA)
+				FLASH_CMD(.elm[4], &H5554, &H55)
+				FLASH_CMD(.elm[5], &HAAAA, &H10)
+			End With
+			With set.program
+				.count = 3
+				FLASH_CMD(.elm[0], &HAAAA, &HAA)
+				FLASH_CMD(.elm[1], &H5554, &H55)
+				FLASH_CMD(.elm[2], &HAAAA, &HA0)
+			End With
+			With set.reset
+				.count = 3
+				FLASH_CMD(.elm[0], &HAAAA, &HAA)
+				FLASH_CMD(.elm[1], &H5554, &H55)
+				FLASH_CMD(.elm[2], &HAAAA, &HF0)
+			End With
 		Case Else
 			GetFlashCmdSet = FALSE
 	End Select
@@ -222,7 +184,7 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 44
+Const FLASH_ID_TABLE_MAX = 45
 Const MBIT(x) = (x * &H20000)
 Const MegaByte(x) = (x * &H100000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
@@ -241,6 +203,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2F7, "MX29F1611"  , MBIT(16) ], ' NintendoPower
 	[ &HC26B, "MX29F1615"  , MBIT(16) ], ' NintendoPower
 	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
+	[ &HC2F1, "MX29F1610MC", MBIT(16) ], ' NintendoPower
 	[ &H0120, "AM29F010"   , MBIT( 1) ], ' 
 	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
 	[ &H01D5, "AM29F080"   , MBIT( 8) ], ' [TESTED]
@@ -307,6 +270,7 @@ Public
 		this.flashType = flashType
 		this.baseBusAdr = base
 		this.isSwapCE_OE = swapCE_OE
+
 	End Sub
 
 	Function GetFlashChipId(id As *FlashChipId) AS BOOL		
@@ -336,6 +300,14 @@ Public
 				id->extend = (flashIdBuf[&H1C]<<8) OR (flashIdBuf[&H1E])
 				if id->vendor = id->product then ExitFunction
 
+			Elseif (flashType = FlashCmdTypeNonShiftA14) OR (flashType = FlashCmdTypeMX29F1610MC) then
+				id->idSize = 1
+				id->vendor = flashIdBuf[0]
+				id->product = flashIdBuf[2]
+				id->extend = 0
+				if id->vendor = id->product then ExitFunction
+				if (flashType = FlashCmdTypeNonShiftA14) And (id->vendor = &HC2) And (id->product = &HF1) then ExitFunction ' Skip to FlashCmdTypeS29GL032N
+
 			Else
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
@@ -353,7 +325,7 @@ Public
 		DoFlashCmd(VarPtr(cmdSet.chipErase()))
 
 		if pc then pc->Init(FLASH_ERASE_TIMEOUT_MS AS DWord)
-		ChipErase = FlashWaitOperation(baseBusAdr, &HFF, FLASH_ERASE_TIMEOUT_MS, pc/*, TRUE*/)
+		ChipErase = FlashWaitOperation(baseBusAdr, cmdSet.eraseDoneExpect, FLASH_ERASE_TIMEOUT_MS, pc/*, TRUE*/)
 		if pc then pc->Final()
 
 		ExitCommandMode()
@@ -377,7 +349,7 @@ Public
 		start = GetTickCount()
 		Do
 			if last_bank <> (bus_addr>>16) then
-				UpdateFlashConfig(bus_addr, isSwapCE_OE)
+				UpdateFlashConfig(bus_addr, this.isSwapCE_OE, this.cmdSet.byteVerify)
 				last_bank = (bus_addr>>16)
 			endif
 
@@ -390,7 +362,7 @@ Public
 				img_offset/1024, bufsize/1024, _
 				dur_ms/1000, dur_ms/100 Mod 10,speed AS DWord, (speed * 10) AS DWord Mod 10)
 					
-			if DatabusFlashWrite(hCOM, buf + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
+			if FlashWrite(hCOM, buf + img_offset, 0, bus_addr, block_size, FALSE) = FALSE Then
 				FlashWaitOperation(bus_addr, -1, 2000, NULL)
 				DBM("failed to program ROM.")
 				ExitDo
@@ -517,6 +489,8 @@ Private
 		DoFlashCmd(VarPtr(cmdSet.detect()))
 
 		ReadROM(hSerial,VarPtr(flashIdBuf),0,baseBusAdr + FLASH_ID_OFFSET,FLASH_ID_SIZE,FALSE)
+		FlushCom(hSerial)
+
 		logger(ex"preid\n")
 		DumpHKAC(VarPtr(preId),64,0)
 		logger(ex"flash id\n")
@@ -580,7 +554,7 @@ Private
 	End Sub
 
 	Sub EnterCommandMode()
-		UpdateFlashConfig(this.baseBusAdr, this.isSwapCE_OE)
+		UpdateFlashConfig(this.baseBusAdr, this.isSwapCE_OE, this.cmdSet.byteVerify)
 		SendControl(hSerial, CBUS_OE OR CBUS_ROMSEL OR CBUS_WE)
 		SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)
 
@@ -593,11 +567,11 @@ Private
 		DoFlashCmd(VarPtr(cmdSet.reset))
 		SendControl(hSerial, CBUS_DEFAULT)
 
-		UpdateFlashConfig(this.baseBusAdr, FALSE)
+		UpdateFlashConfig(this.baseBusAdr, FALSE, TRUE)
 	End Sub
 
 
-	Sub UpdateFlashConfig(cmdBase As DWord, swapCEOE AS BOOL)
+	Sub UpdateFlashConfig(cmdBase As DWord, swapCEOE AS BOOL, byteVerifyEnable AS BOOL)
 		Dim cmdOffset AS Word
 		cmdOffset = AdrOfs(baseBusAdr)
 		Dim FlashConfig16bit AS FlashConfig		
@@ -615,11 +589,19 @@ Private
 				.cmdList[i].data = cmdOffset + cmdSet.program.elm[i].data
 				i++
 			Loop
-			if swapCEOE then
-				.flags = FLASH_CONFIG_CEOE_SWAP
-			Else
-				.flags = 0
-			endif
+			.flags = 0
+			if swapCEOE then .flags OR= FLASH_CONFIG_CEOE_SWAP
+			if byteVerifyEnable then .flags OR= FLASH_CONFIG_BYTE_VERIFY
+			.flash_page_size = cmdSet.writePageSize
+			if cmdSet.writePageSize > 255 then
+				DBM("Warning: Flash page size is too large for fimware!")
+				debug
+			End If
+			.flash_page_wait_us = cmdSet.writePageWait_us
+			if cmdSet.writePageWait_us > 255 then
+				DBM("Warning: Flash page wait [us] is too large for fimware!")
+				debug
+			End If
 		End With
 
 		DatabusFlashConfig(hSerial, VarPtr(FlashConfig16bit))
@@ -666,10 +648,54 @@ Private
 			Sleep(PollInterval)
 			i++
 		Loop
-
 	End Function
 
-	
+	Function FlashWrite(hSerial AS HANDLE,data AS BytePtr, dummy AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL
+		if this.cmdSet.byteVerify Then
+			FlashWrite = DatabusFlashWrite(hSerial, data, dummy, address, size, isLoROM)
+		Else
+'			FlashWrite = FlashPageWrite(hSerial, data, dummy, address, size, isLoROM)
+			if size Mod cmdSet.writePageSize then
+				DBM("ASSERT: write_block_size or page_size is incorrect.")
+				debug
+			End If
+			FlashWrite = DatabusFlashWrite(hSerial, data, dummy, address, size, isLoROM)
+			SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST OR CBUS_ROMSEL)
+			Sleep(16) ' 実際16ms。よっぽど遅ければコメントアウト。
+			SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)
+			DoFlashCmd(VarPtr(cmdSet.reset))
+		endif
+	End Function
+#ifdef SOFTWARE_PAGE_PROGRAM
+	Function FlashPageWrite(hSerial AS HANDLE,data AS BytePtr, dummy AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL
+		FlashPageWrite = TRUE
+
+		Dim div AS Long
+		div = size / cmdSet.writePageSize
+		if size Mod cmdSet.writePageSize then div++
+
+		Dim i AS Long, size_per_page AS Long, ofs AS Long
+		For i = 0 To div-1
+			size_per_page = size - ofs
+			if size_per_page <= 0 then debug
+			if size_per_page > cmdSet.writePageSize then size_per_page = cmdSet.writePageSize
+			DatabusFlashWrite(hSerial, data + ofs, 0, address + ofs, size_per_page, isLoROM)
+
+		/*	SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST OR CBUS_ROMSEL)
+			Sleep(1) ' 実際16ms。よっぽど遅ければコメントアウト。
+			SendControl(hSerial, CBUS_OE OR CBUS_WE OR CBUS_RST)
+
+			' ここの&H80はMX29F1610MXの実機より。
+			if FlashWaitOperation(address+ofs, &H80, 100, NULL, TRUE) = FALSE then
+				FlashPageWrite = FALSE
+				ExitFor
+			End If*/
+			' 行儀よくやるなら上記だが、遅すぎるのでSkip
+			Sleep(16)
+			ofs += cmdSet.writePageSize
+		Next
+	End Function
+#endif
 End Class
 
 ' utils

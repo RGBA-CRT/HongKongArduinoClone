@@ -207,7 +207,7 @@ Sub FlashWnd_Program(file AS BytePtr)
 		DBM("file size is zero.")
 		exitsub
 	endif
-	
+
 	if buf.length() = MegaByte(3) then
 		DBMf("un-trim: %d MB -> 4 MB", buf.length()/1024/1024)
 		buf.alloc(MegaByte(4))
@@ -362,4 +362,28 @@ Sub FlashWnd_CommandButton7_Click()
 	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
 
 	fc.TestSectorUnprotect()
+End Sub
+
+Sub FlashWnd_CommandButton8_Click()
+
+	Dim opt AS FlashWndDlgOption
+	if GetFlashWndDlgOpt(VarPtr(opt)) = FALSE then
+		ExitSub
+	End If
+
+	Dim fc AS FlashChipController
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+
+	Dim flashId AS FlashChipId
+	if fc.GetFlashChipId(VarPtr(flashId)) then
+		Dim flashName AS BytePtr, chipInfo AS *FlashChipInfo
+		chipInfo = GetFlashChipInfo(VarPtr(flashId))
+		if flashId.extend then
+			DBMf("FlashID:%02X%02X(%04X) %s", flashId.vendor, flashId.product, flashId.extend, flashName)
+		Else
+			DBMf("FlashID:%02X%02X %s", flashId.vendor, flashId.product, flashName)
+		End If
+	Else
+		DBM(ex"FlashId Error\n")
+	End If
 End Sub
