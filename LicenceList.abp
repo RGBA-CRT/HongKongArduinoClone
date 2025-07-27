@@ -79,7 +79,7 @@ Dim SNES_LICENCE_LIST[SNES_LICENCE_LIST_NUM*2] = [
 	&H3941 As BytePtr, "Nichibutsu", 
 	&H3942 As BytePtr, "TECMO (2)", 
 	&H3943 As BytePtr, "Imagineer Co.", 
-	&H4130 As BytePtr, "Wolf Team", 
+	&H4130 As BytePtr, "TELENET JAPAN", 
 	&H4134 As BytePtr, "Konami", 'ˆ«–‚éƒhƒ‰ƒLƒ…ƒ‰
 	&H4135 As BytePtr, "K.Amusement", 
 	&H4137 As BytePtr, "Takara", 

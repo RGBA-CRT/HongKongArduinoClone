@@ -39,12 +39,12 @@ void flashReceiveConfig() {
 
 inline void bulkReadInit() {
   setDataPin(0x00);
-  dataDirInput();
+  dataPinDirInput();
   BB_DIR_INPUT();
 }
 inline void bulkReadExit() {
   BB_DIR_TOGGLE();
-  dataDirOutput();
+  dataPinDirOutput();
 }
 
 inline byte bulkReadAcquire() {

@@ -655,6 +655,7 @@ Function SumSnesChecksum(data As BytePtr,length As DWord) As DWord
 	Loop
 End Function
 
+
 'チェックサム計算（ROM単位）
 Function CalcSnesChecksum(info As *SFC_CART_INFO, rom As BytePtr, size As DWord) AS Word
 	CalcSnesChecksum = SumSnesChecksum(rom, size) As Word

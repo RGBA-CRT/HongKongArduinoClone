@@ -2031,3 +2031,26 @@ Sub MainWnd_CheckBox8_Click()
 	End If
 	DatabusFlashConfig(hCOM, VarPtr(FlashConfig16bit))
 End Sub
+
+Sub MainWnd_CommandButton19_Click()
+	If hCOM = 0 Then ExitSub
+	Dim data As BytePtr, adr As DWord
+	data = calloc(&H10000)
+	adr = GetDlgItemHex(MWnd(EditBox2))
+
+	Do
+		ReadROM(hCOM, data, 0, adr, &H4000, NOT(GetCheckBox(MWnd(CheckBox6))) And &H01)
+		DBMf("STABLE: %06x: %02x %02x %d", adr, XorCheckSum(data,&H4000), SumSnesChecksum(data,&H4000), GetKeyState(VK_ESCAPE))
+		PumpMessage()
+		If (GetKeyState(VK_ESCAPE) And &H80) <> 0 Then exitsub
+	Loop
+End Sub
+Function XorCheckSum(data As BytePtr,length As DWord) As DWord
+	Dim i As DWord
+	XorCheckSum=0
+	Do
+		XorCheckSum xor= data[i]
+		If i+1 => length Then ExitDo
+		i++
+	Loop
+End Function

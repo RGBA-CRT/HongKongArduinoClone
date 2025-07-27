@@ -4,7 +4,7 @@ Modification: RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
 Some code is referred on [https://github.com/sanni/cartreader/].
 Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
-#pragma GCC push_options 
+#pragma GCC push_options
 #pragma GCC optimize("O3")
 //config
 //シリアルコンバータがCH340の場合1000000bpsが限界
@@ -14,13 +14,13 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define HKAC_DEBUG
 #ifndef HKAC_DEBUG
 #define FIRMWARE_NAME "HKAF"
-#define FIRMWARE_VERSION "5" // FWのAPIが変わったらインクリメント
+#define FIRMWARE_VERSION "5"  // FWのAPIが変わったらインクリメント
 #else
-#define FIRMWARE_NAME "HKAD" // debug branch
+#define FIRMWARE_NAME "HKAD"  // debug branch
 #define FIRMWARE_VERSION "0"
 #endif
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
-#define BUFFER_LEN 0x400 //ホスト側とサイズを合わせる
+#define BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
 
@@ -33,7 +33,7 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
  * HKAF5: 2025/04: flash write
  */
 
- 
+
 
 //CONFIG
 #define _ENABLE_CIC
@@ -48,8 +48,10 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
 #include <avr/io.h>
 
 //I2C通信状態を解除してA4,A5ピンを使用可能に
-#define DISABLE_I2C() { TWCR = 0;}
-#define ENABLE_I2C() {TWCR = 0x45;}
+#define DISABLE_I2C() \
+  { TWCR = 0; }
+#define ENABLE_I2C() \
+  { TWCR = 0x45; }
 
 //クロックジェネレータ
 Si5351 clockgen;
@@ -57,77 +59,77 @@ Si5351 clockgen;
 //--------------------------------------------
 
 //データバス[PORTD]
-#define DATA0  2
-#define DATA1  3
-#define DATA2  4
-#define DATA3  5
-#define DATA4  6
-#define DATA5  7
+#define DATA0 2
+#define DATA1 3
+#define DATA2 4
+#define DATA3 5
+#define DATA4 6
+#define DATA5 7
 
 //[PORTB]
-#define DATA6  8
-#define DATA7  9
+#define DATA6 8
+#define DATA7 9
 
 //74HCシリーズの制御
-#define GD  10
-#define G0  11
-#define G1  12
-#define G2  13
+#define GD 10
+#define G0 11
+#define G1 12
+#define G2 13
 // #define SWAP_CEOE
 //[PORTC]コントロールピン
-#define DIR  14
-#define CK  15
-#define OE  16
-#define CS  17
-#define WE  18
-#define RST  19
+#define DIR 14
+#define CK 15
+#define OE 16
+#define CS 17
+#define WE 18
+#define RST 19
 
 const uint8_t PIN_PORTC_OE_MASK = 0b00000100;
 const uint8_t PIN_PORTC_CE_MASK = 0b00001000;
 
 //bus buffer direction
-#define BB_DIR_OUTPUT() PORTC |= 0x01 // DIR=HIGH
-#define BB_DIR_INPUT() PORTC &= 0xfe  // DIR=LOW
+#define BB_DIR_OUTPUT() PORTC |= 0x01  // DIR=HIGH
+#define BB_DIR_INPUT() PORTC &= 0xfe   // DIR=LOW
 #define BB_DIR_TOGGLE() PINC = 0x01
 
 //bus buffer OutputControl
 #define BB_OUT_DISABLE() PORTB |= 0b00000100
-#define BB_OUT_ENABLE()  PORTB &= 0b11111011
-#define BB_OUT_TOGGLE()  PINB = 0b00000100
+#define BB_OUT_ENABLE() PORTB &= 0b11111011
+#define BB_OUT_TOGGLE() PINB = 0b00000100
 
 // cart /WE control
-#define CART_WRITE_ENABLE()   PORTC &= 0b11101111
-#define CART_WRITE_DISABLE()  PORTC |= 0b00010000
-#define CART_WRITE_TOGGLE()   PINC  =  0b00010000
+#define CART_WRITE_ENABLE() PORTC &= 0b11101111
+#define CART_WRITE_DISABLE() PORTC |= 0b00010000
+#define CART_WRITE_TOGGLE() PINC = 0b00010000
 
 // cart /OE control
 static uint8_t val_oe_or_mask;  // speed > ram_usage
 static uint8_t val_oe_and_mask;
-static uint8_t val_ce_or_mask; // speed < ram_usage
+static uint8_t val_ce_or_mask;  // speed < ram_usage
 
-void SetFlashOECtrl(bool swap_ce_oe){
-  if(!swap_ce_oe){
+void SetFlashOECtrl(bool swap_ce_oe) {
+  if (!swap_ce_oe) {
     val_oe_or_mask = PIN_PORTC_OE_MASK;
     val_oe_and_mask = ~(PIN_PORTC_OE_MASK);
     val_ce_or_mask = PIN_PORTC_CE_MASK;
-  }else{
+  } else {
     val_oe_or_mask = PIN_PORTC_CE_MASK;
     val_oe_and_mask = ~PIN_PORTC_CE_MASK;
     val_ce_or_mask = PIN_PORTC_OE_MASK;
   }
 }
 #if 0
-#define CART_OUTPUT_ENABLE()   PORTC &= ~(PIN_PORTC_OE_MASK)
-#define CART_OUTPUT_DISABLE()  PORTC |= PIN_PORTC_OE_MASK
-#define CART_OUTPUT_TOGGLE()   PINC  =  PIN_PORTC_OE_MASK
+#define CART_OUTPUT_ENABLE() PORTC &= ~(PIN_PORTC_OE_MASK)
+#define CART_OUTPUT_DISABLE() PORTC |= PIN_PORTC_OE_MASK
+#define CART_OUTPUT_TOGGLE() PINC = PIN_PORTC_OE_MASK
 #else
-#define CART_OUTPUT_ENABLE()   PORTC &= val_oe_and_mask
-#define CART_OUTPUT_DISABLE()  PORTC |= val_oe_or_mask
-#define CART_OUTPUT_TOGGLE()   PINC  =  val_oe_or_mask
+#define CART_OUTPUT_ENABLE() PORTC &= val_oe_and_mask
+#define CART_OUTPUT_DISABLE() PORTC |= val_oe_or_mask
+#define CART_OUTPUT_TOGGLE() PINC = val_oe_or_mask
 
-#define CART_CHIP_ENABLE()   PORTC &= ~val_ce_or_mask
-#define CART_CHIP_DISABLE()  PORTC |= val_ce_or_mask
-#define CART_CHIP_TOGGLE()   PINC  =  val_ce_or_mask
+#define CART_CHIP_ENABLE() PORTC &= ~val_ce_or_mask
+#define CART_CHIP_DISABLE() PORTC |= val_ce_or_mask
+#define CART_CHIP_TOGGLE() PINC = val_ce_or_mask
 #endif
 
 // databus
@@ -151,7 +153,8 @@ byte gflags;
 //-----------------
 
 inline void serial_send(byte data) {
-  while ( !(UCSR0A & _BV(UDRE0)) ); //UDRが空になるのを待つ
+  while (!(UCSR0A & _BV(UDRE0)))
+    ;  //UDRが空になるのを待つ
   UDR0 = data;
 }
 
@@ -163,9 +166,10 @@ void hostsync_receive(word length) {
   word i = length;
   word o = 0;
   do {
-    while ( !(UCSR0A & _BV(RXC0)) );
+    while (!(UCSR0A & _BV(RXC0)))
+      ;
     buf[o++] = UDR0;
-  } while(--i);
+  } while (--i);
   interrupts();
 }
 
@@ -174,34 +178,32 @@ void hostsync_receive(word length) {
 //--------------
 
 //データピンの方向設定
-#define dataDirInput() \
+#define dataPinDirInput() \
   do { \
     DDRD &= 0b00000011; \
     DDRB &= 0b11111100; \
   } while (0);
 
-#define dataDirOutput() \
+#define dataPinDirOutput() \
   do { \
     DDRD |= 0b11111100; \
     DDRB |= 0b00000011; \
   } while (0);
 
 //データーバスへ値をセット
-inline void setDataPin(byte b)
-{
+inline void setDataPin(byte b) {
 #if 0
   PORTD &= 0b00000011;  //CLEAR
   PORTD |= b << 2;      //ORでセット
 #else
-  PORTD = b << 2;      // direct set test
+  PORTD = b << 2;  // direct set test
 #endif
   PORTB &= 0b11111100;
   PORTB |= b >> 6;
 }
 
 //アドレスバスを構成するFlip-Flopへ値をセット
-inline void setFF(byte ch, byte b)
-{
+inline void setFF(byte ch, byte b) {
   //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
   PINB = (0b00001000 << ch);
   setDataPin(b);
@@ -221,30 +223,19 @@ inline void setFF(byte ch, byte b)
 //--------------
 // snes level
 //--------------
-#define LO_TO_REAL_ADDRESS(bank,address) {bank = (bank << 1) | (address >> 15);  address |= 0x8000;}
+#define LO_TO_REAL_ADDRESS(bank, address) \
+  { \
+    bank = (bank << 1) | (address >> 15); \
+    address |= 0x8000; \
+  }
 //アドレスバスを設定
-inline void setAddress_(byte bank, word address)
-{
-  //変更のないFlipFlopはいじらない
-  byte spritAdr = address;
-  if (lastadr[0] != spritAdr) {
-    setFF(0, spritAdr);
-    lastadr[0] = spritAdr;
-  }
-
-  spritAdr = address >> 8;
-  if (lastadr[1] != spritAdr) {
-    setFF(1, spritAdr);
-    lastadr[1] = spritAdr;
-  }
-
-  if (lastadr[2] != bank) {
-    setFF(2, bank);
-    lastadr[2] = bank;
-  }
+inline void setAddress_(byte bank, word address) {
+  setFF(0, address);
+  setFF(1, address >> 8);
+  setFF(2, bank);
 }
 
-inline void setAddress(byte bank, word address, byte isLoROM){
+inline void setAddress(byte bank, word address, byte isLoROM) {
   if (isLoROM) {
     LO_TO_REAL_ADDRESS(bank, address);
   }
@@ -255,34 +246,36 @@ inline void setAddress(byte bank, word address, byte isLoROM){
 }
 
 void readCart(byte isLoROM) {
-  while (Serial.available() < 5);
+  while (Serial.available() < 5)
+    ;
   word address = Serial_readWord();
   byte bank = Serial.read();
   word datasize = Serial_readWord();
+  BB_DIR_INPUT();
 
   // note: 一見最適化の余地があるが、結局serial_sendで待ちが発生するので意味無し
   do {
     setAddress(bank, address++, isLoROM);
     // SA1でおかしくなったらsetAddressにnopを仕込む
-    
-    serial_send(readData());
-  } while(--datasize);
 
+    serial_send(readData());
+  } while (--datasize);
 }
 
 void writeCart(int isLoROM = false) {
   //コマンド受信
-  while (Serial.available() < 5);
+  while (Serial.available() < 5)
+    ;
   word address = Serial_readWord();
   byte bank = Serial.read();
-  word datasize =  Serial_readWord();
+  word datasize = Serial_readWord();
 
   CART_WRITE_DISABLE();
   CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
 
   word goalAdr = address + datasize;
-  word bufpos = RX_BUFFER_LEN; //buffer ptr, 最初は必ず受信させる
+  word bufpos = RX_BUFFER_LEN;  //buffer ptr, 最初は必ず受信させる
 
   while (1) {
     //データ受信
@@ -292,7 +285,8 @@ void writeCart(int isLoROM = false) {
     }
 
     writebyte_cart(bank, address, buf[bufpos]);
-    address++; bufpos++;
+    address++;
+    bufpos++;
 
     if (address == goalAdr) break;
   }
@@ -316,61 +310,80 @@ void writeCart(int isLoROM = false) {
   Serial.write(hex2ascii(hex & 0x0f));
   }*/
 
-inline void setCtrlBus(byte b) {
+
+void setCtrlBus(byte b) {
   if (b & 0b0001) {
     CART_OUTPUT_DISABLE();
-  }else{
+  } else {
     CART_OUTPUT_ENABLE();
   }
   if (b & 0b0010) {
     CART_CHIP_DISABLE();
-  }else{
+  } else {
     CART_CHIP_ENABLE();
   }
-  digitalWrite(WE , (b & 0b0100) ? HIGH : LOW);
+  digitalWrite(WE, (b & 0b0100) ? HIGH : LOW);
   digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
-void longWait(){
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t"); // nop*16
+void longWait() {
+  __asm__ volatile("nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t");  // nop*16
   // 1us～1.6usぐらい
 }
 
-inline byte readData()
-{
-  dataDirInput();
-  BB_OUT_ENABLE();
+byte readData() {
   CART_OUTPUT_ENABLE();
+  dataPinDirInput();
+  BB_OUT_ENABLE();
 
   // AddressOutputDelay: 110nsぐらい
   // Output Enable to Output Delay: 25nsぐらい
   // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
-  longWait();  
+  longWait();
   byte b;
-  if(gflags & GFLAGS_SUPER_SLOW_READ){
+  if (gflags & GFLAGS_SUPER_SLOW_READ) {
     const byte ok_retry_max = 10;
     const byte ng_retry_max = 30;
     byte ok_cnt = ok_retry_max;
     byte ng_cnt = ng_retry_max;
+    byte err = 0, b2;
 retry:
-    longWait();  
     b = getDataPin();
-    if(getDataPin() == b){
+    longWait();
+    b2 = getDataPin();
+    if (b2 == b) {
       ng_cnt = ng_retry_max;
-      if(--ok_cnt) goto retry;
+      if (--ok_cnt) { goto retry; }
     } else {
       ok_cnt = ok_retry_max;
-      if(--ng_cnt) goto retry;
+      err++;
+      if (--ng_cnt) { goto retry; }
     }
-  }else{
+    b ^= b2;
+  } else {
     b = getDataPin();
   }
 
-  BB_OUT_DISABLE();
-  dataDirOutput();
   CART_OUTPUT_DISABLE();
 
+  BB_OUT_DISABLE();
+  dataPinDirOutput();
   return b;
 }
 
@@ -382,13 +395,31 @@ inline byte readbyte_cart(byte bank, word address) {
   setAddress(bank, address, false);
 
   // /OEのパルスを成立させるためのWait
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t");
   //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
 
   CART_OUTPUT_ENABLE();
 
   // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t");
 
   byte ret = readData();
 
@@ -406,13 +437,35 @@ void writebyte_cart(byte bank, word address, byte data) {
 
   // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
   // 74HC245 -> SFC へのデータ安定化
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t");
 
   CART_WRITE_ENABLE();
 
   // /WEパルスの時間稼ぎ
   // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
-  __asm__ volatile("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  __asm__ volatile("nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t"
+                   "nop\n\t");
 
   CART_WRITE_DISABLE();
 
@@ -456,21 +509,20 @@ void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
 }
 #endif
 
-void setup()
-{
+void setup() {
   //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
 
-  digitalWrite(GD, LOW);  //GD(PORTB 02) PWM DISABLE
-  digitalWrite(GD, HIGH); // Disable
-  digitalWrite(G0, HIGH); // Disable
-  digitalWrite(G1, HIGH); // Disable
-  digitalWrite(G2, HIGH); // Disable
+  digitalWrite(GD, LOW);   //GD(PORTB 02) PWM DISABLE
+  digitalWrite(GD, HIGH);  // Disable
+  digitalWrite(G0, HIGH);  // Disable
+  digitalWrite(G1, HIGH);  // Disable
+  digitalWrite(G2, HIGH);  // Disable
 
   digitalWrite(CK, LOW);
 
-  digitalWrite(DIR, LOW); // 入力
+  digitalWrite(DIR, LOW);  // 入力
 
   digitalWrite(OE, HIGH);
   digitalWrite(CS, HIGH);
@@ -485,52 +537,63 @@ void setup()
   SetFlashOECtrl(false);
   //アクセスランプを消灯＆アドレスバス初期化
   //setAddressは差分しかセットしないので、手動でFlipFlopを初期化
-  dataDirOutput();
+  dataPinDirInput();
   BB_OUT_DISABLE();
-  setFF(0, 0x00); lastadr[0] = 0;
-  setFF(1, 0x00); lastadr[1] = 0;
-  setFF(2, 0x00); lastadr[2] = 0;
+  BB_DIR_INPUT();
+  setFF(0, 0x00);
+  setFF(1, 0x00);
+  setFF(2, 0x00);
 
   digitalWrite(OE, HIGH);
   digitalWrite(CS, LOW);
   digitalWrite(WE, HIGH);
   digitalWrite(RST, HIGH);
 
+  // Pull-Donw disable
+  MCUCR |= 0x10;
+
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
 }
 
 void loop() {
-  while (Serial.available() == 0);  //wait command
+  while (Serial.available() == 0)
+    ;  //wait command
   byte cmd = Serial.read();
 
   switch (cmd) {
     case 'R':
       {
         readCart(false);
-      } break;
+      }
+      break;
     case 'r':
       {
         readCart(true);
-      } break;
+      }
+      break;
 
     case 'd':
       {
         serial_send(readData());
-      } break;
+      }
+      break;
 
     case 'a':
     case 'A':
-      { //Set address
-        while (Serial.available() < 3)  ;
+      {  //Set address
+        while (Serial.available() < 3)
+          ;
         byte isLoROM = (cmd == 'a');
         word address = Serial_readWord();
         byte bank = Serial.read();
         setAddress(bank, address, isLoROM);
-      } break;
+      }
+      break;
 
     case 'b':
-      { //Set boudrate
-        while (Serial.available() < 4);
+      {  //Set boudrate
+        while (Serial.available() < 4)
+          ;
 
         unsigned long new_boudrate = Serial.read()
                                      | (unsigned long)Serial.read() << 8
@@ -543,27 +606,33 @@ void loop() {
         //このあと、ファームチェックで値が正常に帰ってくることを確認してから
         //各種コマンドを投げてください
         setAddress(0xFF, 0xFFFF, false);
-      } break;
+      }
+      break;
 
     case 'c':
-      { //set control bus(OE WD RST CS)
-        while (Serial.available() < 1) ;
+      {  //set control bus(OE WD RST CS)
+        while (Serial.available() < 1)
+          ;
         setCtrlBus(Serial.read());
-      } break;
+      }
+      break;
 
     case 'f':
-      { // flash command
+      {  // flash command
         flashWriteCart();
-      } break;
+      }
+      break;
 
     case 'F':
-      { // flash config
+      {  // flash config
         flashReceiveConfig();
-      } break;
+      }
+      break;
 
     case 'g':
-      { //CPU ClockGen Start/Stop
-        while (Serial.available() < 1);
+      {  //CPU ClockGen Start/Stop
+        while (Serial.available() < 1)
+          ;
         byte mode = Serial.read();
 #ifdef _ENABLE_CIC
         if ((mode & 0xf0) == 0x30) {
@@ -572,15 +641,17 @@ void loop() {
           setupCloclGen(true, false, true, false);
         }
 #endif
-      } //続いてステータスの返却へ
+      }  //続いてステータスの返却へ
 
-    case 'G': {
+    case 'G':
+      {
         //return clock module status
         Serial.write('0' | haveClockModule);
-      } break;
+      }
+      break;
 
     case 'i':
-      { // print infomation
+      {  // print infomation
         Serial.write(FIRMWARE_ID);
         Serial.write((char)FIRMWARE_VERSION);
 #ifdef _ENABLE_CIC
@@ -598,19 +669,20 @@ void loop() {
         // for (byte i = 0; i < 20; i++) {
         //   Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
         // }  Serial.print("\n");
-
-      } break;
+      }
+      break;
 
     case 's':
-      { // set register(1byte write)
+      {  // set register(1byte write)
         Serial.print((char)readbyte_cart(0xc0, 0x0000));
         writebyte_cart(0x00, 0x2220, 04);
         Serial.print((char)readbyte_cart(0xc0, 0x0000));
-      } break;
+      }
+      break;
 
 #ifdef ENABLLE_SFMEM
     case 'S':
-      { // setup SF memory
+      {  // setup SF memory
         digitalWrite(OE, HIGH);
         digitalWrite(CS, LOW);
         digitalWrite(WE, HIGH);
@@ -623,18 +695,20 @@ void loop() {
         writebyte_cart(0x00, 0x2400, 0x06);
         writebyte_cart(0x00, 0x2400, 0x39);
 
-        if ( readbyte_cart(0x00, 0x2400) == 0x2A)
+        if (readbyte_cart(0x00, 0x2400) == 0x2A)
           Serial.print("OK");
         else
           Serial.print("NG");
         Serial.write(readbyte_cart(0x00, 0x2400));
-      } break;
+      }
+      break;
 #endif
 
     case 'T':
     case 't':
-      { // set register(1byte write)
-        while (Serial.available() < 4);
+      {  // set register(1byte write)
+        while (Serial.available() < 4)
+          ;
         byte bank = Serial.read();
         word address = Serial_readWord();
         byte data = Serial.read();
@@ -647,27 +721,31 @@ void loop() {
         //        CART_OUTPUT_DISABLE();
         //        CART_WRITE_DISABLE();
         writebyte_cart(bank, address, data);
-      } break;
+      }
+      break;
 
     case 'W':
     case 'w':
-      { //bulk write cart
+      {  //bulk write cart
         byte isLoROM = (cmd == 'w');
         writeCart(isLoROM);
-      } break;
+      }
+      break;
 
     case 'v':
-      { //Return fimware version
+      {  //Return fimware version
         Serial.write(FIRMWARE_ID);
         setAddress(0x00, lastadr[1] << 8, false);
-      } break;
+      }
+      break;
 
 #ifdef ENABLE_ST018_BIOS_DUMP
     case 'z':
     case 'Z':
       {
         st018_biosDump(cmd);
-      } break;
+      }
+      break;
 #endif
     default:
       Serial.write("?INVALIDCMD=");
