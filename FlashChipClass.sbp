@@ -5,6 +5,8 @@ Type FlashCmdList
 	elm[ELM(10)] AS FlashCmdElm
 End Type
 
+Const FlashCmdSetFlagVerifyFixedValue = 1
+
 Type FlashCmdSet
 	name AS BytePtr
 	detect AS FlashCmdList
@@ -14,16 +16,18 @@ Type FlashCmdSet
 	byteVerify AS BOOL
 	writePageSize AS Long
 	writePageWait_us AS Long 
-	eraseDoneExpect AS Long
+	flags AS DWord
+	eraseDoneExpect AS Byte
+	programDoneExpect AS Byte
 End Type
 
 Enum FlashCmdType
 	FlashCmdTypeNotFlash = 0
-	FlashCmdTypeJDEC8
-	FlashCmdTypeJDEC16Shift8
-	FlashCmdTypeS29GL032N
-	FlashCmdTypeNonShiftA14
-	FlashCmdTypeMX29F1610MC
+	FlashCmdTypeJDEC8			' model: SST39SF040
+	FlashCmdTypeJDEC16Shift8	' model: MX29LV320
+	FlashCmdTypeS29GL032N		' model: S29GL032N
+	FlashCmdTypePageWriteNonShiftA14		' model: MX29L3211	' model: MX29F1610MC
+	FlashCmdTypeNonShiftA14	
 	FlashCmdTypeMAX
 End Enum
 
@@ -36,7 +40,9 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 	set.byteVerify = TRUE
 	set.writePageSize = 0
 	set.writePageWait_us = 0
+	set.flags = 0
 	set.eraseDoneExpect = &HFF
+	set.programDoneExpect = &H00
 
 	Select Case flashType
 		Case FlashCmdTypeNotFlash
@@ -134,8 +140,8 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				FLASH_CMD(.elm[0], &H0000, &HF0)
 			End With
 
-		Case FlashCmdTypeMX29F1610MC, FlashCmdTypeNonShiftA14	
-			if flashType = FlashCmdTypeMX29F1610MC then
+		Case FlashCmdTypePageWriteNonShiftA14, FlashCmdTypeNonShiftA14	
+			if flashType = FlashCmdTypePageWriteNonShiftA14 then
 				set.name = "128 bytes page write + cmd mask A14 w/o A-1 shift"
 				set.byteVerify = FALSE
 				set.writePageSize = 128
@@ -143,6 +149,9 @@ Function GetFlashCmdSet(flashType As FlashCmdType, ByRef set AS FlashCmdSet) AS 
 				set.eraseDoneExpect = &H80
 			Else
 				set.name = "cmd mask A14 w/o A-1 shift"
+				set.flags = set.flags or FlashCmdSetFlagVerifyFixedValue
+				set.eraseDoneExpect = &H80
+				set.programDoneExpect = &H80
 			endif
 			With set.detect
 				.count = 3
@@ -184,7 +193,7 @@ Type FlashChipInfo
 	size AS DWord
 End Type
 
-Const FLASH_ID_TABLE_MAX = 45
+Const FLASH_ID_TABLE_MAX = 46
 Const MBIT(x) = (x * &H20000)
 Const MegaByte(x) = (x * &H100000)
 Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
@@ -203,7 +212,7 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HC2F7, "MX29F1611"  , MBIT(16) ], ' NintendoPower
 	[ &HC26B, "MX29F1615"  , MBIT(16) ], ' NintendoPower
 	[ &HC2F3, "MX29F1601MC", MBIT(16) ], ' NintendoPower
-	[ &HC2F1, "MX29F1610MC", MBIT(16) ], ' NintendoPower
+	[ &HC2F1, "MX29F1610MC", MBIT(16) ], ' [TESTED] WordProgram, 24.6KB/s, ChipErase: 0.109 sec, 要パスコン0.01uF, シールド, 拡張電源
 	[ &H0120, "AM29F010"   , MBIT( 1) ], ' 
 	[ &H01A4, "AM29F040"   , MBIT( 4) ], ' ByteProgram: 7-300us, 8-64sec
 	[ &H01D5, "AM29F080"   , MBIT( 8) ], ' [TESTED]
@@ -225,9 +234,10 @@ Dim FlashChipInfoTable[ELM(FLASH_ID_TABLE_MAX)] = [
 	[ &HD51f, "AT29C010A"  , MBIT( 1) ], ' [TESTED] JRA-PAT
 	[ &H32B0, "LH28F020SUT", MBIT( 2) ], ' 
 	[ &H32B0, "M29W320"    , MBIT(32) ], ' [REPORTED OK] https://github.com/RGBA-CRT/HongKongArduinoClone/issues/8
+	[ &HC2F9, "MX29L3211"  , MBIT(32) ], ' [TESTED]
 	[ &H017E, "S29GL032N/S29GL064N", MBIT(64) ], 		' [not supported]
 	[ &H0C01017E, "S29GL064N(00/02/V1/V2)", MBIT(64) ], ' [not supported]
-	[ &H1000017E, "S29GL064N(04)", MBIT(64) ], 			' [not supported]
+	[ &H1000017E, "S29GL064N(04)", MBIT(64) ], 			' [TESTED] 
 	[ &H1001017E, "S29GL064N(03)", MBIT(64) ], 			' [not supported]
 	[ &H1301017E, "S29GL064N(06/07/V6/V7)", MBIT(64) ], ' [not supported]
 	[ &H1D00017E, "S29GL032N(00/02/V1/V2)", MBIT(32) ], ' [not supported]
@@ -300,7 +310,7 @@ Public
 				id->extend = (flashIdBuf[&H1C]<<8) OR (flashIdBuf[&H1E])
 				if id->vendor = id->product then ExitFunction
 
-			Elseif (flashType = FlashCmdTypeNonShiftA14) OR (flashType = FlashCmdTypeMX29F1610MC) then
+			Elseif (flashType = FlashCmdTypeNonShiftA14) OR (flashType = FlashCmdTypePageWriteNonShiftA14) then
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
@@ -592,16 +602,21 @@ Private
 			.flags = 0
 			if swapCEOE then .flags OR= FLASH_CONFIG_CEOE_SWAP
 			if byteVerifyEnable then .flags OR= FLASH_CONFIG_BYTE_VERIFY
+			if cmdSet.flags And FlashCmdSetFlagVerifyFixedValue then .flags OR= FLASH_CONFIG_VERIFY_FIXED_MODE
+
 			.flash_page_size = cmdSet.writePageSize
 			if cmdSet.writePageSize > 255 then
 				DBM("Warning: Flash page size is too large for fimware!")
 				debug
 			End If
+
 			.flash_page_wait_us = cmdSet.writePageWait_us
 			if cmdSet.writePageWait_us > 255 then
 				DBM("Warning: Flash page wait [us] is too large for fimware!")
 				debug
 			End If
+
+			.flash_verify_fixed_value = cmdSet.programDoneExpect
 		End With
 
 		DatabusFlashConfig(hSerial, VarPtr(FlashConfig16bit))

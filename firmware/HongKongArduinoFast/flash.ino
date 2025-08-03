@@ -18,6 +18,8 @@ static byte flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
 static byte flash_byte_verify;
 static byte flash_page_size;
 static byte flash_page_wait;
+static byte flash_verify_fixed_value;
+static byte flash_verify_byte;
 #define FLASH_PAGE_WRITE_EXPECTED_STATUS 0x80
 
 void flashReceiveConfig() {
@@ -32,9 +34,11 @@ void flashReceiveConfig() {
   gflags = Serial.read();
   SetFlashOECtrl((gflags & FLASH_CONFIG_CEOE_SWAP));
   flash_byte_verify = gflags & FLASH_CONFIG_BYTE_VERIFY;
+  flash_verify_fixed_value = gflags & FLASH_CONFIG_VERIFY_FIXED_VALUE;
 
   flash_page_size = Serial.read();
   flash_page_wait = Serial.read();
+  flash_verify_byte = Serial.read();
 }
 
 inline void bulkReadInit() {
@@ -144,6 +148,8 @@ void sendErrorReport(byte bank, word address, byte real_byte, byte expected_byte
   serial_send('X');
 }
 
+#define GetProgDoneResponce(x) (flash_verify_fixed_value ? flash_verify_byte : x)
+
 void flashByteProgram(byte bank, word address, word datasize) {
   // メモリは余っているので速度優先でじゃんじゃんつかおう
   byte* bufptr = buf;
@@ -169,9 +175,10 @@ void flashByteProgram(byte bank, word address, word datasize) {
     address++;
     bufptr++;
 
-    byte wait_ret = flashWaitOperation(b);
-    if (wait_ret != b) {
-      sendErrorReport(bank, --address, wait_ret, b);
+    byte expect = GetProgDoneResponce(b);
+    byte wait_ret = flashWaitOperation(expect);
+    if (wait_ret != expect) {
+      sendErrorReport(bank, --address, wait_ret, expect);
       break;
     }
   } while (--datasize);

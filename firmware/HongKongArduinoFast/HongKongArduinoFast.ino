@@ -17,7 +17,7 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define FIRMWARE_VERSION "5"  // FWのAPIが変わったらインクリメント
 #else
 #define FIRMWARE_NAME "HKAD"  // debug branch
-#define FIRMWARE_VERSION "0"
+#define FIRMWARE_VERSION "1"
 #endif
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 #define BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
@@ -30,7 +30,7 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
  * HKAF2: 2018/03: protocol change
  * HLAF3: 2018/07: clock cmd change
  * HKAF4: 2029/03: ST017 surpport
- * HKAF5: 2025/04: flash write
+ * HKAF5: 2025/08: flash write
  */
 
 
@@ -39,6 +39,7 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
 #define _ENABLE_CIC
 #define ENABLE_ST018_BIOS_DUMP
 #define ENABLLE_SFMEM
+// #define BUILD_SUPER_SLOW_READ
 
 //----------------- 実験コード ------------------
 #ifdef _ENABLE_CIC
@@ -147,6 +148,7 @@ byte gflags;
 #define FLASH_CONFIG_CEOE_SWAP 0x01
 #define FLASH_CONFIG_BYTE_VERIFY 0x02
 #define GFLAGS_SUPER_SLOW_READ 0x04
+#define FLASH_CONFIG_VERIFY_FIXED_VALUE 0x08
 
 //-----------------
 // serial comm
@@ -343,7 +345,12 @@ void longWait() {
                    "nop\n\t"
                    "nop\n\t"
                    "nop\n\t");  // nop*16
-  // 1us～1.6usぐらい
+                                // 1us～1.6usぐらい
+  // __asm__ volatile("nop\n\t"
+  //                  "nop\n\t"
+  //                  "nop\n\t"
+  //                  "nop\n\t");  // nop*4
+  //                               // for MX29L3211MC
 }
 
 byte readData() {
@@ -356,6 +363,7 @@ byte readData() {
   // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
   longWait();
+#ifdef BUILD_SUPER_SLOW_READ
   byte b;
   if (gflags & GFLAGS_SUPER_SLOW_READ) {
     const byte ok_retry_max = 10;
@@ -375,10 +383,15 @@ retry:
       err++;
       if (--ng_cnt) { goto retry; }
     }
-    b ^= b2;
+    // b ^= b2;// error bit report
+    // b = err; // error count report
+    b = b2;
   } else {
     b = getDataPin();
   }
+#else
+  byte b = getDataPin();
+#endif
 
   CART_OUTPUT_DISABLE();
 
