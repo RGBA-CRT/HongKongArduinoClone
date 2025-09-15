@@ -17,7 +17,7 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define FIRMWARE_VERSION "5"  // FWのAPIが変わったらインクリメント
 #else
 #define FIRMWARE_NAME "HKAD"  // debug branch
-#define FIRMWARE_VERSION "1"
+#define FIRMWARE_VERSION "2"
 #endif
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 #define BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
@@ -383,9 +383,9 @@ retry:
       err++;
       if (--ng_cnt) { goto retry; }
     }
-    // b ^= b2;// error bit report
+    b ^= b2;// error bit report
     // b = err; // error count report
-    b = b2;
+    // b = b2;
   } else {
     b = getDataPin();
   }
@@ -761,8 +761,9 @@ void loop() {
       break;
 #endif
     default:
-      Serial.write("?INVALIDCMD=");
+      Serial.write("?CMD=");
       Serial.write(cmd);
+      Serial.write("\xAA\xAA");
   }
 }
 

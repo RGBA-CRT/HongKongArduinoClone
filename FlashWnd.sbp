@@ -77,7 +77,7 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim mmap As SFC_MMAP_MODEL
 	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
 
-	flashCmdType = FlashDetect(hCOM, mmap.rom.adr, VarPtr(flashId), VarPtr(swapCEOE))
+	flashCmdType = FlashDetect(hCOM, mmap.rom.adr, VarPtr(flashId), VarPtr(swapCEOE), VarPtr(mmap))
 	if flashCmdType = FlashCmdTypeNotFlash Then
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
@@ -175,7 +175,7 @@ Sub FlashWnd_CommandButton2_Click()
 
 	Dim fc AS FlashChipController
 
-	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe, VarPtr(opt.mmap))
 
 	Dim time AS DWord
 	time = GetTickCount()
@@ -234,8 +234,8 @@ Sub FlashWnd_Program(file AS BytePtr)
 	*/
 	
 	Dim fc AS FlashChipController
-	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
-	if fc.Program(buf.ptr, buf.length(), VarPtr(opt.mmap), pc) then
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe, VarPtr(opt.mmap))
+	if fc.Program(buf.ptr, buf.length(), pc) then
 		DBM(ex"Program flash done!\r\n")
 		SE_OK()
 	Else
@@ -340,13 +340,13 @@ Sub FlashWnd_CommandButton6_Click()
 	Dim romSize AS DWord
 	romSize = GetDlgRomSize()
 	Dim fc AS FlashChipController
-	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe, VarPtr(opt.mmap))
 
 	Dim pc AS *ProgressCallBack
 	pc = new_GenericProgressCallBack(FALSE)
 
 	DBM(ex"Start sector protect check...\n")
-	fc.MX29LV320_SectorProtectDump(romSize, VarPtr(opt.mmap), pc)
+	fc.MX29LV320_SectorProtectDump(romSize, pc)
 	DBM(ex"protect check done!\n")
 
 End Sub
@@ -359,7 +359,7 @@ Sub FlashWnd_CommandButton7_Click()
 	End If
 
 	Dim fc AS FlashChipController
-	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe, VarPtr(opt.mmap))
 
 	fc.TestSectorUnprotect()
 End Sub
@@ -372,7 +372,7 @@ Sub FlashWnd_CommandButton8_Click()
 	End If
 
 	Dim fc AS FlashChipController
-	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe)
+	fc.Init(hCOM, opt.cmdType, opt.mmap.rom.adr, opt.swapCeOe, VarPtr(opt.mmap))
 
 	Dim flashId AS FlashChipId
 	if fc.GetFlashChipId(VarPtr(flashId)) then

@@ -12,7 +12,8 @@
 
 //flash config
 #define FLASH_COMMAND_LENGTH 3
-static byte flash_bank;
+// static byte flash_bank;
+static byte flash_banks[FLASH_COMMAND_LENGTH];
 static word flash_address[FLASH_COMMAND_LENGTH];  // = {0xAAAA,0x5555,0xAAAA}
 static byte flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
 static byte flash_byte_verify;
@@ -24,13 +25,17 @@ static byte flash_verify_byte;
 
 void flashReceiveConfig() {
   // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
-  while (Serial.available() < (1 + FLASH_COMMAND_LENGTH * 3 + 1))
+  while (Serial.available() < (FLASH_COMMAND_LENGTH * 4))
     ;
-  flash_bank = Serial.read();
+  // flash_bank = Serial.read();
   for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+    flash_banks[i] = Serial.read();
     flash_address[i] = Serial_readWord();
     flash_cmd[i] = Serial.read();
   }
+
+  while (Serial.available() < 4)
+    ;
   gflags = Serial.read();
   SetFlashOECtrl((gflags & FLASH_CONFIG_CEOE_SWAP));
   flash_byte_verify = gflags & FLASH_CONFIG_BYTE_VERIFY;
@@ -164,9 +169,9 @@ void flashByteProgram(byte bank, word address, word datasize) {
       remain = RX_BUFFER_LEN;
     }
 
-    writebyte_cart2(flash_bank, flash_address[0], flash_cmd[0]);
-    writebyte_cart2(flash_bank, flash_address[1], flash_cmd[1]);
-    writebyte_cart2(flash_bank, flash_address[2], flash_cmd[2]);
+    writebyte_cart2(flash_banks[0], flash_address[0], flash_cmd[0]);
+    writebyte_cart2(flash_banks[1], flash_address[1], flash_cmd[1]);
+    writebyte_cart2(flash_banks[2], flash_address[2], flash_cmd[2]);
 
     // output program byte
     byte b = *bufptr;
@@ -211,9 +216,9 @@ void flashPageProgram(byte bank, word address, word datasize) {
         }
       }
 
-      writebyte_cart2(flash_bank, flash_address[0], flash_cmd[0]);
-      writebyte_cart2(flash_bank, flash_address[1], flash_cmd[1]);
-      writebyte_cart2(flash_bank, flash_address[2], flash_cmd[2]);
+      writebyte_cart2(flash_banks[0], flash_address[0], flash_cmd[0]);
+      writebyte_cart2(flash_banks[1], flash_address[1], flash_cmd[1]);
+      writebyte_cart2(flash_banks[2], flash_address[2], flash_cmd[2]);
 
       page_count = flash_page_size;
       initial = false;

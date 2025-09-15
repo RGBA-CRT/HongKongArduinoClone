@@ -208,8 +208,12 @@ Sub ListUpComPort_Callback(userdata AS VoidPtr, PortName As BytePtr, FriendlyNam
 	SendMessage(hCombobox,CB_ADDSTRING,0,textbuf As Long)
 Endsub
 
+Dim listupComLock AS BOOL
 Sub ListUpComPort(Wnd As HWND)
+	if listupComLock then ExitSub
+	listupComLock = TRUE	' SingleThreadなので簡易ロックで良い
 	SendMessage(Wnd,CB_RESETCONTENT,0,0)
+	PumpMessage()
 
 	' 最後に接続したデバイスを取得
 	Dim lastDevice aS BytePtr, lastDeviceIdx AS Long
@@ -242,6 +246,7 @@ Sub ListUpComPort(Wnd As HWND)
 	SendMessage(Wnd,CB_SETCURSEL,lastDeviceIdx,0)
 	 
 	free(lastDevice)	
+	listupComLock=FALSE
 End Sub
 
 Sub BaudrateErrorMessage()

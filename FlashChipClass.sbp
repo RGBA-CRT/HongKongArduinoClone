@@ -269,9 +269,10 @@ Private
 	cmdSet AS FlashCmdSet
 	baseBusAdr AS DWord
 	isSwapCE_OE AS BOOL
+	mmodel As SFC_MMAP_MODEL
 
 Public
-	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord, swapCE_OE AS BOOL)
+	Sub Init(com_handle AS HANDLE, flashType AS FlashCmdType, base AS DWord, swapCE_OE AS BOOL,mmodel AS *SFC_MMAP_MODEL)
 		if GetFlashCmdSet(flashType, cmdSet) = FALSE then
 			flashType = FlashCmdTypeNotFlash
 			ExitSub
@@ -280,6 +281,7 @@ Public
 		this.flashType = flashType
 		this.baseBusAdr = base
 		this.isSwapCE_OE = swapCE_OE
+		memcpy(VarPtr(this.mmodel), mmodel, sizeof(SFC_MMAP_MODEL))
 
 	End Sub
 
@@ -341,14 +343,14 @@ Public
 		ExitCommandMode()
 	End Function
 
-	Function Program(buf AS BytePtr, bufsize AS DWord, mmodel AS *SFC_MMAP_MODEL, pc AS *ProgressCallBack) AS BOOL
+	Function Program(buf AS BytePtr, bufsize AS DWord, pc AS *ProgressCallBack) AS BOOL
 		FlushCom(hSerial)
 		EnterCommandMode()
 
-		If mmodel->rom.init_cb Then mmodel->rom.init_cb(hCOM)
+		If mmodel.rom.init_cb Then mmodel.rom.init_cb(hCOM)
 
 		Dim bus_addr AS DWord, last_bank AS DWord
-		bus_addr = mmodel->rom.next_cb(hCOM, baseBusAdr, 0)
+		bus_addr = mmodel.rom.next_cb(hCOM, baseBusAdr, 0)
 		last_bank = &HFFFFFFFF
 
 		Const FLASH_WRITE_BUF_SIZE = &H4000
@@ -398,16 +400,16 @@ Public
 			endif
 
 			' LoROMバンク跨ぎ防止
-			printf(ex"%xh - %x %d %xh\n", bus_addr, bus_addr+block_size-1, block_size,block_size)
+			printf(ex"FlashProgram: NEXT CALC: %xh - %x %d %xh\n", bus_addr, bus_addr+block_size-1, block_size,block_size)
 			if ((bus_addr And &H7FFF) + block_size) > &H8000 then
 				debug
 				block_size = &H8000 - (bus_addr And &H7FFF)
 			endif
-			bus_addr = mmodel->rom.next_cb(hCOM, bus_addr, block_size)
+			bus_addr = mmodel.rom.next_cb(hCOM, bus_addr, block_size)
 			i++
 		Loop
 
-		If mmodel->rom.exit_cb Then mmodel->rom.exit_cb(hCOM, NULL)
+		If mmodel.rom.exit_cb Then mmodel.rom.exit_cb(hCOM, NULL)
 
 		ExitCommandMode()
 	End Function
@@ -445,7 +447,7 @@ Public
 		ExitCommandMode()
 	End Sub
 
-	Sub MX29LV320_SectorProtectDump(size AS DWord, mmodel AS *SFC_MMAP_MODEL, pc AS *ProgressCallBack)
+	Sub MX29LV320_SectorProtectDump(size AS DWord, pc AS *ProgressCallBack)
 		Dim flashIdBuf[FLASH_ID_SIZE] AS Byte
 		Dim SECTOR_SIZE = 8*1024 AS DWord
 		Dim i AS Long
@@ -549,9 +551,31 @@ Private
 		AdrOfs = adr And &HFFFF
 	End Function
 
+	Function CombineBusAddressAndCmdAddress(BusRomAddress AS DWord, RomCmdAdr AS DWord) AS DWord
+		if mmodel.rom.isLoROM then
+'			if adr > &HFFFF
+			Dim adr2 AS DWord
+
+			' LoROMアドレス空間からROMオフセット(Flash物理アドレス)を逆算する
+			Dim RomOffset AS DWord
+			RomOffset = ((BusRomAddress And &H7FFF) OR ((BusRomAddress>>1) And &H7F8000))
+
+			' ROMオフセット（Flash物理アドレス）に対して発行コマンドを合成
+			' FlashコマンドアドレスはA0-A15あるものと考え、0xFFFF0000でマスクする。(LoROM 01:8000h ===> HiROM 00:8000hでコマンドアドレスを合成しても仕方がない）
+			adr2 = (RomOffset And &HFFFF0000) + RomCmdAdr
+			CombineBusAddressAndCmdAddress = (adr2 And &H7FFF) OR ((adr2 << 1) And &HFF0000) OR &H8000
+						
+			printf(ex"BusRomOffset=%06X, cmd=%x RomOffset=%06X %06X Combo:%06X\n", BusRomAddress, RomCmdAdr, RomOffset, adr2, CombineBusAddressAndCmdAddress)
+		Else
+			CombineBusAddressAndCmdAddress = BusRomAddress + RomCmdAdr
+		End If
+	End Function
+
+
 	Sub BusFlashCmd(adr AS DWord, data As DWord)
-		' todo: MapModelを考慮する。いまのところFlashCmdは8000h境界をまたがないので問題ないが。
-		SetCartRegister( AdrBank(baseBusAdr), AdrOfs(baseBusAdr) + adr, data AS Byte, FALSE)
+		Dim adr2 AS DWord
+		adr2=CombineBusAddressAndCmdAddress(baseBusAdr, adr)
+		SetCartRegister( AdrBank(adr2), AdrOfs(adr2), data AS Byte, FALSE)
 	End Sub
 
 	Sub DoFlashCmd(cmdList AS *FlashCmdList)
@@ -582,21 +606,21 @@ Private
 
 
 	Sub UpdateFlashConfig(cmdBase As DWord, swapCEOE AS BOOL, byteVerifyEnable AS BOOL)
-		Dim cmdOffset AS Word
-		cmdOffset = AdrOfs(baseBusAdr)
 		Dim FlashConfig16bit AS FlashConfig		
 		dim i =0 As DWord
 		
 		With FlashConfig16bit
-			.bank = AdrBank(baseBusAdr)
 			Do
 				if i => cmdSet.program.count then ExitDo
 				if i => FLASH_CMD_LIST_LEN then 
 					ErrMes(hMainWnd, "ASSERT!!: Flash program cmd length is too long", 0, 0)
 					ExitDo
 				End If
-				.cmdList[i].address = cmdOffset + cmdSet.program.elm[i].address
-				.cmdList[i].data = cmdOffset + cmdSet.program.elm[i].data
+				Dim busadr AS DWord
+				busadr = CombineBusAddressAndCmdAddress(cmdBase, cmdSet.program.elm[i].address)
+				.cmdList[i].bank = AdrBank(busadr)
+				.cmdList[i].address = AdrOfs(busadr)
+				.cmdList[i].data = cmdSet.program.elm[i].data
 				i++
 			Loop
 			.flags = 0
@@ -745,16 +769,16 @@ Function GetFlashChipInfo(chipId AS *FlashChipId) As *FlashChipInfo
 End Function
 
 ' retrn: FlashCmdType
-Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS *BOOL) AS Long
+Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS *BOOL, mmodel AS *SFC_MMAP_MODEL) AS Long
 	FlashDetect = FlashCmdTypeNotFlash	
 	if isSwapCEOE = NULL then exitFunction
 
 	Dim ret AS Long
 	logger(ex"[DETECT][L1] Try OE/CE swap mode...\n")
-	ret = FlashDetect_(hSerial, base, flashId, TRUE)
+	ret = FlashDetect_(hSerial, base, flashId, TRUE, mmodel)
 	if ret = FlashCmdTypeNotFlash then
 		logger(ex"[DETECT][L1] Try OE/CE non-swap mode...\n")
-		ret = FlashDetect_(hSerial, base, flashId, FALSE)
+		ret = FlashDetect_(hSerial, base, flashId, FALSE, mmodel)
 		SetDWord(isSwapCEOE, FALSE)
 	Else
 		SetDWord(isSwapCEOE, TRUE)
@@ -762,13 +786,15 @@ Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, 
 	FlashDetect = ret
 End Function
 
-Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS BOOL) AS Long
+Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS BOOL, mmodel AS *SFC_MMAP_MODEL) AS Long
 	FlashDetect_ = FlashCmdTypeNotFlash
 	Dim fc AS FlashChipController
+	Dim set AS FlashCmdSet
 	Dim i aS Long
 	For i = 1 To FlashCmdTypeMAX-1
-		logger(ex"[DETECT][L2] Try FlashType=%d...\n", i)
-		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE)
+		GetFlashCmdSet(i,set)
+		logger(ex"[DETECT][L2] Try FlashType=%d %s...\n", i, set.name)
+		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE, mmodel)
 		if fc.GetFlashChipId(flashId) then
 			FlashDetect_ = i
 			fc.CfiDump()
