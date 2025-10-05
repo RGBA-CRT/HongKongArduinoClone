@@ -224,14 +224,14 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 			if readLen > 0 Then
 				if rsv=requestChar Then 
 					WaitForRequest=TRUE
-					logger(ex"[WaitRequest] OK: responce=%c wait=%dms retry=%d\n",requestChar, GetTickCount() - start, retry)
+					logger(ex"[WaitRequest] OK: responce=%c wait=%dms retry=%d ",requestChar, GetTickCount() - start, retry)
 					ExitDo
 				Else
-					logger(ex"[WaitRequest] Error: Unexpected responce : real=%X[%c] expect=%X[%c] %d %dms \n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start)
+					logger(ex"\n[WaitRequest] Error: Unexpected responce : real=%X[%c] expect=%X[%c] %d %dms \n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start)
 					ExitDo
 				End if
 			Else
-				logger(ex"[WaitRequest] Warn: read error : real=%X[%c], expect=%X[%c] %d %dms GLE=\n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start, GetLastError())
+				logger(ex"\n[WaitRequest] Warn: read error : real=%X[%c], expect=%X[%c] %d %dms GLE=\n",rsv,rsv,requestChar,requestChar,dwErrors, GetTickCount() - start, GetLastError())
 			End  If
 		End  If
 
@@ -271,8 +271,8 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	WriteCount=0
 
 	Do
-		logger("[WRITE] %X-%Xh ",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
+		logger(ex"[WRITE] %X-%Xh \n",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
 		WriteCount+=dwWD
@@ -357,10 +357,12 @@ Sub FlushCom(hSerial AS HANDLE)
 	LoadFile(hSerial, tmp, cs.cbInQue)
 	logger("ゴミ %d", cs.cbInQue)
 	DumpHKAC(tmp, cs.cbInQue)
+	
+	debug
 
 	free(tmp)
 	tmp = NULL
-	
+
 	FlushFileBuffers(hSerial)
 
 End Sub
@@ -384,6 +386,11 @@ Sub SetCartRegister(bank AS Byte, address AS Word, val AS Byte)(isLoROM AS BOOL)
 	
 '	logger(ex"CMD_T:\n")
 '	DumpHKAC(cmd,5)
+
+	if g_loglevel>=LOG_DEBUG then
+		logger(ex"[libDatabus] RegWrite:\n")
+		DumpHKAC(cmd,5)
+	endif
 
 End Sub
 
@@ -445,7 +452,7 @@ End Type
 'カートリッジへの出力データ送信(ROMだけでなくカートリッジ上のメモリ空間も対象)
 'コントロールバスはいじらないので手動でやる必要あり
 Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
-	Dim cmd[16+1] AS Byte, c As Long, i AS Long
+	Dim cmd[sizeof(FlashConfig)+1] AS Byte, c As Long, i AS Long
 	Dim WriteCount As DWord
 	Dim dwWD As DWord
 
@@ -464,8 +471,11 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 	cmd[c] = config->flash_page_size : c++
 	cmd[c] = config->flash_page_wait_us : c++
 	cmd[c] = config->flash_verify_fixed_value : c++
-'	logger(ex"FlashConfig:\n")
-'	DumpHKAC(cmd,c)
+
+	if g_loglevel>=LOG_DEBUG then
+		logger(ex"[libDatabus] FlashConfig:\n")
+		DumpHKAC(cmd,c)
+	endif
 
 	WriteFile(hSerial,cmd,c,VarPtr(dwWD),ByVal NULL)
 
@@ -493,6 +503,11 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 	FlushCom(hSerial)
 	WriteFile(hSerial,cmd,6,VarPtr(dwWD),ByVal NULL)
 	Sleep(10)
+	
+	if g_loglevel>=LOG_DEBUG then
+		logger(ex"[libDatabus] FlashWrite:\n")
+		DumpHKAC(cmd,6)
+	endif
 
 	ofs=0
 
@@ -509,22 +524,25 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 		Dim bus_addr_range_end AS DWord
 		bus_addr_range_end = address+ofs+write_size-1
 
-		logger("[WRITE] %Xh-%Xh %xh",address+ofs,bus_addr_range_end, write_size)
-
-		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then
+		if WaitForRequest(hSerial,Asc("R"), HKAC_FLASH_WRITE_BLOCK_TIMEOUT_MS) = FALSE Then
 			DBM("Flash request failed.")
 			Dim ErrReport[7] AS Byte
 			ReceiveFromReader(hSerial, ErrReport, 6)
+			logger(ex"\n\nRAW err report:\n")
+			Dump(ErrReport,6)
 			if ErrReport[5] = GetByte("X") then
 				DBMf("@ %02X%02X%02Xh: %02Xh --> %02Xh (exp->real)", ErrReport[2], ErrReport[1], ErrReport[0], ErrReport[3], ErrReport[4])
-'				Dump(ErrReport,6+2)
 			Else
 				DBMf("invalid err report signature.")
-				Dump(ErrReport,5)
+				DumpHKAC(ErrReport,6)
+				Sleep(500)
+				FlushCom(hSerial)
 			endif
 			ExitDo
 		End If
 		FlushCom(hSerial)
+
+		logger(ex" %Xh-%Xh %xh\n",address+ofs,bus_addr_range_end, write_size)
 
 		' ここwrite_sizeを使わず固定値で書いているのは仕様。
 		' データサイズで止まるので、WRITE_SIZEをリミットする必要はない。バッファオーバーランはするので対策しないと...
@@ -544,14 +562,15 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 
 	Loop
 	
-	if WaitForRequest(hSerial,Asc("E"),1000) = FALSE Then 
-		DBM("[DBG]Firmware Error!")
-		DBM("書込ルーチン暴走中")
+	if WaitForRequest(hSerial,Asc("E"), HKAC_FLASH_WRITE_BLOCK_TIMEOUT_MS) = FALSE Then 
+		DBM("ファームウェア暴走中")
 	End If
 	
 	Dim max_loop As Word
 	ReceiveFromReader(hSerial, VarPtr(max_loop), 2)
 	logger(ex" HW loop=%x \n", max_loop)
+	
+	FlushCom(hSerial)
 End Function
 
 Function DatabusRead(hSerial AS HANDLE) As Long
@@ -561,12 +580,18 @@ Function DatabusRead(hSerial AS HANDLE) As Long
 	cmd[0]=Asc("d")	'LoROM
 	WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
 	dwReadByte=0
+	
 
-	Dim ret AS Long
-	ret = ReceiveFromReader(hSerial, cmd, 1)
+	Dim ret AS Long, data aS byte
+	ret = ReceiveFromReader(hSerial, VarPtr(data), 1)
 	if ret = 1 then
-		DatabusRead=cmd[0]
+		DatabusRead=data
 	Else
 		ret = -1
 	End If
+	
+/*	if g_loglevel>=LOG_DEBUG then
+		logger(ex"[libDatabus] ReadRaw: ret=%x\n", data)
+'		DumpHKAC(cmd,1)
+	endif*/
 End Function

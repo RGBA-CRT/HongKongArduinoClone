@@ -38,7 +38,7 @@ if config.GetConfigInt(CONFIG_ID)<1 then
 
 */
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v3.0alfa7" ' sync this to git tag
+Const VerStr = "v3.0alfa7.1" ' sync this to git tag
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 
@@ -58,6 +58,7 @@ Dim HKAC_TRANSFER_FLOAT_TIME_MUL = 2.0 AS Single
 Const HKAC_TRANSFER_FLOAT_TIME_ADD = 10
 
 Const HKAC_SRAM_WRITE_RETRY_LIMIT = 2
+Const DEFAULT_FLASH_WRITE_BLOCK_TIMEOUT_MS = 10000
 
 'ファームウェアと同期すべき案件
 Const INITIAL_BAUDRATE = 115200
@@ -94,6 +95,9 @@ _System_hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE)
 Dim HKAC_RX_TIMEOUT_MARGIN AS Long
 HKAC_RX_TIMEOUT_MARGIN = GetPrivateProfileInt(ProgramName, "RxTimeoutMargine", 64, INIFILE_PATH)
 
+Dim HKAC_FLASH_WRITE_BLOCK_TIMEOUT_MS As Long
+HKAC_FLASH_WRITE_BLOCK_TIMEOUT_MS = GetPrivateProfileInt(ProgramName, "FlashWriteBlockTimeout", DEFAULT_FLASH_WRITE_BLOCK_TIMEOUT_MS, INIFILE_PATH)
+
 '---------------------------
 '  Window Message Loop
 '---------------------------
@@ -111,6 +115,9 @@ endif
 #endif
 logger(ex"cp: %d, jp: %d\n", GetOEMCP(), langJP)
 SetConsoleOutputCP(CP_JPN)
+
+logger(ex"RxTimeoutMargine: %d\n", HKAC_RX_TIMEOUT_MARGIN)
+logger(ex"FlashWriteBlockTimeout: %d\n", HKAC_FLASH_WRITE_BLOCK_TIMEOUT_MS)
 
 Dim msgMain As MSG, iResult As Long
 Do
