@@ -162,7 +162,7 @@ WINDOW:FlashWnd
     ITEM      = CommandButton1,5,209,88,21,"&Detect",&H50010000,&H00000000,1
     ITEM      = Static1,8,40,32,12,"Type",&H50000000,&H00000000,11
     ITEM      = Static3,8,69,32,12,"Flash",&H50000000,&H00000000,11
-    ITEM      = CommandButton2,78,236,88,21,"Chip&Erase",&H50010000,&H00000000,1
+    ITEM      = CommandButton2,77,239,88,21,"Chip&Erase",&H50010000,&H00000000,1
     ITEM      = FlashName,43,65,216,21,"",&H50000880,&H00000200,4
     ITEM      = CommandButton3,5,239,54,21,"TestWrite",&H50000000,&H00000000,1
     ITEM      = CommandButton4,170,236,88,21,"&WriteROM",&H50010000,&H00000000,1

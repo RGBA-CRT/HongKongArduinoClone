@@ -5,7 +5,10 @@ Type FlashCmdList
 	elm[ELM(10)] AS FlashCmdElm
 End Type
 
-Const FlashCmdSetFlagVerifyFixedValue = 1
+' Flashコマンド終了後の期待値を固定する。
+' 固定しない場合、Eraseは0xFF, Programは書き込んだ最終バイトを期待値とする。
+' 固定する場合はFlashCmdTypeによって値を決める。
+Const FlashCmdSetFlagVerifyFixedValue = 1 
 
 Type FlashCmdSet
 	name AS BytePtr
@@ -24,7 +27,7 @@ End Type
 Enum FlashCmdType
 	FlashCmdTypeNotFlash = 0
 	FlashCmdTypeJDEC8			' model: SST39SF040
-	FlashCmdTypeJDEC16Shift8	' model: MX29LV320
+	FlashCmdTypeJDEC16Shift8	' model: MX29LV320, MX29LV640
 	FlashCmdTypeS29GL032N		' model: S29GL032N
 	FlashCmdTypePageWriteNonShiftA14		' model: MX29L3211	' model: MX29F1610MC
 	FlashCmdTypeNonShiftA14	
@@ -302,7 +305,6 @@ Public
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
 				id->extend = 0
-				if id->vendor = id->product then ExitFunction
 				if (id->vendor = &H01) And (id->product = &H7E) then ExitFunction ' Skip to FlashCmdTypeS29GL032N
 
 			Elseif flashType = FlashCmdTypeS29GL032N then
@@ -310,14 +312,12 @@ Public
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
 				id->extend = (flashIdBuf[&H1C]<<8) OR (flashIdBuf[&H1E])
-				if id->vendor = id->product then ExitFunction
 
 			Elseif (flashType = FlashCmdTypeNonShiftA14) OR (flashType = FlashCmdTypePageWriteNonShiftA14) then
 				id->idSize = 1
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[2]
 				id->extend = 0
-				if id->vendor = id->product then ExitFunction
 				if (flashType = FlashCmdTypeNonShiftA14) And (id->vendor = &HC2) And (id->product = &HF1) then ExitFunction ' Skip to FlashCmdTypeS29GL032N
 
 			Else
@@ -325,8 +325,13 @@ Public
 				id->vendor = flashIdBuf[0]
 				id->product = flashIdBuf[1]
 				id->extend = 0
-				if id->vendor = id->product then ExitFunction
 			endif
+
+			if id->vendor = id->product then
+				logger(ex"GetFlashChipId: vender == product. may be wrong flash id. %02x==%02x\n", id->vendor, id->product)
+				ExitFunction
+			endif
+
 		End If
 		GetFlashChipId = TRUE
 	End Function
@@ -768,16 +773,16 @@ Function GetFlashChipInfo(chipId AS *FlashChipId) As *FlashChipInfo
 	End If
 End Function
 
-' retrn: FlashCmdType
+' return: FlashCmdType
 Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS *BOOL, mmodel AS *SFC_MMAP_MODEL) AS Long
 	FlashDetect = FlashCmdTypeNotFlash	
 	if isSwapCEOE = NULL then exitFunction
 
 	Dim ret AS Long
-	logger(ex"[DETECT][L1] Try OE/CE swap mode...\n")
+	logger(ex"!!!!!!!!!!!!!!!! [DETECT][L1] Try OE/CE swap mode... !!!!!!!!!!!!!!!!\n")
 	ret = FlashDetect_(hSerial, base, flashId, TRUE, mmodel)
 	if ret = FlashCmdTypeNotFlash then
-		logger(ex"[DETECT][L1] Try OE/CE non-swap mode...\n")
+		logger(ex"!!!!!!!!!!!!!!!! [DETECT][L1] Try OE/CE non-swap mode... !!!!!!!!!!!!!!!!\n")
 		ret = FlashDetect_(hSerial, base, flashId, FALSE, mmodel)
 		SetDWord(isSwapCEOE, FALSE)
 	Else
@@ -786,6 +791,7 @@ Function FlashDetect(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, 
 	FlashDetect = ret
 End Function
 
+' FlashCmdTypeを舐めて反応するTypeを探す
 Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId, isSwapCEOE AS BOOL, mmodel AS *SFC_MMAP_MODEL) AS Long
 	FlashDetect_ = FlashCmdTypeNotFlash
 	Dim fc AS FlashChipController
@@ -793,9 +799,10 @@ Function FlashDetect_(hSerial As HANDLE, base AS DWord, flashId AS *FlashChipId,
 	Dim i aS Long
 	For i = 1 To FlashCmdTypeMAX-1
 		GetFlashCmdSet(i,set)
-		logger(ex"[DETECT][L2] Try FlashType=%d %s...\n", i, set.name)
+		logger(ex"!!!!!!!!!!!!!!!! [DETECT][L2] Try FlashType=%d %s... !!!!!!!!!!!!!!!!\n", i, set.name)
 		fc.Init(hSerial, i As FlashCmdType, base, isSwapCEOE, mmodel)
 		if fc.GetFlashChipId(flashId) then
+			logger(ex"!!!!!!!!!!!!!!!! [DETECT][L2] Found FlashType=%d %s... !!!!!!!!!!!!!!!!\n", i, set.name)
 			FlashDetect_ = i
 			fc.CfiDump()
 			ExitFunction

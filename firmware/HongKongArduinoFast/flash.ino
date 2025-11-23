@@ -44,6 +44,22 @@ void flashReceiveConfig() {
   flash_page_size = Serial.read();
   flash_page_wait = Serial.read();
   flash_verify_byte = Serial.read();
+
+#if 0
+  Serial.print("FMT25112301\n");
+  for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+    Serial.print(flash_banks[i],HEX);
+    Serial.print(flash_address[i],HEX);
+    Serial.print(" <- ");
+    Serial.println(flash_cmd[i],HEX);
+  }
+  Serial.println(gflags,HEX);
+  Serial.println(flash_byte_verify ? "ByteVeri" : "PageVeri");
+  Serial.println(flash_verify_fixed_value ? "FixdVeri" : "AutoVeri");
+  Serial.println(flash_page_size,HEX);
+  Serial.println(flash_page_wait,HEX);
+  Serial.println(flash_verify_byte,HEX);
+#endif
 }
 
 inline void bulkReadInit() {
@@ -122,21 +138,18 @@ void writebyte_cart2(byte bank, word address, byte data) {
   setAddress_(bank, address);
   setDataPin(data);
 
-  // tAS: Address Setup Time: アドレスを出力してからWEを下げていいまで: 0ns @ S29GL032, 0ns @ MX29F1610
-  // tAH: Address Hold Time: WEが下がってからアドレスを潰していいまで: 45ns @ S29GL032, 40ns @ MX29F1610
+  // tAS: Address Setup Time: アドレスを出力してからWEを下げていいまで: 0ns@S29GL032, 0ns@MX29F1610, 0ns@LV640
   __asm__ volatile("nop");  // 100ns
   __asm__ volatile("nop");  // 100ns
-  // longWait();
 
   CART_WRITE_TOGGLE();
 
-  // tDS: data setup time: データが出てからWEが立ち上がるまで: 35ns @ S29GL032, 50ns @ MX29F1610
-  // tDH: Data Hold Time: WE立ち上がってから潰して良いまで: 0ns @ S29GL032
-  // tWP: WE-Lowパルスの幅: 35ns @ S29GL032, 55ns @ MX29F1610
-
-  __asm__ volatile("nop");
-  __asm__ volatile("nop");
-  // nop2個で200nsぐらい（多分）
+  // tAH: Address Hold Time: WEが下がってからアドレスを潰していいまで: 45ns@S29GL032, 40ns@MX29F1610, 45ns@LV640
+  // tDS: data setup time: データが出てからWEが立ち上がるまで: 35ns@S29GL032, 50ns@MX29F1610, 45ns@LV640
+  // tDH: Data Hold Time: WE立ち上がってから潰して良いまで: 0ns@S29GL032, 0ns@LV640
+  // tWP: WE-Lowパルスの幅: 35ns@S29GL032, 55ns@MX29F1610, 30ns@LV640
+  __asm__ volatile("nop");  // 100ns
+  __asm__ volatile("nop");  // 100ns
 
   CART_WRITE_TOGGLE();
   // tWPH: WE-Highパルスの幅: 50ns @ MX29F1610

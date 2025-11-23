@@ -77,6 +77,8 @@ Sub FlashWnd_CommandButton1_Click()
 	Dim mmap As SFC_MMAP_MODEL
 	GetMmapModel(mapMode, TRUE, VarPtr(mmap)) ' TODO
 
+	SetDlgEnable(STATUS_DUMPING)
+
 	flashCmdType = FlashDetect(hCOM, mmap.rom.adr, VarPtr(flashId), VarPtr(swapCEOE), VarPtr(mmap))
 	if flashCmdType = FlashCmdTypeNotFlash Then
 		DBMf("maybe not flash detected.")
@@ -86,6 +88,8 @@ Sub FlashWnd_CommandButton1_Click()
 	End If
 
 	SendMessage(FWnd(ComboBox1), CB_SETCURSEL, flashCmdType, 0)
+	
+	SetDlgEnable(STATUS_CONNECTED)
 
 	' EditBox: FlashName
 	Dim flashName AS BytePtr, chipInfo AS *FlashChipInfo

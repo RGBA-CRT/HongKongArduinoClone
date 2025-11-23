@@ -237,7 +237,11 @@ Function WaitForRequest(hSerial AS HANDLE,requestChar AS Byte,timedOut_ms AS DWo
 
 		Sleep(1)
 		retry++
-		if (GetTickCount() - start) > timedOut_ms Then ExitDo
+		if (GetTickCount() - start) > timedOut_ms Then 
+			logger(ex"[WaitRequest] Error: Timeout.")
+			FlushCom(hSerial)
+			ExitDo
+		Endif
 	Loop
 
 	timeEndPeriod(1)
@@ -341,7 +345,7 @@ Function RequestFirmwareInfo(hSerial As HANDLE) As BOOL
 End Function
 
 
-Sub FlushCom(hSerial AS HANDLE)
+Sub FlushCom(hSerial AS HANDLE)(debugExpect AS Long)
 	PurgeComm(hSerial, PURGE_TXABORT)
 	PurgeComm(hSerial, PURGE_RXABORT)
 	
@@ -353,12 +357,17 @@ Sub FlushCom(hSerial AS HANDLE)
 	
 	'受信バッファを全部取り出す
 	Dim tmp aS BytePtr
-	tmp = calloc(cs.cbInQue)
+	tmp = calloc(cs.cbInQue+1)
 	LoadFile(hSerial, tmp, cs.cbInQue)
-	logger("ゴミ %d", cs.cbInQue)
+	logger(ex"ゴミ %d\n", cs.cbInQue)
 	DumpHKAC(tmp, cs.cbInQue)
 	
-	debug
+	if debugExpect=0 then
+		debug
+	Elseif debugExpect=2 then
+		tmp[cs.cbInQue] = 0
+		PrintPtr(tmp)
+	End If
 
 	free(tmp)
 	tmp = NULL
@@ -382,14 +391,14 @@ Sub SetCartRegister(bank AS Byte, address AS Word, val AS Byte)(isLoROM AS BOOL)
 	cmd[4] = val
 	
 	WriteFile(hCOM, cmd, 5, VarPtr(dwAB), ByVal NULL)
-	logger(ex"[CMD_%c]%02X%04X = %X\n", cmd[0], bank, address, val)
+'	logger(ex"[CMD_%c]%02X%04X = %X\n", cmd[0], bank, address, val)
 	
 '	logger(ex"CMD_T:\n")
 '	DumpHKAC(cmd,5)
 
 	if g_loglevel>=LOG_DEBUG then
-		logger(ex"[libDatabus] RegWrite:\n")
-		DumpHKAC(cmd,5)
+		logger(ex"[libDatabus] RegWrite: %02X%04X <- %02X\n", bank, address, val)
+'		DumpHKAC(cmd,5)
 	endif
 
 End Sub
@@ -479,6 +488,9 @@ Function DatabusFlashConfig(hSerial AS HANDLE, config As *FlashConfig) As Long
 
 	WriteFile(hSerial,cmd,c,VarPtr(dwWD),ByVal NULL)
 
+	' プロトコルデバッグ：Dumperリターン
+'	Sleep(250)
+'	FlushCom(hSerial,2)
 End Function
 
 Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS DWord, size AS Long, isLoROM AS BOOL) As BOOL

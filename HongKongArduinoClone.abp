@@ -38,7 +38,7 @@ if config.GetConfigInt(CONFIG_ID)<1 then
 
 */
 Const ProgramName = "HongKongArduinoClone"
-Const VerStr = "v3.0alfa7.1" ' sync this to git tag
+Const VerStr = "v3.0alfa8.1" ' sync this to git tag
 Const INIFILE_NAME = "HongKongArduinoClone.ini"
 Const FIRMWARE_NAME = "HongKongArduinoFast"
 
@@ -64,10 +64,10 @@ Const DEFAULT_FLASH_WRITE_BLOCK_TIMEOUT_MS = 10000
 Const INITIAL_BAUDRATE = 115200
 Const HKAC_WRITE_BUFFER_LEN = &H400 ' TODO: auto nego UNO/NANO
 
-Const FLASH_CONFIG_CEOE_SWAP = 1
-Const FLASH_CONFIG_BYTE_VERIFY = 2
-Const FLASH_SUPER_SLOW_READ_MODE = 4
-Const FLASH_CONFIG_VERIFY_FIXED_MODE = 8
+Const FLASH_CONFIG_CEOE_SWAP = 1 		' Flash時にCEとOEの制御を逆にする。CE=xxx pin, OE=xxx pin
+Const FLASH_CONFIG_BYTE_VERIFY = 2 		' Byte単位で書き込むタイプのFlash。PageWriteタイプのFlashの場合は設定しない。
+Const FLASH_SUPER_SLOW_READ_MODE = 4	' デバッグ用
+Const FLASH_CONFIG_VERIFY_FIXED_MODE = 8' Flashコマンドの終了後の値が固定の場合に設定する。
 
 #ifndef DEBUG_BRANCH
 Const FIRMWARE_ID = "HKAF"
