@@ -75,11 +75,17 @@ inline void bulkReadExit() {
 inline byte bulkReadAcquire() {
   FLASH_OE_TOGGLE();
 
+  // tCE: CEがLowになってから有効データ出力までの時間: 70ns@LV640
+  // tOE: OEがLowになってから有効データ出力までの時間: 30ns@LV640
+  __asm__ volatile("nop");
   __asm__ volatile("nop");
 
   byte b = getDataPin();
 
   FLASH_OE_TOGGLE();
+
+  // tOEh: OEをHighにしてほしい時間: 10ns@LV640
+  // __asm__ volatile("nop"); // 後続の条件分岐で十分に待ってると思う。
 
   return b;
 }
@@ -93,15 +99,17 @@ inline byte bulkReadAcquire() {
 // #define POLL_ONLY_DQ7
 
 word max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
-inline byte flashWaitOperation(byte expect_byte) {
+byte flashWaitOperation(byte expect_byte) {
   bulkReadInit();
   byte ret;
   byte ok_cnt = 2;
   word i = FLASH_WAIT_TIMEOUT_CYCLE;
+
+  // tBusy: 70ns@LV640
   // S29L032N tBusy
   // __asm__ volatile("nop");
   // __asm__ volatile("nop");
-  // __asm__ volatile("nop");
+  __asm__ volatile("nop");
 
   do {
     ret = bulkReadAcquire();

@@ -543,9 +543,9 @@ Function DatabusFlashWrite(hSerial AS HANDLE,data AS BytePtr, offset AS Long,add
 			logger(ex"\n\nRAW err report:\n")
 			Dump(ErrReport,6)
 			if ErrReport[5] = GetByte("X") then
-				DBMf("@ %02X%02X%02Xh: %02Xh --> %02Xh (exp->real)", ErrReport[2], ErrReport[1], ErrReport[0], ErrReport[3], ErrReport[4])
+				logger("@ %02X%02X%02Xh: %02Xh --> %02Xh (exp->real)", ErrReport[2], ErrReport[1], ErrReport[0], ErrReport[3], ErrReport[4])
 			Else
-				DBMf("invalid err report signature.")
+				logger("invalid err report signature.")
 				DumpHKAC(ErrReport,6)
 				Sleep(500)
 				FlushCom(hSerial)
