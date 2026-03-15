@@ -314,7 +314,7 @@ End Function
 
 
 ' ============== SDD1 =============
-Function SDD1_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function SDD1_init(hSerial AS HANDLE) As BOOL
 	' Å‰‚ÍROMƒoƒ“ƒN0`3‚ð‹z‚¢o‚·
 	SDD1_SetBanks(hCOM, 0)
 	SDD1_PrintBanks(hCOM)
@@ -367,7 +367,7 @@ End Sub
 
 
 ' ============== SA1 =============
-Function SA1_SRAM_WRITE_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function SA1_SRAM_WRITE_init(hSerial AS HANDLE) As BOOL
 	SA1_SramInit(hSerial)
 End Function
 
@@ -376,7 +376,7 @@ Function SA1_SRAM_WRITE_nextAddress(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL
 	SA1_SRAM_WRITE_nextAddress = mmodel->sram.adr
 End Function
 
-Function SA1_SRAM_WRITE_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+Function SA1_SRAM_WRITE_exit(hCOM AS HANDLE, romBuffer As BytePtr)
 	SA1_SramExit(hCOM, romBuffer)
 End Function
 
@@ -439,7 +439,7 @@ End Sub
 
 
 ' ============== SPC7110 =============
-Function SPC7110_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function SPC7110_init(hSerial AS HANDLE) As BOOL
 	DBM("Checking SPC7110...")
 	If SPC7110_SetBanks(hSerial, 1, FALSE) = FALSE or _
 						SPC7110_SetBanks(hCOM, 0, FALSE) = FALSE Then
@@ -461,11 +461,11 @@ Function SPC7110_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord)
 	End If
 End Function
 
-Function SPC7110_SRAM_init(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function SPC7110_SRAM_init(hSerial AS HANDLE) As BOOL
 	SPC7110_SetBanks(hCOM, 0, TRUE) 'SRAM ENABLE
 End Function
 
-Function SPC7110_SRAM_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)
+Function SPC7110_SRAM_exit(hCOM AS HANDLE, romBuffer As BytePtr)
 	SPC7110_SetBanks(hCOM, 0, FALSE) 'SRAM DISABLE
 End Function
 
@@ -529,7 +529,7 @@ End Sub
 
 
 ' ============== CX4 =============
-Function CX4_init_x2(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function CX4_init_x2(hSerial AS HANDLE) As BOOL
 	DBM("CX4 for ROCKMAN X2")
 	
 	' https://sd2snes.de/files/cx4_notes.txt
@@ -547,7 +547,7 @@ Function CX4_init_x2(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
 	CX4_init_x2 = TRUE
 End Function
 
-Function CX4_init_x3(hSerial AS HANDLE, info As *SFC_CART_INFO) As BOOL
+Function CX4_init_x3(hSerial AS HANDLE) As BOOL
 	DBM("CX4 for ROCKMAN X3")
 	
 	' Set ROM configuration to 1xROM (16Mx1)

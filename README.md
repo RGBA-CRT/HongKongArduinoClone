@@ -54,6 +54,9 @@ Dump from SA-1 and SPC7110 needs following Clock Modlue.
 
 ![回路図](https://raw.githubusercontent.com/RGBA-CRT/HongKongArduinoClone/master/ss/SA1.png "回路図")   
 
+note
+- Arduino Nano -> UNOアダプターを使う際、3.3Vが供給されているか確認してください。NCになっているボードがあります。
+
 ## 動作環境 / System requirements
 + Windows Windows 2000 or later
 	+ Windows 95 + IE4 でも動作しますが、一部機能が制限されます。
