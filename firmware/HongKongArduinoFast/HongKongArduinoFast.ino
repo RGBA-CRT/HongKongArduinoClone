@@ -24,6 +24,7 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 #define BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
 #define RX_BUFFER_LEN BUFFER_LEN
 static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
+// static_assert(F_CPU == 320000000UL, "32MHz");
 
 /* version history
  * HKAF0: 2017/02: add version cmd
@@ -138,7 +139,7 @@ void SetFlashOECtrl(bool swap_ce_oe) {
 // databus
 #define getDataPin() (PIND >> 2) | ((PINB << 6))
 
-#define Serial_readWord() ((word)Serial.read() | ((word)Serial.read() << 8))
+#define Serial_readWord() ((word)serial_read() | ((word)serial_read() << 8))
 
 // RXバッファ
 byte buf[BUFFER_LEN];
@@ -156,13 +157,98 @@ byte gflags;
 // serial comm
 //-----------------
 
-static long dbg2 = 0 ;
+#define TX_BUF_SIZE 128
+#define TX_BUF_MASK (TX_BUF_SIZE - 1)
+
+#define RX_BUF_SIZE 32
+#define RX_BUF_MASK (RX_BUF_SIZE - 1)
+
+static volatile uint8_t tx_buf[TX_BUF_SIZE];
+static volatile uint8_t tx_head = 0;
+static volatile uint8_t tx_tail = 0;
+
+static volatile uint8_t rx_buf[RX_BUF_SIZE];
+static volatile uint8_t rx_head = 0;
+static volatile uint8_t rx_tail = 0;
+
+
+static long dbg2 = 0;
 inline void serial_send(byte data) {
+#if 0
   //UDRが空になるのを待つ
   while (!(UCSR0A & _BV(UDRE0))){
     dbg2++;
   }
   UDR0 = data;
+#else
+  byte next = (tx_head + 1) & TX_BUF_MASK;
+
+  // バッファフル待ち
+  // 例えばフルの時、head=5 tail=6としてnextは6, tailが進んで7になるまで待つ。
+  while (next == tx_tail){
+    dbg2++;
+  }
+
+  
+  noInterrupts();
+  tx_buf[tx_head] = data;
+  tx_head = next;
+  interrupts();
+
+  // UDRE割り込み有効化（送信開始トリガ）
+  UCSR0B |= (1 << UDRIE0);
+#endif
+}
+
+ISR(USART_UDRE_vect) {
+  if (tx_head == tx_tail) {
+    // データ無し → 割り込み停止
+    UCSR0B &= ~(1 << UDRIE0);
+    return;
+  }
+
+  UDR0 = tx_buf[tx_tail];
+  tx_tail = (tx_tail + 1) & TX_BUF_MASK;
+}
+
+ISR(USART_RX_vect) {
+  byte data = UDR0;
+  byte next = (rx_head + 1) & RX_BUF_MASK;
+
+  if (next == rx_tail) {
+#ifdef RX_OVERFLOW_WARN
+    // バッファフル → データ捨てる
+    rx_overflow = 1;
+#endif
+  } else {
+    rx_buf[rx_head] = data;
+    rx_head = next;
+  }
+}
+byte serial_available(void) {
+  return (rx_head - rx_tail) & RX_BUF_MASK;
+}
+byte serial_read(void) {
+  while (rx_head == rx_tail)
+    ;
+  byte data = rx_buf[rx_tail];
+  rx_tail = (rx_tail + 1) & RX_BUF_MASK;
+  return data;
+}
+
+void serial_begin(uint32_t baud) {
+  uint16_t brr_val = ((F_CPU / 4 / baud) - 1) / 2;
+  uint8_t u2x_en = 1;
+  if ((brr_val > 0xFFF) /*|| (baud==2000000UL)*/) {
+    brr_val = ((F_CPU / 8 / baud) - 1) / 2;
+    u2x_en = 0;
+  }
+  UBRR0H = brr_val >> 8;  // UBRR=16
+  UBRR0L = brr_val;
+
+  UCSR0A = (u2x_en << U2X0);
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);                // 8bit
 }
 
 void serial_send_text(const char* text) {
@@ -261,10 +347,10 @@ inline void setAddress(byte bank, word address, byte isLoROM) {
 
 uint8_t dbg = 0;
 void readCart(byte isLoROM) {
-  while (Serial.available() < 5)
+  while (serial_available() < 5)
     ;
   word address = Serial_readWord();
-  byte bank = Serial.read();
+  byte bank = serial_read();
   word datasize = Serial_readWord();
   BB_DIR_INPUT();
   dbg = 0;
@@ -280,10 +366,10 @@ void readCart(byte isLoROM) {
 
 void writeCart(int isLoROM = false) {
   //コマンド受信
-  while (Serial.available() < 5)
+  while (serial_available() < 5)
     ;
   word address = Serial_readWord();
-  byte bank = Serial.read();
+  byte bank = serial_read();
   word datasize = Serial_readWord();
 
   CART_WRITE_DISABLE();
@@ -587,13 +673,15 @@ void setup() {
   // Pull-Donw disable
   MCUCR |= 0x10;
 
-  Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
+  // Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
+  // 115200
+  serial_begin(INITIAL_BAUDRATE);
 }
 
 void loop() {
-  while (Serial.available() == 0)
+  while (serial_available() == 0)
     ;  //wait command
-  byte cmd = Serial.read();
+  byte cmd = serial_read();
 
   switch (cmd) {
     case 'R':
@@ -616,28 +704,26 @@ void loop() {
     case 'a':
     case 'A':
       {  //Set address
-        while (Serial.available() < 3)
+        while (serial_available() < 3)
           ;
         byte isLoROM = (cmd == 'a');
         word address = Serial_readWord();
-        byte bank = Serial.read();
+        byte bank = serial_read();
         setAddress(bank, address, isLoROM);
       }
       break;
 
     case 'b':
       {  //Set boudrate
-        while (Serial.available() < 4)
+        while (serial_available() < 4)
           ;
 
-        unsigned long new_boudrate = Serial.read()
-                                     | (unsigned long)Serial.read() << 8
-                                     | (unsigned long)Serial.read() << 16
-                                     | (unsigned long)Serial.read() << 24;
+        unsigned long new_baudrate = serial_read()
+                                     | (unsigned long)serial_read() << 8
+                                     | (unsigned long)serial_read() << 16
+                                     | (unsigned long)serial_read() << 24;
 
-        Serial.end();
-        Serial.begin(new_boudrate, SERIAL_CONFIG);
-        UCSR0B &= 0b10011111;  // Tx割り込み無効化
+        serial_begin(new_baudrate);
         //Serial.flush();
         //このあと、ファームチェックで値が正常に帰ってくることを確認してから
         //各種コマンドを投げてください
@@ -647,9 +733,9 @@ void loop() {
 
     case 'c':
       {  //set control bus(OE WD RST CS)
-        while (Serial.available() < 1)
+        while (serial_available() < 1)
           ;
-        setCtrlBus(Serial.read());
+        setCtrlBus(serial_read());
       }
       break;
 
@@ -667,9 +753,9 @@ void loop() {
 
     case 'g':
       {  //CPU ClockGen Start/Stop
-        while (Serial.available() < 1)
+        while (serial_available() < 1)
           ;
-        byte mode = Serial.read();
+        byte mode = serial_read();
 #ifdef _ENABLE_CIC
         if ((mode & 0xf0) == 0x30) {
           setupCloclGen(mode & 0x01, mode & 0x02, mode & 0x04, mode & 0x08);
@@ -705,21 +791,21 @@ void loop() {
         // for (byte i = 0; i < 20; i++) {
         //   Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
         // }  Serial.print("\n");
-        
+
         serial_send_text("DBG_");
         serial_send(dbg);
-        serial_send(dbg2>>24);
-        serial_send(dbg2>>16);
-        serial_send(dbg2>>8);
+        serial_send(dbg2 >> 24);
+        serial_send(dbg2 >> 16);
+        serial_send(dbg2 >> 8);
         serial_send(dbg2);
       }
       break;
 
     case 's':
       {  // set register(1byte write)
-        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+        serial_send_text((char)readbyte_cart(0xc0, 0x0000));
         writebyte_cart(0x00, 0x2220, 04);
-        Serial.print((char)readbyte_cart(0xc0, 0x0000));
+        serial_send_text((char)readbyte_cart(0xc0, 0x0000));
       }
       break;
 
@@ -739,9 +825,9 @@ void loop() {
         writebyte_cart(0x00, 0x2400, 0x39);
 
         if (readbyte_cart(0x00, 0x2400) == 0x2A)
-          Serial.print("OK");
+          serial_send_text("OK");
         else
-          Serial.print("NG");
+          serial_send_text("NG");
         serial_send(readbyte_cart(0x00, 0x2400));
       }
       break;
@@ -750,11 +836,11 @@ void loop() {
     case 'T':
     case 't':
       {  // set register(1byte write)
-        while (Serial.available() < 4)
+        while (serial_available() < 4)
           ;
-        byte bank = Serial.read();
+        byte bank = serial_read();
         word address = Serial_readWord();
-        byte data = Serial.read();
+        byte data = serial_read();
 
         //lorom -> real address
         if (cmd == 't') {

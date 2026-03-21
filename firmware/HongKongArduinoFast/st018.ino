@@ -65,14 +65,14 @@ void st018_memread(byte cmd, byte n_kb) {
 
   for (byte j = 0; j < n_kb; j++) {
     for (word i = 0; i < 1024; i++) {
-      Serial.write(st018_readData());
+      serial_send(st018_readData());
     }
 
     // 1KB毎に指示を待つ
-    while (Serial.available() < 1);
+    while (serial_available() < 1);
 
     // 'e' = Cancel
-    if (Serial.read() == 'e')
+    if (serial_read() == 'e')
       break;
 
   }
@@ -84,11 +84,11 @@ bool st018_biosDump(byte cmd) {
 
   // reset
   if (st018_reset()) {
-    Serial.print("RST ERR");
+    serial_send_text("RST ERR");
     return true;
   }
 
-  Serial.write('S');
+  serial_send('S');
 
   // dump program ROM (128KB)
   st018_memread(0xF3, 128);

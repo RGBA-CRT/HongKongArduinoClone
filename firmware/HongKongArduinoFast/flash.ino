@@ -25,25 +25,25 @@ static byte flash_verify_byte;
 
 void flashReceiveConfig() {
   // flash_bank + (flash_address,flash_cmd) * FLASH_COMMAND_LENGTH
-  while (Serial.available() < (FLASH_COMMAND_LENGTH * 4))
+  while (serial_available() < (FLASH_COMMAND_LENGTH * 4))
     ;
-  // flash_bank = Serial.read();
+  // flash_bank = serial_read();
   for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
-    flash_banks[i] = Serial.read();
+    flash_banks[i] = serial_read();
     flash_address[i] = Serial_readWord();
-    flash_cmd[i] = Serial.read();
+    flash_cmd[i] = serial_read();
   }
 
-  while (Serial.available() < 4)
+  while (serial_available() < 4)
     ;
-  gflags = Serial.read();
+  gflags = serial_read();
   SetFlashOECtrl((gflags & FLASH_CONFIG_CEOE_SWAP));
   flash_byte_verify = gflags & FLASH_CONFIG_BYTE_VERIFY;
   flash_verify_fixed_value = gflags & FLASH_CONFIG_VERIFY_FIXED_VALUE;
 
-  flash_page_size = Serial.read();
-  flash_page_wait = Serial.read();
-  flash_verify_byte = Serial.read();
+  flash_page_size = serial_read();
+  flash_page_wait = serial_read();
+  flash_verify_byte = serial_read();
 
 #if 0
   Serial.print("FMT25112301\n");
@@ -257,11 +257,11 @@ void flashPageProgram(byte bank, word address, word datasize) {
 
 void flashWriteCart() {
   //コマンド受信
-  while (Serial.available() < 5)
+  while (serial_available() < 5)
     ;
 
   word address = Serial_readWord();
-  byte bank = Serial.read();
+  byte bank = serial_read();
   word datasize = Serial_readWord();
 
   flashBulkWriteInit();
