@@ -66,6 +66,7 @@ WINDOW:MainWnd
     ITEM      = ImageBox1,550,3,15,7,"",&H50000000,&H00000200,11
     ITEM      = CheckBox8,482,270,74,15,"SuperSlow",&H50000003,&H00000000,2
     ITEM      = CommandButton19,542,289,32,16,"stble",&H50000000,&H00000000,1
+    ITEM      = CommandButton20,274,289,12,16,"",&H50000000,&H00000000,1
 END
 WINDOW:SFMemWnd
     HANDLE    = hSFMem

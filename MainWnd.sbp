@@ -2059,3 +2059,8 @@ Function XorCheckSum(data As BytePtr,length As DWord) As DWord
 		i++
 	Loop
 End Function
+
+Sub MainWnd_CommandButton20_Click()
+	DBM("dumper info cmd")
+	DumperDebugInfo(hCOM)
+End Sub

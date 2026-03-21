@@ -4,6 +4,7 @@ Modification: RGBA_CRT 2016/3/19 [rgba3crt1p@gmail.com]
 Some code is referred on [https://github.com/sanni/cartreader/].
 Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
+
 #pragma GCC push_options
 #pragma GCC optimize("O3")
 //config
@@ -48,27 +49,16 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
 #include "Wire.h"
 #include <avr/io.h>
 
-#define I2C_CTRL_COMMON
-#ifdef I2C_CTRL_COMMON
 extern "C" {
 #include <utility/twi.h>
 }
-#endif
 //I2C通信状態を解除してA4,A5ピンを使用可能に
 void DISABLE_I2C() {
-#ifdef I2C_CTRL_COMMON
   twi_disable();
-#else
-  TWCR = 0;
-#endif
 }
 
 void ENABLE_I2C() {
-#ifdef I2C_CTRL_COMMON
   twi_init();
-#else
-  TWCR = 0x45;
-#endif
 }
 
 //クロックジェネレータ
@@ -93,7 +83,7 @@ Si5351 clockgen;
 #define G0 11
 #define G1 12
 #define G2 13
-// #define SWAP_CEOE
+
 //[PORTC]コントロールピン
 #define DIR 14
 #define CK 15
@@ -136,11 +126,7 @@ void SetFlashOECtrl(bool swap_ce_oe) {
     val_ce_or_mask = PIN_PORTC_OE_MASK;
   }
 }
-#if 0
-#define CART_OUTPUT_ENABLE() PORTC &= ~(PIN_PORTC_OE_MASK)
-#define CART_OUTPUT_DISABLE() PORTC |= PIN_PORTC_OE_MASK
-#define CART_OUTPUT_TOGGLE() PINC = PIN_PORTC_OE_MASK
-#else
+
 #define CART_OUTPUT_ENABLE() PORTC &= val_oe_and_mask
 #define CART_OUTPUT_DISABLE() PORTC |= val_oe_or_mask
 #define CART_OUTPUT_TOGGLE() PINC = val_oe_or_mask
@@ -148,7 +134,6 @@ void SetFlashOECtrl(bool swap_ce_oe) {
 #define CART_CHIP_ENABLE() PORTC &= ~val_ce_or_mask
 #define CART_CHIP_DISABLE() PORTC |= val_ce_or_mask
 #define CART_CHIP_TOGGLE() PINC = val_ce_or_mask
-#endif
 
 // databus
 #define getDataPin() (PIND >> 2) | ((PINB << 6))
@@ -171,16 +156,13 @@ byte gflags;
 // serial comm
 //-----------------
 
+static long dbg2 = 0 ;
 inline void serial_send(byte data) {
-  // while (!(UCSR0A & _BV(TXC0)));
-  while (!(UCSR0A & _BV(UDRE0)))
-    ;  //UDRが空になるのを待つ
-
-  // __asm__ volatile("nop\n\t");
+  //UDRが空になるのを待つ
+  while (!(UCSR0A & _BV(UDRE0))){
+    dbg2++;
+  }
   UDR0 = data;
-  // __asm__ volatile("nop\n\t");
-  // while(!Serial.availableForWrite());
-  // Serial.write(data);
 }
 
 void serial_send_text(const char* text) {
@@ -334,15 +316,16 @@ void writeCart(int isLoROM = false) {
   //  Serial.println("WRITE_END");
 }
 
-/*
-  inline byte hex2ascii(byte hex) {
+#if 0
+inline byte hex2ascii(byte hex) {
   return (hex < 0xA) ? hex + '0' : hex - 0xA + 'A';
-  }
+}
 
-  void send_hexdump(byte hex) {
+void send_hexdump(byte hex) {
   serial_send(hex2ascii((hex >> 4) & 0x0f));
   serial_send(hex2ascii(hex & 0x0f));
-  }*/
+}
+#endif
 
 
 void setCtrlBus(byte b) {
@@ -524,9 +507,9 @@ void writebyte_cart(byte bank, word address, byte data) {
 }
 
 #define DELAY_FRACT 1
-#define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr" )
-#define minimum_delay(x) nop_generate( x )
-#define wait_62500_psec(x) minimum_delay( (x * DELAY_FRACT) )
+#define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr")
+#define minimum_delay(x) nop_generate(x)
+#define wait_62500_psec(x) minimum_delay((x * DELAY_FRACT))
 
 byte haveClockModule = 0;
 #ifdef _ENABLE_CIC
@@ -605,13 +588,6 @@ void setup() {
   MCUCR |= 0x10;
 
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
-  // Serial.print("SYNC");
-  // Serial.print("UCSR0A");
-  // Serial.print(UCSR0A, HEX);
-  // Serial.print("UCSR0B");
-  // Serial.print(UCSR0B, HEX);
-  // Serial.print("UCSR0C");
-  // Serial.print(UCSR0C, HEX);
 }
 
 void loop() {
@@ -729,6 +705,13 @@ void loop() {
         // for (byte i = 0; i < 20; i++) {
         //   Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
         // }  Serial.print("\n");
+        
+        serial_send_text("DBG_");
+        serial_send(dbg);
+        serial_send(dbg2>>24);
+        serial_send(dbg2>>16);
+        serial_send(dbg2>>8);
+        serial_send(dbg2);
       }
       break;
 

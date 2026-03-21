@@ -614,3 +614,24 @@ Function DatabusRead(hSerial AS HANDLE) As Long
 '		DumpHKAC(cmd,1)
 	endif*/
 End Function
+
+Function DumperDebugInfo(hSerial AS HANDLE) As Long
+	Dim cmd[7] AS Byte
+	Dim dwReadByte As DWord
+
+	cmd[0]=Asc("i")	'LoROM
+	WriteFile(hSerial,cmd,1,VarPtr(dwReadByte),ByVal NULL)
+	dwReadByte=0
+	
+
+	Dim ret AS Long, data[16*4] aS byte	
+	ret = ReceiveFromReader(hSerial, VarPtr(data), 16*4)
+	Dump(data, 16*4)
+
+
+	
+/*	if g_loglevel>=LOG_DEBUG then
+		logger(ex"[libDatabus] ReadRaw: ret=%x\n", data)
+'		DumpHKAC(cmd,1)
+	endif*/
+End Function
