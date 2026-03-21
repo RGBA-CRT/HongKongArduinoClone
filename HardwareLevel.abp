@@ -50,11 +50,12 @@ Function OpenComPort(PortName AS BytePtr,rate AS DWord)(inBuffer As DWord,outBuf
 
 	FlushCom(hSerial)
 
-	dcb.BaudRate = rate		'転送速度の指定
-	dcb.ByteSize = 8		'ビット長の指定
-	dcb.fBitFields = TRUE	'バイナリモードのフラグを有効にし
-	dcb.Parity = 0			'パリティの設定（パリティなし）
-	dcb.StopBits = 0		'ストップビット数を指定(1ビット)
+	dcb.DCBlength = sizeof(DCB_SETTING)
+	dcb.BaudRate = rate
+	dcb.ByteSize = 8
+	dcb.Parity 	 = NOPARITY
+	dcb.StopBits = ONESTOPBIT
+	dcb.fBitFields = DCB_F_BINALY OR DCB_F_ABORT_ON_ERROR
 	SetCommState(hSerial,dcb)
 
 	'通信タイムアウトの設定
@@ -180,6 +181,12 @@ Function ReceiveFromReader(hSerial AS HANDLE,data AS BytePtr, size AS Long)(Time
 		if ((GetTickCount()-start) > HKAC_HW_RETRY) or GetCancelKey() And &H80 Then ExitDo
 
 		ClearCommError(hSerial,VarPtr(dwErrors),cs)
+		if dwErrors <> 0 then
+			debug
+		endif
+		if cs.fBitFields <> 0 then
+			debug
+		endif
 		if cs.cbInQue=0 Then 
 			retry++
 			Sleep(1)

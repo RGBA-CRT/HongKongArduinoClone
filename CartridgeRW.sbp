@@ -11,14 +11,13 @@ Function GetDumpBufferSize() As DWord
 	Dim bufferSize As DWord
 	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
 	If bufferSize < 1 Then 
-		bufferSize = DEFAULT_DUMP_SIZE * 1024
-	ElseIf bufferSize > (MAXIMUM_DUMP_BUFFER_SIZE/1024) Then
+		bufferSize = DEFAULT_DUMP_SIZE
+	ElseIf bufferSize > (MAXIMUM_DUMP_BUFFER_SIZE) Then
 		bufferSize = LoROM_BANK_SIZE
 	Else
 		'LoROMバンクをまたいだバンクサイズだとバンク切り替えできないので　丸める(脳死アルゴリズム)
 		*MARU
 		If LoROM_BANK_SIZE Mod bufferSize Then bufferSize--:Goto *MARU
-		bufferSize *= 1024
 	End If
 	GetDumpBufferSize = bufferSize
 End Function
@@ -81,6 +80,11 @@ Function DumpRom2(hSerial As HANDLE, rom As BytePtr, dump_size As DWord, mmodel 
 			DumpRom2=HKAC_DUMPROM_COMMERROR
 			Goto *EXIT_DUMP2
 		Else If ret<>bufferSize Then
+			printf(ex"data lost at %x size=%x/%x\n",currentAddress,ret,bufferSize)
+#ifdef _DEBUG
+			Dump(romBuffer,ret,currentAddress, TRUE)
+	'		debug
+#endif
 			retry++
 			If progress Then progress->ErrorRetry(retry, retryLimit)
 			If retry>retryLimit Then

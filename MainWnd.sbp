@@ -308,7 +308,7 @@ Sub ConnectDevice()
 	
 	'bufferlen
 	Dim bufferSize AS DWord
-	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	bufferSize = GetPrivateProfileInt(ProgramName, "DumpBufferSize2", DEFAULT_DUMP_SIZE, INIFILE_PATH)
 	If bufferSize <= 0 Then bufferSize = DEFAULT_DUMP_SIZE
 
 	Dim retry=0 As Long
@@ -586,10 +586,10 @@ Sub SaveIniFile()
 	wsprintf(textbuf, "%d", Tmp)
 	WritePrivateProfileString(ProgramName, "QDDSize", textbuf, INIFILE_PATH)
 	
-	Tmp = GetPrivateProfileInt(ProgramName, "DumpBufferSize", DEFAULT_DUMP_SIZE, INIFILE_PATH)
+	Tmp = GetPrivateProfileInt(ProgramName, "DumpBufferSize2", DEFAULT_DUMP_SIZE, INIFILE_PATH)
 	If Tmp <= 0 Then Tmp = DEFAULT_DUMP_SIZE
 	wsprintf(textbuf, "%d", Tmp)
-	WritePrivateProfileString(ProgramName, "DumpBufferSize", textbuf, INIFILE_PATH)
+	WritePrivateProfileString(ProgramName, "DumpBufferSize2", textbuf, INIFILE_PATH)
 	
 	Tmp = GetPrivateProfileInt(ProgramName, "SoundEnable", DEFAULT_SOUND_ENABLE, INIFILE_PATH)
 	wsprintf(textbuf, "%d", Tmp)

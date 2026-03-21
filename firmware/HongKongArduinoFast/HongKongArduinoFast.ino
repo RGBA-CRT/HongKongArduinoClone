@@ -9,7 +9,7 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 //config
 //シリアルコンバータがCH340の場合1000000bpsが限界
 #define INITIAL_BAUDRATE 115200
-#define SERIAL_CONFIG SERIAL_8N1
+#define SERIAL_CONFIG SERIAL_8N1 /*SERIAL_8N1*/
 
 #define HKAC_DEBUG
 #ifndef HKAC_DEBUG
@@ -48,11 +48,28 @@ static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value o
 #include "Wire.h"
 #include <avr/io.h>
 
+#define I2C_CTRL_COMMON
+#ifdef I2C_CTRL_COMMON
+extern "C" {
+#include <utility/twi.h>
+}
+#endif
 //I2C通信状態を解除してA4,A5ピンを使用可能に
-#define DISABLE_I2C() \
-  { TWCR = 0; }
-#define ENABLE_I2C() \
-  { TWCR = 0x45; }
+void DISABLE_I2C() {
+#ifdef I2C_CTRL_COMMON
+  twi_disable();
+#else
+  TWCR = 0;
+#endif
+}
+
+void ENABLE_I2C() {
+#ifdef I2C_CTRL_COMMON
+  twi_init();
+#else
+  TWCR = 0x45;
+#endif
+}
 
 //クロックジェネレータ
 Si5351 clockgen;
@@ -155,9 +172,22 @@ byte gflags;
 //-----------------
 
 inline void serial_send(byte data) {
+  // while (!(UCSR0A & _BV(TXC0)));
   while (!(UCSR0A & _BV(UDRE0)))
     ;  //UDRが空になるのを待つ
+
+  // __asm__ volatile("nop\n\t");
   UDR0 = data;
+  // __asm__ volatile("nop\n\t");
+  // while(!Serial.availableForWrite());
+  // Serial.write(data);
+}
+
+void serial_send_text(const char* text) {
+  while ((*text) != 0) {
+    serial_send(*text);
+    text++;
+  }
 }
 
 // recive to buffer
@@ -247,6 +277,7 @@ inline void setAddress(byte bank, word address, byte isLoROM) {
   // longWait();
 }
 
+uint8_t dbg = 0;
 void readCart(byte isLoROM) {
   while (Serial.available() < 5)
     ;
@@ -254,6 +285,7 @@ void readCart(byte isLoROM) {
   byte bank = Serial.read();
   word datasize = Serial_readWord();
   BB_DIR_INPUT();
+  dbg = 0;
 
   // note: 一見最適化の余地があるが、結局serial_sendで待ちが発生するので意味無し
   do {
@@ -308,8 +340,8 @@ void writeCart(int isLoROM = false) {
   }
 
   void send_hexdump(byte hex) {
-  Serial.write(hex2ascii((hex >> 4) & 0x0f));
-  Serial.write(hex2ascii(hex & 0x0f));
+  serial_send(hex2ascii((hex >> 4) & 0x0f));
+  serial_send(hex2ascii(hex & 0x0f));
   }*/
 
 
@@ -354,6 +386,11 @@ void longWait() {
 }
 
 byte readData() {
+// #define UART_DEBUG
+#ifdef UART_DEBUG
+  return dbg++;
+#endif
+
   CART_OUTPUT_ENABLE();
   dataPinDirInput();
   BB_OUT_ENABLE();
@@ -383,7 +420,7 @@ retry:
       err++;
       if (--ng_cnt) { goto retry; }
     }
-    b ^= b2;// error bit report
+    b ^= b2;  // error bit report
     // b = err; // error count report
     // b = b2;
   } else {
@@ -486,14 +523,16 @@ void writebyte_cart(byte bank, word address, byte data) {
   BB_DIR_INPUT();
 }
 
-#ifndef _ENABLE_CIC
+#define DELAY_FRACT 1
+#define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr" )
+#define minimum_delay(x) nop_generate( x )
+#define wait_62500_psec(x) minimum_delay( (x * DELAY_FRACT) )
 
 byte haveClockModule = 0;
-#endif
 #ifdef _ENABLE_CIC
-byte haveClockModule = 0;
 //[Nintendo Cart Reader]より
 void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
+  wait_62500_psec(4);
   // Adafruit Clock Generator
   ENABLE_I2C();
   haveClockModule = clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
@@ -566,6 +605,13 @@ void setup() {
   MCUCR |= 0x10;
 
   Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
+  // Serial.print("SYNC");
+  // Serial.print("UCSR0A");
+  // Serial.print(UCSR0A, HEX);
+  // Serial.print("UCSR0B");
+  // Serial.print(UCSR0B, HEX);
+  // Serial.print("UCSR0C");
+  // Serial.print(UCSR0C, HEX);
 }
 
 void loop() {
@@ -614,7 +660,8 @@ void loop() {
                                      | (unsigned long)Serial.read() << 24;
 
         Serial.end();
-        Serial.begin(new_boudrate);
+        Serial.begin(new_boudrate, SERIAL_CONFIG);
+        UCSR0B &= 0b10011111;  // Tx割り込み無効化
         //Serial.flush();
         //このあと、ファームチェックで値が正常に帰ってくることを確認してから
         //各種コマンドを投げてください
@@ -659,17 +706,17 @@ void loop() {
     case 'G':
       {
         //return clock module status
-        Serial.write('0' | haveClockModule);
+        serial_send('0' | haveClockModule);
       }
       break;
 
     case 'i':
       {  // print infomation
-        Serial.write(FIRMWARE_ID);
-        Serial.write((char)FIRMWARE_VERSION);
+        serial_send_text(FIRMWARE_ID);
+        serial_send(FIRMWARE_VERSION);
 #ifdef _ENABLE_CIC
-        Serial.print("-CIC ");
-        Serial.print(haveClockModule ? "[con]" : "[dis]");
+        serial_send_text("-CIC ");
+        serial_send_text(haveClockModule ? "[con]" : "[dis]");
 #endif
         // Serial.print("\nABus:");
         // Serial.print(lastadr[2], HEX);
@@ -712,7 +759,7 @@ void loop() {
           Serial.print("OK");
         else
           Serial.print("NG");
-        Serial.write(readbyte_cart(0x00, 0x2400));
+        serial_send(readbyte_cart(0x00, 0x2400));
       }
       break;
 #endif
@@ -747,7 +794,7 @@ void loop() {
 
     case 'v':
       {  //Return fimware version
-        Serial.write(FIRMWARE_ID);
+        serial_send_text(FIRMWARE_ID);
         setAddress(0x00, lastadr[1] << 8, false);
       }
       break;
@@ -761,9 +808,9 @@ void loop() {
       break;
 #endif
     default:
-      Serial.write("?CMD=");
-      Serial.write(cmd);
-      Serial.write("\xAA\xAA");
+      serial_send_text("?CMD=");
+      serial_send(cmd);
+      serial_send_text("\xAA\xAA");
   }
 }
 
