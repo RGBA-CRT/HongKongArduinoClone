@@ -215,7 +215,7 @@ Function GetMmapModel(map As SFC_MAP_TYPE, isWrite AS BOOL, model As *SFC_MMAP_M
 			model->sram.adr      =  &HE00000
 			model->sram.bankStep =  &H008000
 			model->sram.bankSize =  &H008000	' 32kbit x2 SRAM
-			model->sram.ctrlBus  =  CBUS_RST
+			model->sram.ctrlBus  =  CBUS_RST' or CBUS_ROMSEL
 			model->sram.init_cb  =  AddressOf(XBAND_init)
 			model->sram.next_cb  =  NULL 'AddressOf(XBAND_SRAM_nextAddress)
 			model->sram.exit_cb  =  AddressOf(XBAND_exit)
@@ -624,6 +624,7 @@ Sub XBAND_LedBlink(hSerial As HANDLE)
 	led = ((reg>>1) And 1) or (((reg>>3) And 1)<<1) or (((reg>>5) And 1)<<2)
 	led = ((led+1) Mod 8) AS Byte
 	reg = (((led And 1)<<1) or ((led And 2)<<2) or ((led And 4)<<3) ) As Byte
+
 	SetCartRegister(XBAND_IOP_BANK, XBAND_IOP_LED_DATA, reg, FALSE)
 End Sub
 
@@ -631,11 +632,6 @@ Function XBAND_nextAddress(hSerial As HANDLE, adr AS DWord, readSize AS DWord) A
 	if (adr And &H020000) And ((adr and &HFFFF)=&H8000) Then XBAND_LedBlink(hSerial)
 
 	XBAND_nextAddress = HiROM_nextAddress(hSerial, adr, readSize)
-End Function
-
-Function XBAND_SRAM_nextAddress(hSerial As HANDLE, mmodel As *SFC_MMAP_MODEL, bank AS DWord) As DWord
-	XBAND_LedBlink(hSerial)
-	XBAND_SRAM_nextAddress = mmodel->sram.adr + bank * mmodel->sram.bankStep
 End Function
 
 Function XBAND_exit(hCOM AS HANDLE, info As *SFC_CART_INFO, romBuffer As BytePtr)

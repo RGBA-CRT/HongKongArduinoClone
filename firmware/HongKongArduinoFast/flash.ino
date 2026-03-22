@@ -15,7 +15,7 @@
 // static uint8_t flash_bank;
 static uint8_t flash_banks[FLASH_COMMAND_LENGTH];
 static uint16_t flash_address[FLASH_COMMAND_LENGTH];  // = {0xAAAA,0x5555,0xAAAA}
-static uint8_t flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
+static uint8_t flash_cmd[FLASH_COMMAND_LENGTH];       // = {0xAA  ,0x55,  [cmd] }
 static uint8_t flash_byte_verify;
 static uint8_t flash_page_size;
 static uint8_t flash_page_wait;
@@ -77,15 +77,14 @@ inline uint8_t bulkReadAcquire() {
 
   // tCE: CEがLowになってから有効データ出力までの時間: 70ns@LV640
   // tOE: OEがLowになってから有効データ出力までの時間: 30ns@LV640
-  __asm__ volatile("nop");
-  __asm__ volatile("nop");
+  wait_62500_psec(2);
 
   uint8_t b = getDataPin();
 
   FLASH_OE_TOGGLE();
 
   // tOEh: OEをHighにしてほしい時間: 10ns@LV640
-  // __asm__ volatile("nop"); // 後続の条件分岐で十分に待ってると思う。
+  // wait_62500_psec(1); // 後続の条件分岐処理で十分ウェイトになるのでコメントアウト
 
   return b;
 }
@@ -107,9 +106,7 @@ uint8_t flashWaitOperation(uint8_t expect_byte) {
 
   // tBusy: 70ns@LV640
   // S29L032N tBusy
-  // __asm__ volatile("nop");
-  // __asm__ volatile("nop");
-  __asm__ volatile("nop");
+  wait_62500_psec(1);  
 
   do {
     ret = bulkReadAcquire();
@@ -147,8 +144,7 @@ void writebyte_cart2(uint8_t bank, uint16_t address, uint8_t data) {
   setDataPin(data);
 
   // tAS: Address Setup Time: アドレスを出力してからWEを下げていいまで: 0ns@S29GL032, 0ns@MX29F1610, 0ns@LV640
-  __asm__ volatile("nop");  // 100ns
-  __asm__ volatile("nop");  // 100ns
+  wait_62500_psec(2);
 
   CART_WRITE_TOGGLE();
 
@@ -156,12 +152,11 @@ void writebyte_cart2(uint8_t bank, uint16_t address, uint8_t data) {
   // tDS: data setup time: データが出てからWEが立ち上がるまで: 35ns@S29GL032, 50ns@MX29F1610, 45ns@LV640
   // tDH: Data Hold Time: WE立ち上がってから潰して良いまで: 0ns@S29GL032, 0ns@LV640
   // tWP: WE-Lowパルスの幅: 35ns@S29GL032, 55ns@MX29F1610, 30ns@LV640
-  __asm__ volatile("nop");  // 100ns
-  __asm__ volatile("nop");  // 100ns
+  wait_62500_psec(2);
 
   CART_WRITE_TOGGLE();
   // tWPH: WE-Highパルスの幅: 50ns @ MX29F1610
-  __asm__ volatile("nop");  // 100ns
+  wait_62500_psec(1);
 }
 
 void sendErrorReport(uint8_t bank, uint16_t address, uint8_t real_byte, uint8_t expected_byte) {
@@ -214,7 +209,7 @@ void flashPageProgram(uint8_t bank, uint16_t address, uint16_t datasize) {
   // メモリは余っているので速度優先でじゃんじゃんつかおう
   byte* bufptr = large_rx_buf;
   uint16_t remain = flash_page_size;  // 最初は必ず受信させる
-  uint8_t page_count = 1;            // 最初は必ずページ跨ぎ処理（コマンド発行）をする
+  uint8_t page_count = 1;             // 最初は必ずページ跨ぎ処理（コマンド発行）をする
   bool initial = true;
 
   do {

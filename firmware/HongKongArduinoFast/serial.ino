@@ -2,6 +2,10 @@
 // low level serial comm
 //-----------------
 
+#if (F_CPU < 320000000UL)
+#define SEND_METHOD_POLL
+#endif
+
 #define TX_BUF_SIZE 128
 #define TX_BUF_MASK (TX_BUF_SIZE - 1)
 
@@ -28,8 +32,8 @@ uint8_t serial_read(void) {
   return data;
 }
 
-word serial_read_word(void){
-  return serial_read() | ((word)serial_read() << 8);
+uint16_t serial_read_word(void){
+  return (uint16_t)serial_read() | ((word)serial_read() << 8);
 }
 
 void serial_begin(uint32_t baud) {
@@ -49,7 +53,7 @@ void serial_begin(uint32_t baud) {
 
 long tx_spin_count = 0;
 inline void serial_send(uint8_t data) {
-#if 0
+#ifdef SEND_METHOD_POLL
   //UDRが空になるのを待つ
   while (!(UCSR0A & _BV(UDRE0))){
     tx_spin_count++;
@@ -81,6 +85,14 @@ void serial_send_text(const char* text) {
   }
 }
 
+void serial_flush(){
+  while (rx_head != rx_tail)
+    ;
+  while (tx_head != tx_tail)
+    ;
+}
+
+#ifndef SEND_METHOD_POLL
 ISR(USART_UDRE_vect) {
   if (tx_head == tx_tail) {
     // データ無し → 割り込み停止
@@ -91,6 +103,7 @@ ISR(USART_UDRE_vect) {
   UDR0 = tx_buf[tx_tail];
   tx_tail = (tx_tail + 1) & TX_BUF_MASK;
 }
+#endif
 
 ISR(USART_RX_vect) {
   uint8_t data = UDR0;
@@ -119,12 +132,14 @@ void send_hexdump(uint8_t hex) {
 #endif
 
 // recive to large rx buffer
-void hostsync_receive(word length) {
-  noInterrupts();
+void hostsync_receive(uint16_t length) {
   //Send 'R'equest Signal
   serial_send('R');
-  word i = length;
-  word o = 0;
+  uint16_t i = length;
+  uint16_t o = 0;
+
+  serial_flush();
+  noInterrupts();
   do {
     while (!(UCSR0A & _BV(RXC0)))
       ;

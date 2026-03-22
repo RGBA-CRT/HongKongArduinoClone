@@ -44,7 +44,7 @@ uint8_t large_rx_buf[LARGE_RX_BUFFER_LEN];
 #define ENABLLE_SFMEM
 // #define BUILD_SUPER_SLOW_READ
 
-//----------------- 実験コード ------------------
+//----------------- 拡張回路 ------------------
 #ifdef _ENABLE_CIC
 
 #include "si5351.h"
@@ -68,13 +68,18 @@ Si5351 clockgen;
 #endif
 //--------------------------------------------
 
-
-
 uint8_t gflags;
 #define FLASH_CONFIG_CEOE_SWAP 0x01
 #define FLASH_CONFIG_BYTE_VERIFY 0x02
 #define GFLAGS_SUPER_SLOW_READ 0x04
 #define FLASH_CONFIG_VERIFY_FIXED_VALUE 0x08
+
+// NOP generator
+#define DELAY_FRACT 1
+#define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr")
+#define minimum_delay(x) nop_generate(x)
+#define wait_62500_psec(x) minimum_delay((x * DELAY_FRACT))
+
 
 //--------------
 // snes level
@@ -154,28 +159,7 @@ void writeCart(int isLoROM = false) {
 }
 
 void longWait() {
-  __asm__ volatile("nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t");  // nop*16
-                                // 1us～1.6usぐらい
-  // __asm__ volatile("nop\n\t"
-  //                  "nop\n\t"
-  //                  "nop\n\t"
-  //                  "nop\n\t");  // nop*4
-  //                               // for MX29L3211MC
+  wait_62500_psec(16);
 }
 
 uint8_t readData() {
@@ -188,11 +172,14 @@ uint8_t readData() {
   dataPinDirInput();
   BB_OUT_ENABLE();
 
+  // OLD: 1000ns(16)
+  // TESTED AT 2026/03 & SA1 ROM DUMP, 125ns(2)
+  // TESTED AT 2026/03 & SA1バス釣り ROM DUMP, 125ns(2)
   // AddressOutputDelay: 110nsぐらい
   // Output Enable to Output Delay: 25nsぐらい
   // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
-  longWait();
+  wait_62500_psec(2);
 #ifdef BUILD_SUPER_SLOW_READ
   uint8_t b;
   if (gflags & GFLAGS_SUPER_SLOW_READ) {
@@ -230,39 +217,17 @@ retry:
   return b;
 }
 
-
-
-
 // /REを制御して読み込む
-inline uint8_t readuint8_t_cart(uint8_t bank, uint16_t address) {
+uint8_t read_byte_cart(uint8_t bank, uint16_t address) {
   setAddress(bank, address, false);
 
-  // /OEのパルスを成立させるためのWait
-  __asm__ volatile("nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t");
-  //__asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
+  // pre /OE pulse
+  wait_62500_psec(4);
 
   CART_OUTPUT_ENABLE();
 
   // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
-  __asm__ volatile("nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t");
+  wait_62500_psec(16);
 
   uint8_t ret = readData();
 
@@ -280,46 +245,23 @@ void write_byte_cart(uint8_t bank, uint16_t address, uint8_t data) {
 
   // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
   // 74HC245 -> SFC へのデータ安定化
-  __asm__ volatile("nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t");
+  // OLD (8)
+  // TESTED AT 2026/03 & SA1バス釣り SRAM WRITE, 62.5ns(1)
+  wait_62500_psec(1);
 
   CART_WRITE_ENABLE();
 
   // /WEパルスの時間稼ぎ
-  // SA1のSRAM Writeではこの5行分の長さが必要(TESTED: SA1 SRAM WRITE)
-  __asm__ volatile("nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t"
-                   "nop\n\t");
+  // OLD: (16)
+  // TESTED AT 2026/03 & SA1 SRAM WRITE, 380ns(6)
+  // TESTED AT 2026/03 & SA1バス釣り SRAM WRITE, 312.5ns
+  wait_62500_psec(6);
 
   CART_WRITE_DISABLE();
 
   BB_OUT_DISABLE();
   BB_DIR_INPUT();
 }
-
-#define DELAY_FRACT 1
-#define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr")
-#define minimum_delay(x) nop_generate(x)
-#define wait_62500_psec(x) minimum_delay((x * DELAY_FRACT))
 
 uint8_t haveClockModule = 0;
 #ifdef _ENABLE_CIC
@@ -509,7 +451,7 @@ void loop() {
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[2], HEX);        Serial.print("\n");
         // for (uint8_t i = 0; i < 20; i++) {
-        //   Serial.print((char)readuint8_t_cart(0x00, 0xffc0 + i));
+        //   Serial.print((char)read_byte_cart(0x00, 0xffc0 + i));
         // }  Serial.print("\n");
 
         serial_send_text("DBG_");
@@ -524,9 +466,9 @@ void loop() {
 
     case 's':
       {  // set register(1uint8_t write)
-        serial_send_text((char)readuint8_t_cart(0xc0, 0x0000));
+        serial_send_text((char)read_byte_cart(0xc0, 0x0000));
         write_byte_cart(0x00, 0x2220, 04);
-        serial_send_text((char)readuint8_t_cart(0xc0, 0x0000));
+        serial_send_text((char)read_byte_cart(0xc0, 0x0000));
       }
       break;
 
@@ -539,37 +481,32 @@ void loop() {
         digitalWrite(RST, HIGH);
 
         write_byte_cart(0x00, 0x2400, 0x09);
-        uint8_t status = readuint8_t_cart(0x00, 0x2400);
+        uint8_t status = read_byte_cart(0x00, 0x2400);
         write_byte_cart(0x00, 0x2401, 0x28);
         write_byte_cart(0x00, 0x2401, 0x84);
         write_byte_cart(0x00, 0x2400, 0x06);
         write_byte_cart(0x00, 0x2400, 0x39);
 
-        if (readuint8_t_cart(0x00, 0x2400) == 0x2A)
+        if (read_byte_cart(0x00, 0x2400) == 0x2A)
           serial_send_text("OK");
         else
           serial_send_text("NG");
-        serial_send(readuint8_t_cart(0x00, 0x2400));
+        serial_send(read_byte_cart(0x00, 0x2400));
       }
       break;
 #endif
 
     case 'T':
     case 't':
-      {  // set register(1uint8_t write)
+      {  // set register
         while (serial_available() < 4)
           ;
         uint8_t bank = serial_read();
         uint16_t address = serial_read_word();
         uint8_t data = serial_read();
 
-        //lorom -> real address
-        if (cmd == 't') {
-          //LO_TO_REAL_ADDRESS(bank, address);
-        }
-        //        digitalWrite(CS, HIGH);
-        //        CART_OUTPUT_DISABLE();
-        //        CART_WRITE_DISABLE();
+        // 't'の場合はLoROMアドレス換算していたが廃止
+
         write_byte_cart(bank, address, data);
       }
       break;

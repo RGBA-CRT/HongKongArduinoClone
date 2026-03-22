@@ -31,7 +31,7 @@ SNES Cartridge Dumper with Arduino UNO highspeed firmware + host program
 | CX4                | SHVC-ARXJ         | ○       | -         | -         | -          |                          |
 | SpecialLoROM (3MB) | SHVC-ZDBJ         | ○       | -         | ○        | ○         |                          |
 | BS-X               | SHVC-ZBSJ         | ○       | -         | ○        | ○         |                          |
-| 8Mメモリーパック   | BSMC-HM-JPN       | ○       | ×        | -         | -          |                          |
+| 8Mメモリーパック   | BSMC-HM-JPN       | ○       | ×        | -         | -          | アダプタはダビスタ96推奨 |
 | JRA PAT            | SHVC-TJCJ         | ○       | -         | ○        | ×         | SRAMの代わりにFlash      | 
 | ST010 / ST011      | SHVC-E2 / SHVC-2M | ○       | -         | -         | -          | ST011は動作未確認        | 
 | ST018              | SHVC-A2MJ         | ○       | -         | ○        | ○         | BIOS Dumpにも対応        | 

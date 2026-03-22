@@ -282,7 +282,10 @@ Function WriteROM(hSerial AS HANDLE,data AS BytePtr, offset AS Long,address AS D
 	WriteCount=0
 
 	Do
-		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then ExitDo
+		if WaitForRequest(hSerial,Asc("R"),1000) = FALSE Then 
+			DBM(ex"dumper not request data")
+			ExitDo
+		End If
 		logger(ex"[WRITE] %X-%Xh \n",address+WriteCount,address+WriteCount+HKAC_WRITE_BUFFER_LEN-1)
 		WriteFile(hSerial, data+WriteCount , HKAC_WRITE_BUFFER_LEN ,VarPtr(dwWD),ByVal NULL)
 
