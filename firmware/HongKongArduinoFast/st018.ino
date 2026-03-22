@@ -7,7 +7,7 @@ void st018_command(byte cmd) {
   st018_transferWait();
 
   //cmd
-  writebyte_cart(0x00, 0x3802, cmd);
+  write_byte_cart(0x00, 0x3802, cmd);
 
   //wait
   st018_transferWait();
@@ -41,9 +41,9 @@ bool st018_readyWait() {
 // err=true
 bool st018_reset() {
   // reset
-  writebyte_cart(0x00, 0x3804, 0x00);  delayMicroseconds(100);
-  writebyte_cart(0x00, 0x3804, 0xff);  delayMicroseconds(100);
-  writebyte_cart(0x00, 0x3804, 0x00);
+  write_byte_cart(0x00, 0x3804, 0x00);  delayMicroseconds(100);
+  write_byte_cart(0x00, 0x3804, 0xff);  delayMicroseconds(100);
+  write_byte_cart(0x00, 0x3804, 0x00);
 
   //STATが0以外になるまで待つ
   byte waitCount = 0;

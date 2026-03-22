@@ -7,10 +7,9 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 
 #pragma GCC push_options
 #pragma GCC optimize("O3")
-//config
-//シリアルコンバータがCH340の場合1000000bpsが限界
+#include "bus_io.h"
+
 #define INITIAL_BAUDRATE 115200
-#define SERIAL_CONFIG SERIAL_8N1 /*SERIAL_8N1*/
 
 #define HKAC_DEBUG
 #ifndef HKAC_DEBUG
@@ -20,10 +19,12 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define FIRMWARE_NAME "HKAD"  // debug branch
 #define FIRMWARE_VERSION "2"
 #endif
+
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
-#define BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
-#define RX_BUFFER_LEN BUFFER_LEN
-static_assert((RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
+
+#define LARGE_RX_BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
+static_assert((LARGE_RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
+uint8_t large_rx_buf[LARGE_RX_BUFFER_LEN];
 // static_assert(F_CPU == 320000000UL, "32MHz");
 
 /* version history
@@ -67,258 +68,13 @@ Si5351 clockgen;
 #endif
 //--------------------------------------------
 
-//データバス[PORTD]
-#define DATA0 2
-#define DATA1 3
-#define DATA2 4
-#define DATA3 5
-#define DATA4 6
-#define DATA5 7
 
-//[PORTB]
-#define DATA6 8
-#define DATA7 9
 
-//74HCシリーズの制御
-#define GD 10
-#define G0 11
-#define G1 12
-#define G2 13
-
-//[PORTC]コントロールピン
-#define DIR 14
-#define CK 15
-#define OE 16
-#define CS 17
-#define WE 18
-#define RST 19
-
-const uint8_t PIN_PORTC_OE_MASK = 0b00000100;
-const uint8_t PIN_PORTC_CE_MASK = 0b00001000;
-
-//bus buffer direction
-#define BB_DIR_OUTPUT() PORTC |= 0x01  // DIR=HIGH
-#define BB_DIR_INPUT() PORTC &= 0xfe   // DIR=LOW
-#define BB_DIR_TOGGLE() PINC = 0x01
-
-//bus buffer OutputControl
-#define BB_OUT_DISABLE() PORTB |= 0b00000100
-#define BB_OUT_ENABLE() PORTB &= 0b11111011
-#define BB_OUT_TOGGLE() PINB = 0b00000100
-
-// cart /WE control
-#define CART_WRITE_ENABLE() PORTC &= 0b11101111
-#define CART_WRITE_DISABLE() PORTC |= 0b00010000
-#define CART_WRITE_TOGGLE() PINC = 0b00010000
-
-// cart /OE control
-static uint8_t val_oe_or_mask;  // speed > ram_usage
-static uint8_t val_oe_and_mask;
-static uint8_t val_ce_or_mask;  // speed < ram_usage
-
-void SetFlashOECtrl(bool swap_ce_oe) {
-  if (!swap_ce_oe) {
-    val_oe_or_mask = PIN_PORTC_OE_MASK;
-    val_oe_and_mask = ~(PIN_PORTC_OE_MASK);
-    val_ce_or_mask = PIN_PORTC_CE_MASK;
-  } else {
-    val_oe_or_mask = PIN_PORTC_CE_MASK;
-    val_oe_and_mask = ~PIN_PORTC_CE_MASK;
-    val_ce_or_mask = PIN_PORTC_OE_MASK;
-  }
-}
-
-#define CART_OUTPUT_ENABLE() PORTC &= val_oe_and_mask
-#define CART_OUTPUT_DISABLE() PORTC |= val_oe_or_mask
-#define CART_OUTPUT_TOGGLE() PINC = val_oe_or_mask
-
-#define CART_CHIP_ENABLE() PORTC &= ~val_ce_or_mask
-#define CART_CHIP_DISABLE() PORTC |= val_ce_or_mask
-#define CART_CHIP_TOGGLE() PINC = val_ce_or_mask
-
-// databus
-#define getDataPin() (PIND >> 2) | ((PINB << 6))
-
-#define Serial_readWord() ((word)serial_read() | ((word)serial_read() << 8))
-
-// RXバッファ
-byte buf[BUFFER_LEN];
-
-//現在のアドレスの状態
-byte lastadr[3];
-
-byte gflags;
+uint8_t gflags;
 #define FLASH_CONFIG_CEOE_SWAP 0x01
 #define FLASH_CONFIG_BYTE_VERIFY 0x02
 #define GFLAGS_SUPER_SLOW_READ 0x04
 #define FLASH_CONFIG_VERIFY_FIXED_VALUE 0x08
-
-//-----------------
-// serial comm
-//-----------------
-
-#define TX_BUF_SIZE 128
-#define TX_BUF_MASK (TX_BUF_SIZE - 1)
-
-#define RX_BUF_SIZE 32
-#define RX_BUF_MASK (RX_BUF_SIZE - 1)
-
-static volatile uint8_t tx_buf[TX_BUF_SIZE];
-static volatile uint8_t tx_head = 0;
-static volatile uint8_t tx_tail = 0;
-
-static volatile uint8_t rx_buf[RX_BUF_SIZE];
-static volatile uint8_t rx_head = 0;
-static volatile uint8_t rx_tail = 0;
-
-
-static long dbg2 = 0;
-inline void serial_send(byte data) {
-#if 0
-  //UDRが空になるのを待つ
-  while (!(UCSR0A & _BV(UDRE0))){
-    dbg2++;
-  }
-  UDR0 = data;
-#else
-  byte next = (tx_head + 1) & TX_BUF_MASK;
-
-  // バッファフル待ち
-  // 例えばフルの時、head=5 tail=6としてnextは6, tailが進んで7になるまで待つ。
-  while (next == tx_tail){
-    dbg2++;
-  }
-
-  
-  noInterrupts();
-  tx_buf[tx_head] = data;
-  tx_head = next;
-  interrupts();
-
-  // UDRE割り込み有効化（送信開始トリガ）
-  UCSR0B |= (1 << UDRIE0);
-#endif
-}
-
-ISR(USART_UDRE_vect) {
-  if (tx_head == tx_tail) {
-    // データ無し → 割り込み停止
-    UCSR0B &= ~(1 << UDRIE0);
-    return;
-  }
-
-  UDR0 = tx_buf[tx_tail];
-  tx_tail = (tx_tail + 1) & TX_BUF_MASK;
-}
-
-ISR(USART_RX_vect) {
-  byte data = UDR0;
-  byte next = (rx_head + 1) & RX_BUF_MASK;
-
-  if (next == rx_tail) {
-#ifdef RX_OVERFLOW_WARN
-    // バッファフル → データ捨てる
-    rx_overflow = 1;
-#endif
-  } else {
-    rx_buf[rx_head] = data;
-    rx_head = next;
-  }
-}
-byte serial_available(void) {
-  return (rx_head - rx_tail) & RX_BUF_MASK;
-}
-byte serial_read(void) {
-  while (rx_head == rx_tail)
-    ;
-  byte data = rx_buf[rx_tail];
-  rx_tail = (rx_tail + 1) & RX_BUF_MASK;
-  return data;
-}
-
-void serial_begin(uint32_t baud) {
-  uint16_t brr_val = ((F_CPU / 4 / baud) - 1) / 2;
-  uint8_t u2x_en = 1;
-  if ((brr_val > 0xFFF) /*|| (baud==2000000UL)*/) {
-    brr_val = ((F_CPU / 8 / baud) - 1) / 2;
-    u2x_en = 0;
-  }
-  UBRR0H = brr_val >> 8;  // UBRR=16
-  UBRR0L = brr_val;
-
-  UCSR0A = (u2x_en << U2X0);
-  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
-  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);                // 8bit
-}
-
-void serial_send_text(const char* text) {
-  while ((*text) != 0) {
-    serial_send(*text);
-    text++;
-  }
-}
-
-// recive to buffer
-void hostsync_receive(word length) {
-  noInterrupts();
-  //Send 'R'equest Signal
-  serial_send('R');
-  word i = length;
-  word o = 0;
-  do {
-    while (!(UCSR0A & _BV(RXC0)))
-      ;
-    buf[o++] = UDR0;
-  } while (--i);
-  interrupts();
-}
-
-//--------------
-//   ic level
-//--------------
-
-//データピンの方向設定
-#define dataPinDirInput() \
-  do { \
-    DDRD &= 0b00000011; \
-    DDRB &= 0b11111100; \
-  } while (0);
-
-#define dataPinDirOutput() \
-  do { \
-    DDRD |= 0b11111100; \
-    DDRB |= 0b00000011; \
-  } while (0);
-
-//データーバスへ値をセット
-inline void setDataPin(byte b) {
-#if 0
-  PORTD &= 0b00000011;  //CLEAR
-  PORTD |= b << 2;      //ORでセット
-#else
-  PORTD = b << 2;  // direct set test
-#endif
-  PORTB &= 0b11111100;
-  PORTB |= b >> 6;
-}
-
-//アドレスバスを構成するFlip-Flopへ値をセット
-inline void setFF(byte ch, byte b) {
-  //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
-  PINB = (0b00001000 << ch);
-  setDataPin(b);
-
-  // digitalWrite(CK, HIGH);
-  PINC = 0b00000010;
-
-  //digitalWrite(CK, LOW);
-  PINC = 0b00000010;
-
-  //digitalWrite(G0 + ch, HIGH); // WriteDisable
-  PINB = (0b00001000 << ch);
-}
-
-
 
 //--------------
 // snes level
@@ -328,30 +84,25 @@ inline void setFF(byte ch, byte b) {
     bank = (bank << 1) | (address >> 15); \
     address |= 0x8000; \
   }
-//アドレスバスを設定
-inline void setAddress_(byte bank, word address) {
-  setFF(0, address);
-  setFF(1, address >> 8);
-  setFF(2, bank);
-}
 
-inline void setAddress(byte bank, word address, byte isLoROM) {
+
+inline void setAddress(uint8_t bank, uint16_t address, uint8_t isLoROM) {
   if (isLoROM) {
     LO_TO_REAL_ADDRESS(bank, address);
   }
 
   BB_OUT_DISABLE();
-  setAddress_(bank, address);
+  setAddressFFs(bank, address);
   // longWait();
 }
 
 uint8_t dbg = 0;
-void readCart(byte isLoROM) {
+void readCart(uint8_t isLoROM) {
   while (serial_available() < 5)
     ;
-  word address = Serial_readWord();
-  byte bank = serial_read();
-  word datasize = Serial_readWord();
+  uint16_t address = serial_read_word();
+  uint8_t bank = serial_read();
+  uint16_t datasize = serial_read_word();
   BB_DIR_INPUT();
   dbg = 0;
 
@@ -368,25 +119,25 @@ void writeCart(int isLoROM = false) {
   //コマンド受信
   while (serial_available() < 5)
     ;
-  word address = Serial_readWord();
-  byte bank = serial_read();
-  word datasize = Serial_readWord();
+  uint16_t address = serial_read_word();
+  uint8_t bank = serial_read();
+  uint16_t datasize = serial_read_word();
 
   CART_WRITE_DISABLE();
   CART_OUTPUT_DISABLE();
   BB_DIR_OUTPUT();
 
-  word goalAdr = address + datasize;
-  word bufpos = RX_BUFFER_LEN;  //buffer ptr, 最初は必ず受信させる
+  uint16_t goalAdr = address + datasize;
+  uint16_t bufpos = LARGE_RX_BUFFER_LEN;  //buffer ptr, 最初は必ず受信させる
 
   while (1) {
     //データ受信
-    if (bufpos >= RX_BUFFER_LEN) {
-      hostsync_receive(RX_BUFFER_LEN);
+    if (bufpos >= LARGE_RX_BUFFER_LEN) {
+      hostsync_receive(LARGE_RX_BUFFER_LEN);
       bufpos = 0;
     }
 
-    writebyte_cart(bank, address, buf[bufpos]);
+    write_byte_cart(bank, address, large_rx_buf[bufpos]);
     address++;
     bufpos++;
 
@@ -400,33 +151,6 @@ void writeCart(int isLoROM = false) {
   //Send End Signal
   serial_send('E');
   //  Serial.println("WRITE_END");
-}
-
-#if 0
-inline byte hex2ascii(byte hex) {
-  return (hex < 0xA) ? hex + '0' : hex - 0xA + 'A';
-}
-
-void send_hexdump(byte hex) {
-  serial_send(hex2ascii((hex >> 4) & 0x0f));
-  serial_send(hex2ascii(hex & 0x0f));
-}
-#endif
-
-
-void setCtrlBus(byte b) {
-  if (b & 0b0001) {
-    CART_OUTPUT_DISABLE();
-  } else {
-    CART_OUTPUT_ENABLE();
-  }
-  if (b & 0b0010) {
-    CART_CHIP_DISABLE();
-  } else {
-    CART_CHIP_ENABLE();
-  }
-  digitalWrite(WE, (b & 0b0100) ? HIGH : LOW);
-  digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
 }
 
 void longWait() {
@@ -454,7 +178,7 @@ void longWait() {
   //                               // for MX29L3211MC
 }
 
-byte readData() {
+uint8_t readData() {
 // #define UART_DEBUG
 #ifdef UART_DEBUG
   return dbg++;
@@ -470,13 +194,13 @@ byte readData() {
   // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
   longWait();
 #ifdef BUILD_SUPER_SLOW_READ
-  byte b;
+  uint8_t b;
   if (gflags & GFLAGS_SUPER_SLOW_READ) {
-    const byte ok_retry_max = 10;
-    const byte ng_retry_max = 30;
-    byte ok_cnt = ok_retry_max;
-    byte ng_cnt = ng_retry_max;
-    byte err = 0, b2;
+    const uint8_t ok_retry_max = 10;
+    const uint8_t ng_retry_max = 30;
+    uint8_t ok_cnt = ok_retry_max;
+    uint8_t ng_cnt = ng_retry_max;
+    uint8_t err = 0, b2;
 retry:
     b = getDataPin();
     longWait();
@@ -496,7 +220,7 @@ retry:
     b = getDataPin();
   }
 #else
-  byte b = getDataPin();
+  uint8_t b = getDataPin();
 #endif
 
   CART_OUTPUT_DISABLE();
@@ -510,7 +234,7 @@ retry:
 
 
 // /REを制御して読み込む
-inline byte readbyte_cart(byte bank, word address) {
+inline uint8_t readuint8_t_cart(uint8_t bank, uint16_t address) {
   setAddress(bank, address, false);
 
   // /OEのパルスを成立させるためのWait
@@ -540,14 +264,14 @@ inline byte readbyte_cart(byte bank, word address) {
                    "nop\n\t"
                    "nop\n\t");
 
-  byte ret = readData();
+  uint8_t ret = readData();
 
   CART_OUTPUT_DISABLE();
   return ret;
 }
 
 //　/WRとかをちゃんと制御して書き込む
-void writebyte_cart(byte bank, word address, byte data) {
+void write_byte_cart(uint8_t bank, uint16_t address, uint8_t data) {
   setAddress(bank, address, false);
   setDataPin(data);
 
@@ -597,7 +321,7 @@ void writebyte_cart(byte bank, word address, byte data) {
 #define minimum_delay(x) nop_generate(x)
 #define wait_62500_psec(x) minimum_delay((x * DELAY_FRACT))
 
-byte haveClockModule = 0;
+uint8_t haveClockModule = 0;
 #ifdef _ENABLE_CIC
 //[Nintendo Cart Reader]より
 void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
@@ -681,7 +405,7 @@ void setup() {
 void loop() {
   while (serial_available() == 0)
     ;  //wait command
-  byte cmd = serial_read();
+  uint8_t cmd = serial_read();
 
   switch (cmd) {
     case 'R':
@@ -706,9 +430,9 @@ void loop() {
       {  //Set address
         while (serial_available() < 3)
           ;
-        byte isLoROM = (cmd == 'a');
-        word address = Serial_readWord();
-        byte bank = serial_read();
+        uint8_t isLoROM = (cmd == 'a');
+        uint16_t address = serial_read_word();
+        uint8_t bank = serial_read();
         setAddress(bank, address, isLoROM);
       }
       break;
@@ -755,7 +479,7 @@ void loop() {
       {  //CPU ClockGen Start/Stop
         while (serial_available() < 1)
           ;
-        byte mode = serial_read();
+        uint8_t mode = serial_read();
 #ifdef _ENABLE_CIC
         if ((mode & 0xf0) == 0x30) {
           setupCloclGen(mode & 0x01, mode & 0x02, mode & 0x04, mode & 0x08);
@@ -780,32 +504,29 @@ void loop() {
         serial_send_text("-CIC ");
         serial_send_text(haveClockModule ? "[con]" : "[dis]");
 #endif
-        // Serial.print("\nABus:");
-        // Serial.print(lastadr[2], HEX);
-        // Serial.print(lastadr[1], HEX);
-        // Serial.print(lastadr[0], HEX);
         // Serial.print("\nFash:\n");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[1], HEX);        Serial.print(":");        Serial.print(flash_cmd[1], HEX);        Serial.print(",\t");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[2], HEX);        Serial.print("\n");
-        // for (byte i = 0; i < 20; i++) {
-        //   Serial.print((char)readbyte_cart(0x00, 0xffc0 + i));
+        // for (uint8_t i = 0; i < 20; i++) {
+        //   Serial.print((char)readuint8_t_cart(0x00, 0xffc0 + i));
         // }  Serial.print("\n");
 
         serial_send_text("DBG_");
+        extern long tx_spin_count;
         serial_send(dbg);
-        serial_send(dbg2 >> 24);
-        serial_send(dbg2 >> 16);
-        serial_send(dbg2 >> 8);
-        serial_send(dbg2);
+        serial_send(tx_spin_count >> 24);
+        serial_send(tx_spin_count >> 16);
+        serial_send(tx_spin_count >> 8);
+        serial_send(tx_spin_count);
       }
       break;
 
     case 's':
-      {  // set register(1byte write)
-        serial_send_text((char)readbyte_cart(0xc0, 0x0000));
-        writebyte_cart(0x00, 0x2220, 04);
-        serial_send_text((char)readbyte_cart(0xc0, 0x0000));
+      {  // set register(1uint8_t write)
+        serial_send_text((char)readuint8_t_cart(0xc0, 0x0000));
+        write_byte_cart(0x00, 0x2220, 04);
+        serial_send_text((char)readuint8_t_cart(0xc0, 0x0000));
       }
       break;
 
@@ -817,30 +538,30 @@ void loop() {
         digitalWrite(WE, HIGH);
         digitalWrite(RST, HIGH);
 
-        writebyte_cart(0x00, 0x2400, 0x09);
-        byte status = readbyte_cart(0x00, 0x2400);
-        writebyte_cart(0x00, 0x2401, 0x28);
-        writebyte_cart(0x00, 0x2401, 0x84);
-        writebyte_cart(0x00, 0x2400, 0x06);
-        writebyte_cart(0x00, 0x2400, 0x39);
+        write_byte_cart(0x00, 0x2400, 0x09);
+        uint8_t status = readuint8_t_cart(0x00, 0x2400);
+        write_byte_cart(0x00, 0x2401, 0x28);
+        write_byte_cart(0x00, 0x2401, 0x84);
+        write_byte_cart(0x00, 0x2400, 0x06);
+        write_byte_cart(0x00, 0x2400, 0x39);
 
-        if (readbyte_cart(0x00, 0x2400) == 0x2A)
+        if (readuint8_t_cart(0x00, 0x2400) == 0x2A)
           serial_send_text("OK");
         else
           serial_send_text("NG");
-        serial_send(readbyte_cart(0x00, 0x2400));
+        serial_send(readuint8_t_cart(0x00, 0x2400));
       }
       break;
 #endif
 
     case 'T':
     case 't':
-      {  // set register(1byte write)
+      {  // set register(1uint8_t write)
         while (serial_available() < 4)
           ;
-        byte bank = serial_read();
-        word address = Serial_readWord();
-        byte data = serial_read();
+        uint8_t bank = serial_read();
+        uint16_t address = serial_read_word();
+        uint8_t data = serial_read();
 
         //lorom -> real address
         if (cmd == 't') {
@@ -849,14 +570,14 @@ void loop() {
         //        digitalWrite(CS, HIGH);
         //        CART_OUTPUT_DISABLE();
         //        CART_WRITE_DISABLE();
-        writebyte_cart(bank, address, data);
+        write_byte_cart(bank, address, data);
       }
       break;
 
     case 'W':
     case 'w':
       {  //bulk write cart
-        byte isLoROM = (cmd == 'w');
+        uint8_t isLoROM = (cmd == 'w');
         writeCart(isLoROM);
       }
       break;
@@ -864,7 +585,7 @@ void loop() {
     case 'v':
       {  //Return fimware version
         serial_send_text(FIRMWARE_ID);
-        setAddress(0x00, lastadr[1] << 8, false);
+        setAddress(0x00, 0, false);
       }
       break;
 

@@ -12,15 +12,15 @@
 
 //flash config
 #define FLASH_COMMAND_LENGTH 3
-// static byte flash_bank;
-static byte flash_banks[FLASH_COMMAND_LENGTH];
-static word flash_address[FLASH_COMMAND_LENGTH];  // = {0xAAAA,0x5555,0xAAAA}
-static byte flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
-static byte flash_byte_verify;
-static byte flash_page_size;
-static byte flash_page_wait;
-static byte flash_verify_fixed_value;
-static byte flash_verify_byte;
+// static uint8_t flash_bank;
+static uint8_t flash_banks[FLASH_COMMAND_LENGTH];
+static uint16_t flash_address[FLASH_COMMAND_LENGTH];  // = {0xAAAA,0x5555,0xAAAA}
+static uint8_t flash_cmd[FLASH_COMMAND_LENGTH];      // = {0xAA  ,0x55,  [cmd] }
+static uint8_t flash_byte_verify;
+static uint8_t flash_page_size;
+static uint8_t flash_page_wait;
+static uint8_t flash_verify_fixed_value;
+static uint8_t flash_verify_byte;
 #define FLASH_PAGE_WRITE_EXPECTED_STATUS 0x80
 
 void flashReceiveConfig() {
@@ -28,9 +28,9 @@ void flashReceiveConfig() {
   while (serial_available() < (FLASH_COMMAND_LENGTH * 4))
     ;
   // flash_bank = serial_read();
-  for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+  for (uint8_t i = 0; i < FLASH_COMMAND_LENGTH; i++) {
     flash_banks[i] = serial_read();
-    flash_address[i] = Serial_readWord();
+    flash_address[i] = serial_read_word();
     flash_cmd[i] = serial_read();
   }
 
@@ -47,7 +47,7 @@ void flashReceiveConfig() {
 
 #if 0
   Serial.print("FMT25112301\n");
-  for (byte i = 0; i < FLASH_COMMAND_LENGTH; i++) {
+  for (uint8_t i = 0; i < FLASH_COMMAND_LENGTH; i++) {
     Serial.print(flash_banks[i],HEX);
     Serial.print(flash_address[i],HEX);
     Serial.print(" <- ");
@@ -72,7 +72,7 @@ inline void bulkReadExit() {
   dataPinDirOutput();
 }
 
-inline byte bulkReadAcquire() {
+inline uint8_t bulkReadAcquire() {
   FLASH_OE_TOGGLE();
 
   // tCE: CEがLowになってから有効データ出力までの時間: 70ns@LV640
@@ -80,7 +80,7 @@ inline byte bulkReadAcquire() {
   __asm__ volatile("nop");
   __asm__ volatile("nop");
 
-  byte b = getDataPin();
+  uint8_t b = getDataPin();
 
   FLASH_OE_TOGGLE();
 
@@ -98,12 +98,12 @@ inline byte bulkReadAcquire() {
 #define FLASH_WAIT_TIMEOUT_CYCLE 0xffff
 // #define POLL_ONLY_DQ7
 
-word max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
-byte flashWaitOperation(byte expect_byte) {
+uint16_t max_loop = FLASH_WAIT_TIMEOUT_CYCLE;
+uint8_t flashWaitOperation(uint8_t expect_byte) {
   bulkReadInit();
-  byte ret;
-  byte ok_cnt = 2;
-  word i = FLASH_WAIT_TIMEOUT_CYCLE;
+  uint8_t ret;
+  uint8_t ok_cnt = 2;
+  uint16_t i = FLASH_WAIT_TIMEOUT_CYCLE;
 
   // tBusy: 70ns@LV640
   // S29L032N tBusy
@@ -142,8 +142,8 @@ void flashBulkWriteExit() {
 }
 
 //　/WRとかをちゃんと制御して書き込む
-void writebyte_cart2(byte bank, word address, byte data) {
-  setAddress_(bank, address);
+void writebyte_cart2(uint8_t bank, uint16_t address, uint8_t data) {
+  setAddressFFs(bank, address);
   setDataPin(data);
 
   // tAS: Address Setup Time: アドレスを出力してからWEを下げていいまで: 0ns@S29GL032, 0ns@MX29F1610, 0ns@LV640
@@ -164,7 +164,7 @@ void writebyte_cart2(byte bank, word address, byte data) {
   __asm__ volatile("nop");  // 100ns
 }
 
-void sendErrorReport(byte bank, word address, byte real_byte, byte expected_byte) {
+void sendErrorReport(uint8_t bank, uint16_t address, uint8_t real_byte, uint8_t expected_byte) {
   serial_send('X');
   serial_send((byte)address);
   serial_send((byte)(address >> 8));
@@ -176,18 +176,18 @@ void sendErrorReport(byte bank, word address, byte real_byte, byte expected_byte
 
 #define GetProgDoneResponce(x) (flash_verify_fixed_value ? flash_verify_byte : x)
 
-void flashByteProgram(byte bank, word address, word datasize) {
+void flashByteProgram(uint8_t bank, uint16_t address, uint16_t datasize) {
   // メモリは余っているので速度優先でじゃんじゃんつかおう
-  byte* bufptr = buf;
-  word remain = 1;  // 最初は必ず受信させる
-  byte page_count = flash_page_size;
+  byte* bufptr = large_rx_buf;
+  uint16_t remain = 1;  // 最初は必ず受信させる
+  uint8_t page_count = flash_page_size;
 
   do {
     //データ受信
     if (!(--remain)) {
-      hostsync_receive(RX_BUFFER_LEN);
-      bufptr = buf;
-      remain = RX_BUFFER_LEN;
+      hostsync_receive(LARGE_RX_BUFFER_LEN);
+      bufptr = large_rx_buf;
+      remain = LARGE_RX_BUFFER_LEN;
     }
 
     writebyte_cart2(flash_banks[0], flash_address[0], flash_cmd[0]);
@@ -195,14 +195,14 @@ void flashByteProgram(byte bank, word address, word datasize) {
     writebyte_cart2(flash_banks[2], flash_address[2], flash_cmd[2]);
 
     // output program byte
-    byte b = *bufptr;
+    uint8_t b = *bufptr;
     writebyte_cart2(bank, address, b);
 
     address++;
     bufptr++;
 
-    byte expect = GetProgDoneResponce(b);
-    byte wait_ret = flashWaitOperation(expect);
+    uint8_t expect = GetProgDoneResponce(b);
+    uint8_t wait_ret = flashWaitOperation(expect);
     if (wait_ret != expect) {
       sendErrorReport(bank, --address, wait_ret, expect);
       break;
@@ -210,11 +210,11 @@ void flashByteProgram(byte bank, word address, word datasize) {
   } while (--datasize);
 }
 
-void flashPageProgram(byte bank, word address, word datasize) {
+void flashPageProgram(uint8_t bank, uint16_t address, uint16_t datasize) {
   // メモリは余っているので速度優先でじゃんじゃんつかおう
-  byte* bufptr = buf;
-  word remain = flash_page_size;  // 最初は必ず受信させる
-  byte page_count = 1;            // 最初は必ずページ跨ぎ処理（コマンド発行）をする
+  byte* bufptr = large_rx_buf;
+  uint16_t remain = flash_page_size;  // 最初は必ず受信させる
+  uint8_t page_count = 1;            // 最初は必ずページ跨ぎ処理（コマンド発行）をする
   bool initial = true;
 
   do {
@@ -222,15 +222,15 @@ void flashPageProgram(byte bank, word address, word datasize) {
       //データ受信
       remain -= flash_page_size;
       if (!remain) {
-        hostsync_receive(RX_BUFFER_LEN);
-        bufptr = buf;
-        remain = RX_BUFFER_LEN;
+        hostsync_receive(LARGE_RX_BUFFER_LEN);
+        bufptr = large_rx_buf;
+        remain = LARGE_RX_BUFFER_LEN;
       }
 
       if (!initial) {
-        byte wait = flash_page_wait;
+        uint8_t wait = flash_page_wait;
         while (--wait) { longWait(); }
-        byte wait_ret = flashWaitOperation(FLASH_PAGE_WRITE_EXPECTED_STATUS);
+        uint8_t wait_ret = flashWaitOperation(FLASH_PAGE_WRITE_EXPECTED_STATUS);
         if (wait_ret != FLASH_PAGE_WRITE_EXPECTED_STATUS) {
           sendErrorReport(bank, --address, wait_ret, FLASH_PAGE_WRITE_EXPECTED_STATUS);
           break;
@@ -246,7 +246,7 @@ void flashPageProgram(byte bank, word address, word datasize) {
     }
 
     // output program byte
-    byte b = *bufptr;
+    uint8_t b = *bufptr;
     writebyte_cart2(bank, address, b);
 
     address++;
@@ -260,9 +260,9 @@ void flashWriteCart() {
   while (serial_available() < 5)
     ;
 
-  word address = Serial_readWord();
-  byte bank = serial_read();
-  word datasize = Serial_readWord();
+  uint16_t address = serial_read_word();
+  uint8_t bank = serial_read();
+  uint16_t datasize = serial_read_word();
 
   flashBulkWriteInit();
   if (flash_byte_verify) {

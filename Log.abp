@@ -1,0 +1,141 @@
+#define ENABLE_DEBUG_LOG
+
+#ifdef ENABLE_DEBUG_LOG
+Dim debug_log As File
+Dim debug_log_open = FALSE As BOOL
+#endif
+
+Const LOG_DEBUG=5
+Dim g_loglevel=5 AS Long
+
+Sub DBM_Init()
+	Dim ExeDir AS BinalyDirectory
+#ifdef ENABLE_DEBUG_LOG
+	debug_log.openFile(sprintfStr("%s\%s.log",ExeDir.GetBinDir(),ProgramName), GENERIC_WRITE)
+	ExeDir.freeTmp()
+	debug_log_open = TRUE
+#endif
+	printf(ex"%s %s debug log %s %s\n", ProgramName, VerStr, Date$(), Time$())
+End Sub
+
+Sub DBM(Text As BytePtr)
+	Dim LastPos As DWord, hEB As HANDLE
+	hEB = MWnd(EditBox1)
+	LastPos = GetWindowTextLength(hEB)
+	
+	'10KBを超えてたらログをクリア
+	If LastPos>1024 * 10 Then
+		'1KB残す
+		Dim txt AS BytePtr
+		txt = calloc(LastPos + 1)
+		GetWindowText(hEB, txt, LastPos)
+		SetWindowText(hEB, txt + LastPos -1024)
+		free(txt)
+		LastPos = 1025
+	End If
+	
+	SendMessage(hEB, EM_SETSEL, LastPos, LastPos)
+	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
+	SendMessage(hEB, EM_REPLACESEL, 0, ex"\r\n" As Long)
+#ifdef _DEBUG
+	OutputDebugString(Text)
+	OutputDebugString(ex"\r\n")
+#endif
+#ifdef ENABLE_DEBUG_LOG
+	if debug_log_open then
+		debug_log.write(Text, lstrlen(Text))
+		debug_log.write(ex"\r\n", 2)
+	endif
+#endif
+End Sub
+
+Sub DBMN(Text As BytePtr)
+	Dim LastPos As DWord, hEB As HANDLE
+	hEB = MWnd(EditBox1)
+	LastPos = GetWindowTextLength(hEB)
+	SendMessage(hEB, EM_SETSEL, LastPos, LastPos)
+	SendMessage(hEB, EM_REPLACESEL, 0, Text As Long)
+#ifdef _DEBUG
+	OutputDebugString(Text)
+#endif
+#ifdef ENABLE_DEBUG_LOG
+	if debug_log_open then
+		debug_log.write(Text, lstrlen(Text))
+	endif
+#endif
+End Sub
+
+'printfのDBM版
+Sub DBMf(lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e As DWord ,f As DWord ,g As DWord ,h As DWord ,i As DWord ,j As DWord ,k As DWord ,l As DWord ,m As DWord ,n As DWord ) 
+	Dim dbuf[1024] As Byte
+	Dim p AS DWord
+	p=wsprintf(dbuf,lpFormat,a,b,c,d,e,f,g,h,i,j,k,l,m,n)
+
+	DBM(dbuf)
+EndSub
+
+Sub logger(lpFormat As BytePtr)(a As DWord ,b As DWord ,c As DWord ,d As DWord ,e As DWord ,f As DWord ,g As DWord ,h As DWord ,i As DWord ,j As DWord ,k As DWord ,l As DWord ,m As DWord ,n As DWord ) 
+	Dim dbuf[1024] As Byte
+	Dim p AS DWord
+	p=wsprintf(dbuf,lpFormat,a,b,c,d,e,f,g,h,i,j,k,l,m,n)
+	PrintPtr(dbuf, p)
+#ifdef ENABLE_DEBUG_LOG
+	if debug_log_open then
+		debug_log.write(dbuf, p)
+	endif
+#endif
+EndSub
+
+
+Function DumpHKAC(Data As BytePtr,Size As DWORD)(VAdr As DWORD,noHeader As BOOL) As DWORD
+	Dim buf[70] As Byte,p As BytePtr, i As Long,Adr As DWORD
+		
+	'SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), BACKGROUND_BLUE OR BACKGROUND_GREEN OR BACKGROUND_RED)
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), &H0070)
+	if VAdr=0 Or noHeader=FALSE then logger( ex" ADDRESS  00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  0123456789ABCDEF \n")
+	SetConsoleTextAttribute(_System_hConsoleOut, 1 OR 2 OR 3 OR 4)
+	Do
+		SetConsoleTextAttribute(_System_hConsoleOut, &H10  OR 4 OR 3 )
+		logger("%08X  ",Adr+VAdr)
+		SetConsoleTextAttribute(_System_hConsoleOut, 1 OR 2 OR 3 OR 4)
+'		Print " ";
+		p=buf
+		For i=0 To &H0F
+			if Adr+i=>Size then
+				p+=wsprintf(p, "-- ")
+			Else 
+				p+=wsprintf(p, "%02X ",Data[Adr+i])
+			EndIf
+		Next i
+		p[0] = GetByte(" ")
+		p++
+		For i=0 To &H0F
+			if Adr+i=>Size then 
+				p[0] = GetByte(" ")
+				p++
+			Else
+				if Data[Adr+i]<&H20 or Data[Adr+i]=&HFF then 
+					p[0] = GetByte(".")
+					p++
+				Else
+					p[0] = Data[Adr+i]
+					p++
+				EndIf
+			endif
+		Next i
+		i=0
+'		logger(ex"\n")
+		p[0] = GetByte(ex" ")
+		p[1] = GetByte(ex"\n")
+		p[2] = 0
+		logger(buf)
+		'MessageBox(0,"L",0,0)
+		Adr+=&H10
+		if Adr+i=>Size then Goto *EXIT_LOOP
+'		
+	Loop
+*EXIT_LOOP
+	logger(ex"\n")
+'	Print Hex$(Adr*&H10+i)+"="+Hex$(Size)
+	DumpHKAC=Adr
+EndFunction
