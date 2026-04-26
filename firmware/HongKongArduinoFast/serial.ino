@@ -1,8 +1,14 @@
+#pragma GCC push_options
+#pragma GCC optimize("Ofast")
+
 //-----------------
 // low level serial comm
 //-----------------
 
-#if (F_CPU < 320000000UL)
+// Arduino UNO 16MHz: ポーリング方式
+// LGT8F328 32MHz: IRQ方式
+// Arduino UnoでIRQ方式使うと速度が40KB/s程度に半減する
+#if (F_CPU < 32000000ULL)
 #define SEND_METHOD_POLL
 #endif
 
@@ -12,13 +18,18 @@
 #define RX_BUF_SIZE 32
 #define RX_BUF_MASK (RX_BUF_SIZE - 1)
 
+#ifndef SEND_METHOD_POLL
+// #error "32MHz"
 static volatile uint8_t tx_buf[TX_BUF_SIZE];
-static volatile uint8_t tx_head = 0; // to be sent
-static volatile uint8_t tx_tail = 0; // sent
+static volatile uint8_t tx_head = 0;  // to be sent
+static volatile uint8_t tx_tail = 0;  // sent
+#else
+// #error "16MHz"
+#endif
 
 static volatile uint8_t rx_buf[RX_BUF_SIZE];
-static volatile uint8_t rx_head = 0; // received
-static volatile uint8_t rx_tail = 0; // consumed
+static volatile uint8_t rx_head = 0;  // received
+static volatile uint8_t rx_tail = 0;  // consumed
 
 uint8_t serial_available(void) {
   return (rx_head - rx_tail) & RX_BUF_MASK;
@@ -32,7 +43,7 @@ uint8_t serial_read(void) {
   return data;
 }
 
-uint16_t serial_read_word(void){
+uint16_t serial_read_word(void) {
   return (uint16_t)serial_read() | ((word)serial_read() << 8);
 }
 
@@ -48,14 +59,14 @@ void serial_begin(uint32_t baud) {
 
   UCSR0A = (u2x_en << U2X0);
   UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
-  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);                // 8bit
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);  // 8bit
 }
 
 long tx_spin_count = 0;
 inline void serial_send(uint8_t data) {
 #ifdef SEND_METHOD_POLL
   //UDRが空になるのを待つ
-  while (!(UCSR0A & _BV(UDRE0))){
+  while (!(UCSR0A & _BV(UDRE0))) {
     tx_spin_count++;
   }
   UDR0 = data;
@@ -64,7 +75,7 @@ inline void serial_send(uint8_t data) {
 
   // バッファフル待ち
   // 例えばフルの時、head=5 tail=6としてnextは6, tailが進んで7になるまで待つ。
-  while (next == tx_tail){
+  while (next == tx_tail) {
     tx_spin_count++;
   }
 
@@ -85,40 +96,14 @@ void serial_send_text(const char* text) {
   }
 }
 
-void serial_flush(){
+void serial_flush() {
   while (rx_head != rx_tail)
     ;
+#ifndef SEND_METHOD_POLL
   while (tx_head != tx_tail)
     ;
-}
-
-#ifndef SEND_METHOD_POLL
-ISR(USART_UDRE_vect) {
-  if (tx_head == tx_tail) {
-    // データ無し → 割り込み停止
-    UCSR0B &= ~(1 << UDRIE0);
-    return;
-  }
-
-  UDR0 = tx_buf[tx_tail];
-  tx_tail = (tx_tail + 1) & TX_BUF_MASK;
-}
 #endif
-
-ISR(USART_RX_vect) {
-  uint8_t data = UDR0;
-  uint8_t next = (rx_head + 1) & RX_BUF_MASK;
-
-  if (next == rx_tail) {
-#ifdef RX_OVERFLOW_WARN
-    rx_overflow = 1;
-#endif
-  } else {
-    rx_buf[rx_head] = data;
-    rx_head = next;
-  }
 }
-
 
 #if 0
 inline uint8_t hex2ascii(uint8_t hex) {
@@ -147,3 +132,33 @@ void hostsync_receive(uint16_t length) {
   } while (--i);
   interrupts();
 }
+
+
+#ifndef SEND_METHOD_POLL
+ISR(USART_UDRE_vect) {
+  if (tx_head == tx_tail) {
+    // データ無し → 割り込み停止
+    UCSR0B &= ~(1 << UDRIE0);
+    return;
+  }
+
+  UDR0 = tx_buf[tx_tail];
+  tx_tail = (tx_tail + 1) & TX_BUF_MASK;
+}
+#endif
+
+ISR(USART_RX_vect) {
+  uint8_t data = UDR0;
+  uint8_t next = (rx_head + 1) & RX_BUF_MASK;
+
+  if (next == rx_tail) {
+#ifdef RX_OVERFLOW_WARN
+    rx_overflow = 1;
+#endif
+  } else {
+    rx_buf[rx_head] = data;
+    rx_head = next;
+  }
+}
+
+#pragma GCC pop_options

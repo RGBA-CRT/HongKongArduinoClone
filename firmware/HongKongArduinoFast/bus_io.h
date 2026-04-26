@@ -1,5 +1,9 @@
 #ifndef __SNES_IO_H__
 #define __SNES_IO_H__
+
+#pragma GCC push_options
+#pragma GCC optimize("Ofast")
+
 //データバス[PORTD]
 #define DATA0 2
 #define DATA1 3
@@ -45,21 +49,9 @@ const uint8_t PIN_PORTC_CE_MASK = 0b00001000;
 #define CART_WRITE_TOGGLE() PINC = 0b00010000
 
 // cart /OE control
-static uint8_t val_oe_or_mask;  // speed > ram_usage
-static uint8_t val_oe_and_mask;
-static uint8_t val_ce_or_mask;  // speed < ram_usage
-
-void SetFlashOECtrl(bool swap_ce_oe) {
-  if (!swap_ce_oe) {
-    val_oe_or_mask = PIN_PORTC_OE_MASK;
-    val_oe_and_mask = ~(PIN_PORTC_OE_MASK);
-    val_ce_or_mask = PIN_PORTC_CE_MASK;
-  } else {
-    val_oe_or_mask = PIN_PORTC_CE_MASK;
-    val_oe_and_mask = ~PIN_PORTC_CE_MASK;
-    val_ce_or_mask = PIN_PORTC_OE_MASK;
-  }
-}
+uint8_t val_oe_or_mask;  // speed > ram_usage
+uint8_t val_oe_and_mask;
+uint8_t val_ce_or_mask;  // speed < ram_usage
 
 #define CART_OUTPUT_ENABLE() PORTC &= val_oe_and_mask
 #define CART_OUTPUT_DISABLE() PORTC |= val_oe_or_mask
@@ -89,55 +81,12 @@ void SetFlashOECtrl(bool swap_ce_oe) {
     DDRB |= 0b00000011; \
   } while (0);
 
-//データーバスへ値をセット
-inline void setDataPin(byte b) {
-#if 0
-  PORTD &= 0b00000011;  //CLEAR
-  PORTD |= b << 2;      //ORでセット
-#else
-  PORTD = b << 2;  // direct set test
-#endif
-  PORTB &= 0b11111100;
-  PORTB |= b >> 6;
-}
+void setDataPin(byte b);
+void setFF(byte ch, byte b);
+void setAddressFFs(byte bank, word address);
+void setCtrlBus(byte b);
 
-//アドレスバスを構成するFlip-Flopへ値をセット
-inline void setFF(byte ch, byte b) {
-  //digitalWrite(G0 + ch, LOW); // FF番号chをWriteEnableに
-  PINB = (0b00001000 << ch);
-  setDataPin(b);
-
-  // digitalWrite(CK, HIGH);
-  PINC = 0b00000010;
-
-  //digitalWrite(CK, LOW);
-  PINC = 0b00000010;
-
-  //digitalWrite(G0 + ch, HIGH); // WriteDisable
-  PINB = (0b00001000 << ch);
-}
-
-//アドレスバスを設定
-inline void setAddressFFs(byte bank, word address) {
-  setFF(0, address);
-  setFF(1, address >> 8);
-  setFF(2, bank);
-}
-
-
-void setCtrlBus(byte b) {
-  if (b & 0b0001) {
-    CART_OUTPUT_DISABLE();
-  } else {
-    CART_OUTPUT_ENABLE();
-  }
-  if (b & 0b0010) {
-    CART_CHIP_DISABLE();
-  } else {
-    CART_CHIP_ENABLE();
-  }
-  digitalWrite(WE, (b & 0b0100) ? HIGH : LOW);
-  digitalWrite(RST, (b & 0b1000) ? HIGH : LOW);
-}
+void inline SetFlashOECtrl(bool swap_ce_oe);
+#pragma GCC pop_options
 
 #endif

@@ -84,6 +84,8 @@ Sub FlashWnd_CommandButton1_Click()
 		DBMf("maybe not flash detected.")
 		SetDlgItemText(hFlashWnd, ComboBox1, "<not flash>")
 		SetDlgItemText(hFlashWnd, FlashName, "<not flash>")
+		
+		SetDlgEnable(STATUS_CONNECTED)
 		ExitSub
 	End If
 

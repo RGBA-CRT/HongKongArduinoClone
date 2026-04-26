@@ -104,15 +104,13 @@ bool st018_biosDump(byte cmd) {
 
 byte st018_readbyte_cart(byte bank, word address) {
   setAddress(bank, address, false);
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
+  lazy_wait_1us();
+  
   CART_OUTPUT_ENABLE();
 
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
-  __asm__("nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t");
-
+  lazy_wait_1us();
+  lazy_wait_1us();
+  
   byte ret = readData();
 
   CART_OUTPUT_DISABLE();

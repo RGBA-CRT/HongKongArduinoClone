@@ -5,9 +5,19 @@ Some code is referred on [https://github.com/sanni/cartreader/].
 Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-docs
 */
 
+/* version history
+ * HKAF0: 2017/02: add version cmd
+ * HKAF1: 2018/02: dynamic baud rate, speedup: 82KB/s
+ * HKAF2: 2018/03: protocol change
+ * HLAF3: 2018/07: clock cmd change
+ * HKAF4: 2029/03: ST017 surpport
+ * HKAF5: 2025/08: flash write
+ */
+
 #pragma GCC push_options
 #pragma GCC optimize("O3")
 #include "bus_io.h"
+#include <assert.h>
 
 #define INITIAL_BAUDRATE 115200
 
@@ -25,18 +35,6 @@ const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
 #define LARGE_RX_BUFFER_LEN 0x400  //ホスト側とサイズを合わせる
 static_assert((LARGE_RX_BUFFER_LEN % 512) == 0, "RX_BUFFER is must be multiple value of page_size");
 uint8_t large_rx_buf[LARGE_RX_BUFFER_LEN];
-// static_assert(F_CPU == 320000000UL, "32MHz");
-
-/* version history
- * HKAF0: 2017/02: add version cmd
- * HKAF1: 2018/02: dynamic baud rate, speedup: 82KB/s
- * HKAF2: 2018/03: protocol change
- * HLAF3: 2018/07: clock cmd change
- * HKAF4: 2029/03: ST017 surpport
- * HKAF5: 2025/08: flash write
- */
-
-
 
 //CONFIG
 #define _ENABLE_CIC
@@ -44,28 +42,6 @@ uint8_t large_rx_buf[LARGE_RX_BUFFER_LEN];
 #define ENABLLE_SFMEM
 // #define BUILD_SUPER_SLOW_READ
 
-//----------------- 拡張回路 ------------------
-#ifdef _ENABLE_CIC
-
-#include "si5351.h"
-#include "Wire.h"
-#include <avr/io.h>
-
-extern "C" {
-#include <utility/twi.h>
-}
-//I2C通信状態を解除してA4,A5ピンを使用可能に
-void DISABLE_I2C() {
-  twi_disable();
-}
-
-void ENABLE_I2C() {
-  twi_init();
-}
-
-//クロックジェネレータ
-Si5351 clockgen;
-#endif
 //--------------------------------------------
 
 uint8_t gflags;
@@ -75,31 +51,19 @@ uint8_t gflags;
 #define FLASH_CONFIG_VERIFY_FIXED_VALUE 0x08
 
 // NOP generator
+#if (F_CPU <= 16000000ULL)
 #define DELAY_FRACT 1
+#elif (F_CPU <= 32000000ULL)
+#define DELAY_FRACT 2
+#else
+#error "please config DELAY_FRACT"
+#endif
 #define nop_generate(x) __asm__ volatile(".rept " #x " \n\t nop \n\t .endr")
 #define minimum_delay(x) nop_generate(x)
 #define wait_62500_psec(x) minimum_delay((x * DELAY_FRACT))
 
+bool haveClockModule(void);
 
-//--------------
-// snes level
-//--------------
-#define LO_TO_REAL_ADDRESS(bank, address) \
-  { \
-    bank = (bank << 1) | (address >> 15); \
-    address |= 0x8000; \
-  }
-
-
-inline void setAddress(uint8_t bank, uint16_t address, uint8_t isLoROM) {
-  if (isLoROM) {
-    LO_TO_REAL_ADDRESS(bank, address);
-  }
-
-  BB_OUT_DISABLE();
-  setAddressFFs(bank, address);
-  // longWait();
-}
 
 uint8_t dbg = 0;
 void readCart(uint8_t isLoROM) {
@@ -158,145 +122,21 @@ void writeCart(int isLoROM = false) {
   //  Serial.println("WRITE_END");
 }
 
-void longWait() {
+void lazy_wait_1us() {
   wait_62500_psec(16);
 }
 
-uint8_t readData() {
-// #define UART_DEBUG
-#ifdef UART_DEBUG
-  return dbg++;
-#endif
-
-  CART_OUTPUT_ENABLE();
-  dataPinDirInput();
-  BB_OUT_ENABLE();
-
-  // OLD: 1000ns(16)
-  // TESTED AT 2026/03 & SA1 ROM DUMP, 125ns(2)
-  // TESTED AT 2026/03 & SA1バス釣り ROM DUMP, 125ns(2)
-  // AddressOutputDelay: 110nsぐらい
-  // Output Enable to Output Delay: 25nsぐらい
-  // Arduino Uno@16MHzでToggle nop2回 Toggle で200nsぐらい。
-  // 立ち上がり直前でラッチしたいので、前準備に時間かけていいけどRead後は小さくすると良い
-  wait_62500_psec(2);
-#ifdef BUILD_SUPER_SLOW_READ
-  uint8_t b;
-  if (gflags & GFLAGS_SUPER_SLOW_READ) {
-    const uint8_t ok_retry_max = 10;
-    const uint8_t ng_retry_max = 30;
-    uint8_t ok_cnt = ok_retry_max;
-    uint8_t ng_cnt = ng_retry_max;
-    uint8_t err = 0, b2;
-retry:
-    b = getDataPin();
-    longWait();
-    b2 = getDataPin();
-    if (b2 == b) {
-      ng_cnt = ng_retry_max;
-      if (--ok_cnt) { goto retry; }
-    } else {
-      ok_cnt = ok_retry_max;
-      err++;
-      if (--ng_cnt) { goto retry; }
-    }
-    b ^= b2;  // error bit report
-    // b = err; // error count report
-    // b = b2;
-  } else {
-    b = getDataPin();
-  }
-#else
-  uint8_t b = getDataPin();
-#endif
-
-  CART_OUTPUT_DISABLE();
-
-  BB_OUT_DISABLE();
-  dataPinDirOutput();
-  return b;
+// とてもざっくり不正確なウェイト
+void lazy_wait_us(word lazy_wait_us) {
+  for (word i = 0; i < lazy_wait_us; i++) { lazy_wait_1us(); }
 }
 
-// /REを制御して読み込む
-uint8_t read_byte_cart(uint8_t bank, uint16_t address) {
-  setAddress(bank, address, false);
-
-  // pre /OE pulse
-  wait_62500_psec(4);
-
-  CART_OUTPUT_ENABLE();
-
-  // NOPの数検証済み 4LINE（SA1のSRAM WRITE VERIFY）
-  wait_62500_psec(16);
-
-  uint8_t ret = readData();
-
-  CART_OUTPUT_DISABLE();
-  return ret;
-}
-
-//　/WRとかをちゃんと制御して書き込む
-void write_byte_cart(uint8_t bank, uint16_t address, uint8_t data) {
-  setAddress(bank, address, false);
-  setDataPin(data);
-
-  BB_DIR_OUTPUT();
-  BB_OUT_ENABLE();
-
-  // /WEパルス成立 & 74HC245 -> SFC へのデータ安定化のWAIT
-  // 74HC245 -> SFC へのデータ安定化
-  // OLD (8)
-  // TESTED AT 2026/03 & SA1バス釣り SRAM WRITE, 62.5ns(1)
-  wait_62500_psec(1);
-
-  CART_WRITE_ENABLE();
-
-  // /WEパルスの時間稼ぎ
-  // OLD: (16)
-  // TESTED AT 2026/03 & SA1 SRAM WRITE, 380ns(6)
-  // TESTED AT 2026/03 & SA1バス釣り SRAM WRITE, 312.5ns
-  wait_62500_psec(6);
-
-  CART_WRITE_DISABLE();
-
-  BB_OUT_DISABLE();
-  BB_DIR_INPUT();
-}
-
-uint8_t haveClockModule = 0;
-#ifdef _ENABLE_CIC
-//[Nintendo Cart Reader]より
-void setupCloclGen(bool clk1_en, bool clk2_en, bool clk3_en, bool clk2_oc) {
-  wait_62500_psec(4);
-  // Adafruit Clock Generator
-  ENABLE_I2C();
-  haveClockModule = clockgen.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
-  /*  clockgen.pll_reset(SI5351_PLLA);
-    clockgen.pll_reset(SI5351_PLLB);*/
-  if (haveClockModule) {
-    clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
-    clockgen.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
-    clockgen.set_freq(2147727200ULL, SI5351_CLK0);
-    if (clk2_oc) {
-      //over clock for SA-1
-      clockgen.set_freq(659000000ULL, SI5351_CLK1);
-    } else {
-      //normal clock
-      clockgen.set_freq(357954500ULL, SI5351_CLK1);
-    }
-    clockgen.set_freq(307200000ULL, SI5351_CLK2);
-    clockgen.output_enable(SI5351_CLK0, clk1_en);
-    clockgen.output_enable(SI5351_CLK1, clk2_en);
-    clockgen.output_enable(SI5351_CLK2, clk3_en);
-    /*   clockgen.set_clock_invert(SI5351_CLK0, 1);
-       clockgen.set_clock_invert(SI5351_CLK1, 1);
-       clockgen.set_clock_invert(SI5351_CLK2, 1);*/
-  }
-  DISABLE_I2C();
-}
-#endif
 
 void setup() {
+  // Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
+  // 115200
+  serial_begin(INITIAL_BAUDRATE);
+
   //コントロールピンをすべてOUTPUTに
   for (int i = GD; i <= RST; i++)
     pinMode(i, OUTPUT);
@@ -313,13 +153,16 @@ void setup() {
 
   digitalWrite(OE, HIGH);
   digitalWrite(CS, HIGH);
-  digitalWrite(WE, HIGH);
-  digitalWrite(RST, LOW);
 
 #ifdef _ENABLE_CIC
   //クロックジェネレータの動作を開始
+  // setupCloclGen_(true, false, true, false);
+
   setupCloclGen(true, false, true, false);
 #endif
+
+  digitalWrite(WE, HIGH);
+  digitalWrite(RST, LOW);
 
   SetFlashOECtrl(false);
   //アクセスランプを消灯＆アドレスバス初期化
@@ -336,12 +179,8 @@ void setup() {
   digitalWrite(WE, HIGH);
   digitalWrite(RST, HIGH);
 
-  // Pull-Donw disable
-  MCUCR |= 0x10;
-
-  // Serial.begin(INITIAL_BAUDRATE, SERIAL_CONFIG);
-  // 115200
-  serial_begin(INITIAL_BAUDRATE);
+  // Pull-Donw
+  // MCUCR |= 0x10;
 }
 
 void loop() {
@@ -434,7 +273,7 @@ void loop() {
     case 'G':
       {
         //return clock module status
-        serial_send('0' | haveClockModule);
+        serial_send('0' | haveClockModule());
       }
       break;
 
@@ -444,7 +283,7 @@ void loop() {
         serial_send(FIRMWARE_VERSION);
 #ifdef _ENABLE_CIC
         serial_send_text("-CIC ");
-        serial_send_text(haveClockModule ? "[con]" : "[dis]");
+        serial_send_text(haveClockModule() ? "[con]" : "[dis]");
 #endif
         // Serial.print("\nFash:\n");
         // Serial.print(flash_bank, HEX);        Serial.print(flash_address[0], HEX);        Serial.print(":");        Serial.print(flash_cmd[0], HEX);        Serial.print(",\t");
@@ -461,6 +300,7 @@ void loop() {
         serial_send(tx_spin_count >> 16);
         serial_send(tx_spin_count >> 8);
         serial_send(tx_spin_count);
+        serial_send('0' + DELAY_FRACT);
       }
       break;
 

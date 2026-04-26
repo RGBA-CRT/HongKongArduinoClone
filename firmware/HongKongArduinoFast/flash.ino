@@ -1,5 +1,5 @@
 #pragma GCC push_options
-#pragma GCC optimize("O3")
+#pragma GCC optimize("Ofast")
 
 
 #define FLASH_OE_ENABLE() PORTC &= val_oe_and_mask
@@ -224,7 +224,7 @@ void flashPageProgram(uint8_t bank, uint16_t address, uint16_t datasize) {
 
       if (!initial) {
         uint8_t wait = flash_page_wait;
-        while (--wait) { longWait(); }
+        while (--wait) { lazy_wait_1us(); }
         uint8_t wait_ret = flashWaitOperation(FLASH_PAGE_WRITE_EXPECTED_STATUS);
         if (wait_ret != FLASH_PAGE_WRITE_EXPECTED_STATUS) {
           sendErrorReport(bank, --address, wait_ret, FLASH_PAGE_WRITE_EXPECTED_STATUS);

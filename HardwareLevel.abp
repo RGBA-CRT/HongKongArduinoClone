@@ -373,7 +373,7 @@ Sub FlushCom(hSerial AS HANDLE)(debugExpect AS Long)
 	DumpHKAC(tmp, cs.cbInQue)
 	
 	if debugExpect=0 then
-		debug
+		'debug
 	Elseif debugExpect=2 then
 		tmp[cs.cbInQue] = 0
 		PrintPtr(tmp)

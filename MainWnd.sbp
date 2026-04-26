@@ -1316,20 +1316,10 @@ Sub ResetArduino(hCOM AS HANDLE)
 End Sub
 
 
-Sub MainWnd_CommandButton12_Click()
-	DBM("HKAC_CLOCK_CPU_ENABLED")
-	SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED)
-	
-End Sub
-
 Sub MainWnd_CommandButton15_Click()
 	MainWnd_CommandButton17_Click()
 End Sub
 
-Sub MainWnd_CommandButton13_Click()
-	DBM("CPU CLOCK DISABLE")
-	SetCPU_Clock(hCOM, HKAC_CLOCK_DISABLED)
-End Sub
 
 Sub MainWnd_CommandButton14_Click()
 	SFM_open()
@@ -2063,4 +2053,19 @@ End Function
 Sub MainWnd_CommandButton20_Click()
 	DBM("dumper info cmd")
 	DumperDebugInfo(hCOM)
+End Sub
+
+Sub MainWnd_CommandButton12_Click()
+	DBM("HKAC_CLOCK_CPU_ENABLED")
+	SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_ENABLED)
+End Sub
+Sub MainWnd_CommandButton13_Click()
+	DBM("CPU CLOCK DISABLE")
+	SetCPU_Clock(hCOM, HKAC_CLOCK_DISABLED)
+End Sub
+
+Sub MainWnd_CommandButton21_Click()
+	DBM("HKAC_CLOCK_CPU_OVERCLOCKED")
+	SetCPU_Clock(hCOM, HKAC_CLOCK_CPU_OVERCLOCKED)
+
 End Sub
