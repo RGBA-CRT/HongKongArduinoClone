@@ -27,7 +27,7 @@ Protocol notes: https://github.com/RGBA-CRT/HongKongArduinoClone/wiki/Firmware-d
 #define FIRMWARE_VERSION "5"  // FWのAPIが変わったらインクリメント
 #else
 #define FIRMWARE_NAME "HKAD"  // debug branch
-#define FIRMWARE_VERSION "2"
+#define FIRMWARE_VERSION "3"
 #endif
 
 const char* FIRMWARE_ID = (FIRMWARE_NAME FIRMWARE_VERSION);
